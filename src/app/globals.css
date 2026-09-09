@@ -4194,3 +4194,132 @@ select,
   .cost-rows { grid-template-columns: 1fr; }
   .capital-metrics .metric { min-height: 116px; }
 }
+
+/* Motion and form interaction refinement */
+.metric > strong,
+.chart-summary > strong,
+.cost-rows strong,
+.allocation-donut strong {
+  font-variant-numeric: tabular-nums;
+  will-change: contents;
+}
+.chart-trace {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  will-change: stroke-dashoffset;
+}
+.chart-area { will-change: opacity; }
+
+input,
+select,
+textarea {
+  min-height: 46px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+  color: var(--text-primary);
+  font: inherit;
+  line-height: 1.35;
+  transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+}
+input[type="checkbox"] {
+  min-height: 16px;
+  padding: 0;
+}
+input[type="range"] {
+  min-height: 28px;
+  padding: 0;
+  box-shadow: none;
+}
+input,
+select { padding: 12px 14px; }
+textarea {
+  width: 100%;
+  padding: 13px 14px;
+  resize: vertical;
+}
+select {
+  cursor: pointer;
+  padding-right: 36px;
+  color-scheme: dark;
+}
+select option {
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+input:hover,
+select:hover,
+textarea:hover { border-color: #52525b; }
+input:focus,
+select:focus,
+textarea:focus,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px #818cf824, 0 10px 30px #00000024;
+}
+.fields-grid {
+  isolation: isolate;
+  overflow: visible;
+}
+.field {
+  position: relative;
+  cursor: text;
+}
+.field:focus-within { z-index: 12; }
+.field > span:first-child {
+  min-height: 20px;
+  pointer-events: none;
+}
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  min-height: 48px;
+  font-size: 14px;
+}
+.input-wrap,
+.icon-select {
+  width: 100%;
+  min-width: 0;
+}
+.icon-select > .asset-icon,
+.icon-select > .network-icon {
+  left: 13px;
+  z-index: 2;
+  pointer-events: none;
+}
+.icon-select select {
+  padding-left: 48px;
+  position: relative;
+  z-index: 1;
+}
+.input-wrap small {
+  top: 50%;
+  right: 14px;
+  transform: translateY(-50%);
+  font-size: 11px;
+}
+.list-toolbar > select,
+.search-input,
+.search-input input { min-height: 46px; }
+.network-selector select {
+  min-height: 36px;
+  box-shadow: none;
+  background: transparent;
+}
+[data-theme="light"] select { color-scheme: light; }
+
+@media (prefers-reduced-motion: reduce) {
+  .metric > strong,
+  .chart-summary > strong,
+  .cost-rows strong,
+  .allocation-donut strong,
+  .chart-trace,
+  .chart-area { will-change: auto; }
+}

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import Link from "next/link";
+import gsap from "gsap";
 import {
   ArrowDown,
   ArrowRight,
@@ -195,12 +196,62 @@ export function Metric({
   return (
     <div className="metric">
       <span>{label}</span>
-      <strong>{value}</strong>
+      <AnimatedValue value={value} />
       <small>
         {change && <b className="positive">{change}</b>} {caption}
       </small>
     </div>
   );
+}
+export function AnimatedValue({
+  value,
+  className,
+}: {
+  value: string;
+  className?: string;
+}) {
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const match = value.match(/-?[\d,.]+/);
+    if (!match || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      element.textContent = value;
+      return;
+    }
+    const raw = match[0];
+    const target = Number(raw.replaceAll(",", ""));
+    if (!Number.isFinite(target)) return;
+    const decimalPart = raw.split(".")[1];
+    const decimals = decimalPart?.length || 0;
+    const integerWidth = decimals ? 0 : raw.replace(/[^\d]/g, "").length;
+    const start = match.index ?? 0;
+    const prefix = value.slice(0, start);
+    const suffix = value.slice(start + raw.length);
+    const state = { current: 0 };
+    const tween = gsap.to(state, {
+      current: target,
+      duration: 0.85,
+      ease: "power2.out",
+      onUpdate: () => {
+        const absolute = Math.abs(state.current);
+        let formatted = decimals
+          ? absolute.toFixed(decimals)
+          : Math.round(absolute).toLocaleString("en-US");
+        if (integerWidth > 1 && !formatted.includes(",")) {
+          formatted = formatted.padStart(integerWidth, "0");
+        }
+        element.textContent = `${prefix}${target < 0 ? "-" : ""}${formatted}${suffix}`;
+      },
+      onComplete: () => {
+        element.textContent = value;
+      },
+    });
+    return () => {
+      tween.kill();
+    };
+  }, [value]);
+  return <strong ref={ref} className={className}>{value}</strong>;
 }
 export function money(n: number, compact = false) {
   return new Intl.NumberFormat("en-US", {
@@ -220,6 +271,7 @@ export function PerformanceChart({
   label?: string;
 }) {
   const id = useId().replaceAll(":", "");
+  const chartRef = useRef<SVGSVGElement>(null);
   const width = 800,
     height = mini ? 70 : 230;
   const min = Math.min(...points) * 0.99,
@@ -230,8 +282,25 @@ export function PerformanceChart({
   );
   const line = coords.join(" ");
   const up = points.at(-1)! >= points[0];
+  useEffect(() => {
+    const chart = chartRef.current;
+    const trace = chart?.querySelector<SVGPolylineElement>(".chart-trace");
+    const area = chart?.querySelector<SVGPolygonElement>(".chart-area");
+    if (!chart || !trace || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const length = trace.getTotalLength();
+    const context = gsap.context(() => {
+      gsap.fromTo(
+        trace,
+        { strokeDasharray: length, strokeDashoffset: length },
+        { strokeDashoffset: 0, duration: mini ? 0.65 : 1.15, ease: "power2.out" },
+      );
+      if (area) gsap.fromTo(area, { opacity: 0 }, { opacity: 1, duration: 0.8, delay: mini ? 0.1 : 0.3 });
+    }, chart);
+    return () => context.revert();
+  }, [line, mini]);
   return (
     <svg
+      ref={chartRef}
       className={mini ? "sparkline" : "performance-chart"}
       viewBox={`0 0 ${width} ${height}`}
       role="img"
@@ -260,10 +329,12 @@ export function PerformanceChart({
           />
         ))}
       <polygon
+        className="chart-area"
         points={`0,${height} ${line} ${width},${height}`}
         fill={`url(#${id})`}
       />
       <polyline
+        className="chart-trace"
         points={line}
         fill="none"
         stroke={up ? "#84d7b1" : "#eaa082"}

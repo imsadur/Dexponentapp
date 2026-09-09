@@ -47,6 +47,7 @@ import {
 } from "@/domain/strategy";
 import {
   Brand,
+  AnimatedValue,
   AssetIcon,
   Badge,
   EmptyState,
@@ -632,7 +633,7 @@ function Dashboard({ network }: { network: string }) {
             </div>
           </div>
           <div className="chart-summary">
-            <strong>{money(tvl)}</strong>
+            <AnimatedValue value={money(tvl)} />
             <span className="positive">
               <ArrowUpRight size={15} />
               {range === 30 ? "3.61" : range === 90 ? "8.42" : "12.87"}%{" "}
@@ -705,7 +706,7 @@ function Dashboard({ network }: { network: string }) {
           >
             <div>
               <span>STRATEGIES</span>
-              <strong>{new Set(active.map((f) => f.type)).size}</strong>
+              <AnimatedValue value={String(new Set(active.map((f) => f.type)).size)} />
               <small>in your portfolio</small>
             </div>
           </div>
@@ -739,17 +740,17 @@ function Dashboard({ network }: { network: string }) {
         <div className="cost-rows">
           <div>
             <span>Management fees</span>
-            <strong>{money(modeledManagementFee, true)}</strong>
+            <AnimatedValue value={money(modeledManagementFee, true)} />
             <i style={{ width: "68%" }} />
           </div>
           <div>
             <span>Performance fees</span>
-            <strong>{money(modeledPerformanceFee, true)}</strong>
+            <AnimatedValue value={money(modeledPerformanceFee, true)} />
             <i style={{ width: "42%" }} />
           </div>
           <div>
             <span>Projected net yield</span>
-            <strong className="positive">{money(Math.max(0, projectedYield - modeledManagementFee - modeledPerformanceFee), true)}</strong>
+            <AnimatedValue className="positive" value={money(Math.max(0, projectedYield - modeledManagementFee - modeledPerformanceFee), true)} />
             <i className="positive-bar" style={{ width: "84%" }} />
           </div>
         </div>
