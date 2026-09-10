@@ -8,6 +8,12 @@ test("landing, dashboard, every strategy, draft recovery and honest deployment",
   await page.goto("/");
   await expect(
     page.getByRole("heading", {
+      name: /Choose a page/,
+    }),
+  ).toBeVisible();
+  await page.locator('a[href="/preview/landing/v2"]').click();
+  await expect(
+    page.getByRole("heading", {
       name: /Launch and run onchain Farms with clarity/,
     }),
   ).toBeVisible();

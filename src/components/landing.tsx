@@ -22,7 +22,7 @@ import {
 } from "@/domain/strategy";
 import { useApp } from "./provider";
 gsap.registerPlugin(ScrollTrigger, useGSAP);
-export function Landing() {
+export function Landing({ release = "v2" }: { release?: string }) {
   const [type, setType] = useState<StrategyType>("INDEX");
   const root = useRef<HTMLElement>(null);
   const t = templates.find((t) => t.type === type)!;
@@ -40,7 +40,11 @@ export function Landing() {
     return () => media.revert();
   }, { scope: root });
   return (
-    <main className="landing" ref={root}>
+    <main className={`landing release-${release}`} ref={root}>
+      <div className="preview-strip">
+        <span>Landing page · {release}</span>
+        <Link href="/">All product versions</Link>
+      </div>
       <nav className="landing-nav">
         <Brand />
         <div className="landing-links">

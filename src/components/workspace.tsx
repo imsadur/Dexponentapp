@@ -73,7 +73,7 @@ const nav = [
   { label: "Templates", section: "templates", href: "/app/templates", icon: Grid2X2 },
   { label: "Metrics", section: "analytics", href: "/app/analytics", icon: Activity },
 ];
-export function Workspace() {
+export function Workspace({ previewVersion }: { previewVersion?: string } = {}) {
   const path = usePathname();
   const app = useApp();
   const [menu, setMenu] = useState(false);
@@ -87,7 +87,7 @@ export function Workspace() {
   const [newUserName, setNewUserName] = useState("");
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
   const segments = path.split("/").filter(Boolean);
-  const section = segments[1] || "dashboard";
+  const section = previewVersion ? "dashboard" : segments[1] || "dashboard";
   const isWizard = path === "/app/farms/new" || segments[3] === "edit";
   let content;
   if (isWizard)
@@ -314,6 +314,12 @@ export function Workspace() {
           id="main"
           className={isWizard ? "main-content wizard-content" : "main-content"}
         >
+          {previewVersion && (
+            <div className="preview-strip workspace-preview-strip">
+              <span>Capital dashboard · {previewVersion}</span>
+              <Link href="/">All product versions</Link>
+            </div>
+          )}
           {app.storageError && (
             <Notice tone="warning">
               {app.storageError}{" "}

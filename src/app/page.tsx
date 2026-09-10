@@ -1,4 +1,4 @@
-import { Landing } from "@/components/landing";
+import { ProductIndex } from "@/components/product-index";
 export default function Page() {
-  return <Landing />;
+  return <ProductIndex />;
 }
