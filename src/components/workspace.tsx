@@ -55,6 +55,7 @@ import {
   type Scenario,
   type StrategyType,
 } from "@/domain/strategy";
+import { isFarmWizardRoute } from "@/domain/routes";
 import {
   Brand,
   AnimatedValue,
@@ -86,7 +87,7 @@ const legacyNav = [
 const nav = [
   { label: "Capital", section: "dashboard", href: "/app/dashboard", icon: LayoutDashboard },
   { label: "Managed Farms", section: "farms", href: "/app/farms", icon: Leaf },
-  { label: "Positions / Portfolio", section: "positions", href: "/app/positions", icon: Briefcase },
+  { label: "Positions", section: "positions", href: "/app/positions", icon: Briefcase },
   { label: "Templates", section: "templates", href: "/app/templates", icon: Grid2X2 },
   { label: "Metrics", section: "analytics", href: "/app/analytics", icon: Activity },
 ];
@@ -110,7 +111,7 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
   const section = previewVersion ? "dashboard" : segments[1] || "dashboard";
   const isV2 = previewVersion !== "v1";
   const activeNav = isV2 ? nav : legacyNav;
-  const isWizard = path === "/app/farms/new" || segments[3] === "edit";
+  const isWizard = isFarmWizardRoute(segments);
   let content;
   if (isWizard)
     content = (
