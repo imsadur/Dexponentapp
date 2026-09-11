@@ -57,6 +57,12 @@ import {
 } from "@/domain/strategy";
 import { isFarmWizardRoute } from "@/domain/routes";
 import {
+  canPauseFarm,
+  depositToDemoFarm,
+  setFarmPaused,
+  withdrawFromDemoFarm,
+} from "@/domain/farm-actions";
+import {
   Brand,
   AnimatedValue,
   AssetIcon,
@@ -1410,6 +1416,8 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
   const [action, setAction] = useState("");
   const [period, setPeriod] = useState(30);
   const [depositAmount, setDepositAmount] = useState("1000");
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [actionError, setActionError] = useState("");
   if (!farm)
     return (
       <EmptyState
@@ -1419,7 +1427,8 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
         label="View farms"
       />
     );
-  const t = templateById(farm.templateId)!;
+  const currentFarm = farm;
+  const t = templateById(currentFarm.templateId)!;
   const data = simulate(
     { ...farm.values, assumedApr: farm.apy || 12 },
     farm.type,
@@ -1427,18 +1436,67 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
     period,
   );
   const local = farm.source === "local";
+  const pauseAvailable = canPauseFarm(farm);
+  const demoPosition = Number(farm.values.demoPosition || 0);
+  function closeAction() {
+    setAction("");
+    setActionError("");
+  }
+  function completeDeposit() {
+    try {
+      const updated = depositToDemoFarm(currentFarm, Number(depositAmount));
+      app.saveFarm(updated);
+      closeAction();
+      app.toast(
+        `${Number(depositAmount).toLocaleString()} ${String(currentFarm.values.asset)} deposited in demo mode.`,
+      );
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "Unable to complete deposit.",
+      );
+    }
+  }
+  function completeWithdrawal() {
+    try {
+      const updated = withdrawFromDemoFarm(currentFarm, Number(withdrawAmount));
+      app.saveFarm(updated);
+      closeAction();
+      app.toast(
+        `${Number(withdrawAmount).toLocaleString()} ${String(currentFarm.values.asset)} withdrawn in demo mode.`,
+      );
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "Unable to complete withdrawal.",
+      );
+    }
+  }
   function confirmAction() {
     if (!farm) return;
-    const updated = {
-      ...farm,
-      updatedAt: new Date().toISOString(),
-      events: [...farm.events, `${action} · local demo action`],
-    };
-    if (action === "Pause farm") updated.status = "PAUSED";
-    if (action === "Resume farm") updated.status = "ACTIVE";
-    app.saveFarm(updated);
-    setAction("");
-    app.toast("Demo farm updated. No blockchain transaction was sent.");
+    try {
+      const updated =
+        action === "Pause farm" || action === "Resume farm"
+          ? setFarmPaused(farm, action === "Pause farm")
+          : {
+              ...farm,
+              updatedAt: new Date().toISOString(),
+              events: [...farm.events, `${action} · local demo action`],
+            };
+      app.saveFarm(updated);
+      closeAction();
+      app.toast(
+        action === "Pause farm"
+          ? "Farm paused in demo mode. Deposits are now disabled."
+          : action === "Resume farm"
+            ? "Farm resumed in demo mode."
+            : "Demo Farm updated. No blockchain transaction was sent.",
+      );
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "Unable to update Farm.",
+      );
+    }
   }
   return (
     <>
@@ -1471,12 +1529,40 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
               </Link>
             ) : (
               <>
-                <button className="button primary" onClick={() => setAction("Deposit to Farm")}>
+                <button
+                  className="button primary"
+                  disabled={farm.status !== "ACTIVE"}
+                  onClick={() => {
+                    setActionError("");
+                    setAction("Deposit to Farm");
+                  }}
+                >
                   <Droplets size={15} /> Deposit
                 </button>
                 <button
                   className="button"
-                  onClick={() => setAction(farm.status === "PAUSED" ? "Resume farm" : "Pause farm")}
+                  onClick={() => {
+                    setActionError("");
+                    setWithdrawAmount(demoPosition ? String(demoPosition) : "");
+                    setAction("Withdraw assets");
+                  }}
+                >
+                  Withdraw
+                </button>
+                <button
+                  className="button"
+                  disabled={!pauseAvailable}
+                  title={
+                    pauseAvailable
+                      ? undefined
+                      : "Pause is available only for manager-controlled demo Farms."
+                  }
+                  onClick={() => {
+                    setActionError("");
+                    setAction(
+                      farm.status === "PAUSED" ? "Resume farm" : "Pause farm",
+                    );
+                  }}
                 >
                   {farm.status === "PAUSED" ? "Resume" : "Pause"}
                 </button>
@@ -1644,6 +1730,24 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
               <h3>Position allocation</h3>
               <Badge>DEMO</Badge>
             </div>
+            <div className="demo-position-summary">
+              <div>
+                <span>Your demo position</span>
+                <strong>
+                  {demoPosition.toLocaleString()} {String(farm.values.asset)}
+                </strong>
+              </div>
+              <button
+                className="button small"
+                onClick={() => {
+                  setActionError("");
+                  setWithdrawAmount(demoPosition ? String(demoPosition) : "");
+                  setAction("Withdraw assets");
+                }}
+              >
+                Withdraw
+              </button>
+            </div>
             {(farm.type === "INDEX"
               ? farm.allocations
               : [{ asset: String(farm.values.asset), weight: 100 }]
@@ -1671,7 +1775,7 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
               <div><span>Available capacity</span><strong>{money(Math.max(0, Number(farm.values.capacity) - farm.tvl), true)}</strong></div>
               <div><span>Withdrawal window</span><strong>24 hours · demo</strong></div>
             </div>
-            {!local && <button className="button primary full" onClick={() => setAction("Deposit to Farm")}>Deposit to this Farm <ArrowRight size={15} /></button>}
+            {!local && <button className="button primary full" disabled={farm.status !== "ACTIVE"} onClick={() => { setActionError(""); setAction("Deposit to Farm"); }}>Deposit to this Farm <ArrowRight size={15} /></button>}
           </section>
           <section className="panel">
             <div className="panel-heading"><div><h3>Liquidity provider snapshot</h3><p>Illustrative participation data.</p></div><Users size={18} /></div>
@@ -1745,13 +1849,24 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
               ? "Update your local strategy or continue the creation flow."
               : "Demo controls update this browser only."}
           </p>
+          {!local && !pauseAvailable && (
+            <Notice>
+              Pause is unavailable for this Farm because its demo deployment
+              does not include manager pause permissions. Withdrawals remain
+              available for any demo balance you own.
+            </Notice>
+          )}
           <div className="heading-actions">
             <Link className="button" href={`/app/farms/${id}/edit`}>
               {local ? "Edit configuration" : "Create editable copy"}
             </Link>
             <button
               className="button"
-              onClick={() => setAction("Withdraw assets")}
+              onClick={() => {
+                setActionError("");
+                setWithdrawAmount(demoPosition ? String(demoPosition) : "");
+                setAction("Withdraw assets");
+              }}
             >
               Withdraw
             </button>
@@ -1765,24 +1880,138 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
         </section>
       )}
       {action && (
-        <Modal title={action} onClose={() => setAction("")}>
+        <Modal
+          title={
+            action === "Pause farm"
+              ? "Pause this Farm?"
+              : action === "Resume farm"
+                ? "Resume this Farm?"
+                : action
+          }
+          onClose={closeAction}
+        >
           {action === "Deposit to Farm" ? (
             <>
-              <p className="muted">Enter the amount of {String(farm.values.asset)} you want to deposit into {farm.name}.</p>
-              <label className="field"><span>Deposit amount</span><div className="input-wrap"><input type="number" min="100" value={depositAmount} onChange={(event) => setDepositAmount(event.target.value)} /><small>{String(farm.values.asset)}</small></div></label>
-              <div className="deposit-summary"><span>You deposit</span><strong>{Number(depositAmount || 0).toLocaleString()} {String(farm.values.asset)}</strong><span>Illustrative APY</span><strong>{farm.apy}%</strong></div>
-              <Notice>No transaction will be sent in this prototype. A live deposit would require wallet confirmation.</Notice>
-              <button className="button primary full" disabled={Number(depositAmount) < 100} onClick={() => { setAction(""); app.toast("Deposit preview completed. No transaction was sent."); }}>Preview deposit <ArrowRight size={15} /></button>
+              <p className="muted">
+                Add {String(farm.values.asset)} to your demo position in {farm.name}.
+              </p>
+              <label className="field">
+                <span>Deposit amount</span>
+                <div className="input-wrap">
+                  <input
+                    aria-label="Deposit amount"
+                    type="number"
+                    min="100"
+                    value={depositAmount}
+                    onChange={(event) => {
+                      setDepositAmount(event.target.value);
+                      setActionError("");
+                    }}
+                  />
+                  <small>{String(farm.values.asset)}</small>
+                </div>
+              </label>
+              <div className="deposit-summary">
+                <span>You deposit</span>
+                <strong>{Number(depositAmount || 0).toLocaleString()} {String(farm.values.asset)}</strong>
+                <span>Your position after deposit</span>
+                <strong>{(demoPosition + Number(depositAmount || 0)).toLocaleString()} {String(farm.values.asset)}</strong>
+                <span>Illustrative APY</span>
+                <strong>{farm.apy}%</strong>
+              </div>
+              <Notice>
+                This updates your local demo balance immediately. No wallet or
+                blockchain transaction is used.
+              </Notice>
+              {actionError && <p className="field-error" role="alert">{actionError}</p>}
+              <button
+                className="button primary full"
+                disabled={Number(depositAmount) < 100}
+                onClick={completeDeposit}
+              >
+                Confirm demo deposit <ArrowRight size={15} />
+              </button>
             </>
-          ) : action === "View contract" || action === "Withdraw assets" ? (
+          ) : action === "Withdraw assets" ? (
+            <>
+              <p className="muted">
+                Withdraw from your {demoPosition.toLocaleString()} {String(farm.values.asset)} demo position.
+              </p>
+              <label className="field">
+                <span>Withdrawal amount</span>
+                <div className="input-wrap">
+                  <input
+                    aria-label="Withdrawal amount"
+                    type="number"
+                    min="0"
+                    max={demoPosition}
+                    value={withdrawAmount}
+                    onChange={(event) => {
+                      setWithdrawAmount(event.target.value);
+                      setActionError("");
+                    }}
+                  />
+                  <small>{String(farm.values.asset)}</small>
+                </div>
+              </label>
+              <div className="withdraw-presets" aria-label="Withdrawal amount shortcuts">
+                {[25, 50, 100].map((percent) => (
+                  <button
+                    type="button"
+                    key={percent}
+                    disabled={!demoPosition}
+                    onClick={() => setWithdrawAmount(String((demoPosition * percent) / 100))}
+                  >
+                    {percent === 100 ? "Max" : `${percent}%`}
+                  </button>
+                ))}
+              </div>
+              <div className="deposit-summary">
+                <span>You withdraw</span>
+                <strong>{Number(withdrawAmount || 0).toLocaleString()} {String(farm.values.asset)}</strong>
+                <span>Remaining position</span>
+                <strong>{Math.max(0, demoPosition - Number(withdrawAmount || 0)).toLocaleString()} {String(farm.values.asset)}</strong>
+              </div>
+              <Notice>
+                Demo withdrawals complete immediately, including while an
+                eligible Farm is paused.
+              </Notice>
+              {actionError && <p className="field-error" role="alert">{actionError}</p>}
+              <button
+                className="button primary full"
+                disabled={!demoPosition || Number(withdrawAmount) <= 0 || Number(withdrawAmount) > demoPosition}
+                onClick={completeWithdrawal}
+              >
+                Confirm demo withdrawal
+              </button>
+            </>
+          ) : action === "View contract" ? (
+            <>
+              <p>No live contract is connected to this demo Farm.</p>
+              <button className="button full" onClick={closeAction}>Understood</button>
+            </>
+          ) : action === "Pause farm" || action === "Resume farm" ? (
             <>
               <p>
-                No live contract or withdrawable balance is connected to this{" "}
-                {local ? "strategy" : "demo farm"}.
+                {action === "Pause farm"
+                  ? `Are you sure you want to pause “${farm.name}”? New deposits will stop until you resume it.`
+                  : `Resume “${farm.name}” and allow new demo deposits again?`}
               </p>
-              <button className="button full" onClick={() => setAction("")}>
-                Understood
-              </button>
+              <Notice tone={action === "Pause farm" ? "warning" : "info"}>
+                Existing demo positions remain withdrawable. This control is
+                available only because this Farm was deployed with manager pause
+                permissions.
+              </Notice>
+              {actionError && <p className="field-error" role="alert">{actionError}</p>}
+              <div className="modal-actions">
+                <button className="button" onClick={closeAction}>Cancel</button>
+                <button
+                  className={action === "Pause farm" ? "button danger" : "button primary"}
+                  onClick={confirmAction}
+                >
+                  {action === "Pause farm" ? "Yes, pause Farm" : "Resume Farm"}
+                </button>
+              </div>
             </>
           ) : (
             <>
@@ -1794,7 +2023,7 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
                 be sent.
               </Notice>
               <div className="modal-actions">
-                <button className="button" onClick={() => setAction("")}>
+                <button className="button" onClick={closeAction}>
                   Cancel
                 </button>
                 <button className="button primary" onClick={confirmAction}>

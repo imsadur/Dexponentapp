@@ -37,9 +37,6 @@ test("landing, dashboard, every strategy, draft recovery and honest deployment",
     await page.goto("/app/farms/new");
     await page.getByRole("button", { name: new RegExp(`${family} `) }).click();
     await page
-      .getByRole("button", { name: "Choose template", exact: true })
-      .click();
-    await page
       .getByRole("button", {
         name: new RegExp(
           `${template} Build|${template} Allocate|${template} Configure`,
@@ -47,7 +44,7 @@ test("landing, dashboard, every strategy, draft recovery and honest deployment",
       })
       .click();
     await expect(
-      page.getByRole("heading", { name: "Make this strategy yours." }),
+      page.getByRole("heading", { name: "Make this Farm yours." }),
     ).toBeVisible();
     if (family === "Index") {
       await page.locator('input[accept*="image/png"]').setInputFiles({
@@ -71,7 +68,7 @@ test("landing, dashboard, every strategy, draft recovery and honest deployment",
         .getByRole("spinbutton", { name: "WBTC weight", exact: true })
         .fill("10");
       await page
-        .getByRole("button", { name: "Review strategy", exact: true })
+        .getByRole("button", { name: "Continue to risk & fees", exact: true })
         .click();
       await expect(
         page.getByText("Asset weights must total exactly 100%."),
@@ -95,8 +92,10 @@ test("landing, dashboard, every strategy, draft recovery and honest deployment",
       });
     }
     await page
-      .getByRole("button", { name: "Review strategy", exact: true })
+      .getByRole("button", { name: "Continue to risk & fees", exact: true })
       .click();
+    await expect(page.getByRole("heading", { name: "Set the guardrails." })).toBeVisible();
+    await page.getByRole("button", { name: "Review Farm", exact: true }).click();
     await expect(
       page.getByRole("heading", { name: "Every detail, in perspective." }),
     ).toBeVisible();
@@ -108,22 +107,16 @@ test("landing, dashboard, every strategy, draft recovery and honest deployment",
     await page.getByRole("button", { name: "Review this scenario" }).click();
     await page.getByRole("button", { name: "Continue to deploy" }).click();
     await expect(
-      page.getByRole("button", { name: "Complete deployment preview" }),
+      page.getByRole("button", { name: "Deploy demo Farm" }),
     ).toBeDisabled();
     await page.getByRole("checkbox").check();
     await page
-      .getByRole("button", { name: "Complete deployment preview" })
+      .getByRole("button", { name: "Deploy demo Farm" })
       .click();
-    await expect(
-      page.getByRole("heading", {
-        name: "Your strategy is ready for its next chapter.",
-      }),
-    ).toBeVisible();
-    await page.getByRole("link", { name: "View farm", exact: true }).click();
     await expect(
       page.getByRole("heading", { name: `Test ${family}`, exact: true }),
     ).toBeVisible();
-    await expect(page.getByText("READY", { exact: true })).toBeVisible();
+    await expect(page.getByText("ACTIVE", { exact: true })).toBeVisible();
     if (family === "Index") {
       await page.getByRole("button", { name: "Documents", exact: true }).click();
       await expect(page.getByText("farm-factsheet.pdf")).toBeVisible();
@@ -138,8 +131,8 @@ test("LP can discover a Farm and complete a deposit preview", async ({ page }) =
   await page.getByRole("button", { name: "Deposit", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Deposit to Farm" })).toBeVisible();
   await page.getByRole("spinbutton", { name: "Deposit amount" }).fill("2500");
-  await page.getByRole("button", { name: "Preview deposit" }).click();
-  await expect(page.getByText("Deposit preview completed. No transaction was sent.")).toBeVisible();
+  await page.getByRole("button", { name: "Confirm demo deposit" }).click();
+  await expect(page.getByText(/deposited in demo mode/)).toBeVisible();
 });
 test("workspace menu switches users and adds a local profile", async ({ page }) => {
   await page.goto("/app/dashboard");

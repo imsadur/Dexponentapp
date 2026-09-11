@@ -2,6 +2,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import gsap from "gsap";
+import { useGSAP } from "@gsap/react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -34,6 +36,7 @@ import {
   type Values,
 } from "@/domain/strategy";
 import { deploymentAdapter } from "@/adapters/deployment";
+import { deployDemoFarm } from "@/domain/farm-actions";
 import { useApp } from "./provider";
 import {
   Badge,
@@ -45,11 +48,19 @@ import {
   Notice,
   PerformanceChart,
   Risk,
-  StrategyFlow,
   StrategyIcon,
 } from "./ui";
 
-const steps = ["Strategy", "Template", "Configure", "Review", "Simulate", "Deploy"];
+gsap.registerPlugin(useGSAP);
+
+const steps = [
+  "Strategy + template",
+  "Configure",
+  "Risk & fees",
+  "Review",
+  "Simulate",
+  "Deploy",
+];
 export function Wizard({ farmId }: { farmId?: string }) {
   const app = useApp(),
     router = useRouter();
@@ -66,6 +77,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
   const [saveLabel, setSaveLabel] = useState("Not saved yet");
   const [assetToAdd, setAssetToAdd] = useState("DAI");
   const heading = useRef<HTMLHeadingElement>(null);
+  const selectionStage = useRef<HTMLDivElement>(null);
   const saveRef = useRef(app.saveFarm);
   saveRef.current = app.saveFarm;
   useEffect(() => {
@@ -86,17 +98,48 @@ export function Wizard({ farmId }: { farmId?: string }) {
       }
       setFarm(copy);
       setType(copy.type);
-      setStep(Math.min(copy.step, 4));
+      setStep(Math.min(copy.step, 5));
     } else {
       const t = templateById(params.get("template") || "");
       if (t) {
         setType(t.type);
         setFarm(makeFarm(t, crypto.randomUUID()));
-        setStep(2);
+        setStep(1);
       }
     }
     setInitialized(true);
   }, [app.ready, app.farms, farmId, initialized]);
+  useGSAP(
+    () => {
+      if (!type || step !== 0) return;
+      const reduceMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      if (reduceMotion) return;
+      gsap.fromTo(
+        ".template-reveal",
+        { autoAlpha: 0, y: 46 },
+        { autoAlpha: 1, y: 0, duration: 0.72, ease: "power3.out" },
+      );
+      gsap.fromTo(
+        ".template-reveal .template-card",
+        { autoAlpha: 0, y: 24 },
+        {
+          autoAlpha: 1,
+          y: 0,
+          duration: 0.48,
+          stagger: 0.045,
+          ease: "power2.out",
+          delay: 0.12,
+        },
+      );
+    },
+    {
+      dependencies: [type, step],
+      scope: selectionStage,
+      revertOnUpdate: true,
+    },
+  );
   useEffect(() => {
     if (!farm || success) return;
     setSaveLabel("Saving…");
@@ -172,7 +215,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function next() {
-    if (step === 2 && farm && t) {
+    if ((step === 1 || step === 2) && farm && t) {
       const e = validateStrategy(t, values, allocations, farm.network);
       setErrors(e);
       if (Object.keys(e).length) {
@@ -189,7 +232,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
     const created = makeFarm(selected, farm?.id || crypto.randomUUID());
     setFarm(created);
     setType(selected.type);
-    setStep(2);
+    setStep(1);
     setSimulated(false);
     setAccepted(false);
   }
@@ -197,21 +240,17 @@ export function Wizard({ farmId }: { farmId?: string }) {
     if (!farm || !t || !accepted) return;
     try {
       deploymentAdapter.prepare(farm, t);
-      const finished = {
-        ...farm,
-        status: "READY" as const,
-        step: 5,
-        name: String(values.name),
+      const projected = simulate(values, farm.type, "Base", 90);
+      const finished = deployDemoFarm(
+        { ...farm, name: String(values.name) },
         risk,
-        events: [
-          ...farm.events,
-          "Deployment preview completed · no transaction sent",
-        ],
-        updatedAt: new Date().toISOString(),
-      };
+        projected.apy,
+      );
       app.saveFarm(finished);
       setFarm(finished);
       setSuccess(true);
+      app.toast(`${finished.name} deployed and added to Managed Farms.`);
+      router.push(`/app/farms/${finished.id}`);
     } catch (e) {
       setErrors({
         deployment:
@@ -241,20 +280,20 @@ export function Wizard({ farmId }: { farmId?: string }) {
         <span className="success-icon">
           <CheckCircle2 size={38} />
         </span>
-        <Badge tone="mint">PREVIEW COMPLETE</Badge>
-        <h1>Your strategy is ready for its next chapter.</h1>
+        <Badge tone="mint">DEMO FARM ACTIVE</Badge>
+        <h1>Your Farm is deployed in demo mode.</h1>
         <p>
-          <strong>{farm.name}</strong> is saved in your workspace with its
-          configuration and deployment plan.
+          <strong>{farm.name}</strong> is active and now appears in Managed
+          Farms with working demo controls.
         </p>
         <Notice>
-          No assets were approved and no blockchain transaction was sent. Your
-          farm is marked Ready, awaiting a live contract integration.
+          This deployment uses local demo state. No wallet approval, assets, or
+          blockchain transaction were used.
         </Notice>
         {app.storageError && <Notice tone="warning">{app.storageError}</Notice>}
         <div className="hero-actions">
           <Link className="button primary" href={`/app/farms/${farm.id}`}>
-            View farm <ArrowRight size={16} />
+            Manage farm <ArrowRight size={16} />
           </Link>
           <button
             className="button"
@@ -276,20 +315,20 @@ export function Wizard({ farmId }: { farmId?: string }) {
       </div>
     );
   const titles = [
-    "Choose your strategy.",
-    "A head start, built in.",
-    "Make this strategy yours.",
+    "Choose a direction and a starting point.",
+    "Make this Farm yours.",
+    "Set the guardrails.",
     "Every detail, in perspective.",
     "Explore the possibilities.",
-    "A clear path to deployment.",
+    "Deploy your demo Farm.",
   ];
   const descriptions = [
-    "Start with how you want to put capital to work.",
-    "Start with thoughtful defaults. Fine-tune every detail next.",
-    "Configure the essentials. We’ll keep the big picture in view.",
+    "Select a strategy, then choose the template that best matches your intent.",
+    "Configure identity, assets, network, and core strategy behavior.",
+    "Review risk limits, fees, and advanced execution settings.",
     "Review your configuration before exploring hypothetical performance.",
     "Test assumptions across market conditions before you commit.",
-    "Review the plan and save your strategy for future deployment.",
+    "Activate a working demo Farm and manage it from your workspace.",
   ];
   const result = farm ? simulate(values, farm.type, scenario, days) : null;
   const plan =
@@ -342,8 +381,20 @@ export function Wizard({ farmId }: { farmId?: string }) {
         <p>{descriptions[step]}</p>
       </div>
       {step === 0 && (
-        <>
-          <div className="family-grid creation-families">
+        <div
+          ref={selectionStage}
+          className={`strategy-selection-stage ${type ? "has-selection" : ""}`}
+        >
+          <div className="selection-section-heading">
+            <div>
+              <span>Strategy</span>
+              <strong>
+                {type ? "Strategy selected" : "How should this Farm work?"}
+              </strong>
+            </div>
+            {type && <small>Select another strategy to compare templates.</small>}
+          </div>
+          <div className="family-grid creation-families compactable-families">
             {families.map((f) => (
               <button
                 key={f.type}
@@ -366,87 +417,83 @@ export function Wizard({ farmId }: { farmId?: string }) {
                     {type === f.type && <Check size={13} />}
                   </span>
                 </div>
-                <div className="family-illustration">
+                <div className="family-illustration strategy-card-detail">
                   <StrategyMini type={f.type} />
                 </div>
                 <h2>{f.title}</h2>
-                <p>{f.description}</p>
-                <div className="family-use">{f.use}</div>
-                <Risk level={f.risk} />
+                <p className="strategy-card-detail">{f.description}</p>
+                <div className="family-use strategy-card-detail">{f.use}</div>
+                <span className="strategy-card-risk">
+                  <Risk level={f.risk} />
+                </span>
               </button>
             ))}
           </div>
-          <div className="creation-tip">
-            <Shield size={16} />
-            <span>
-              Your strategy, your controls. You can review every setting before
-              deployment.
-            </span>
-          </div>
-        </>
+          {type && (
+            <section className="template-reveal" aria-live="polite">
+              <div className="selection-section-heading template-heading">
+                <div>
+                  <span>Template</span>
+                  <strong>Choose your starting point</strong>
+                </div>
+                <small>
+                  {templates.filter((item) => item.type === type).length} fully
+                  configurable templates
+                </small>
+              </div>
+              <div className="template-grid creation-template-grid">
+                {templates
+                  .filter((item) => item.type === type)
+                  .map((item, index) => (
+                    <button
+                      key={item.id}
+                      className="template-card"
+                      onClick={() => selectTemplate(item.id)}
+                    >
+                      <div className="card-top">
+                        <span className={`icon-tile ${item.type.toLowerCase()}`}>
+                          <StrategyIcon type={item.type} />
+                        </span>
+                        {index === 0 && <span className="tag">RECOMMENDED</span>}
+                      </div>
+                      <h3>{item.name}</h3>
+                      <p>{item.description}</p>
+                      <div className="template-meta">
+                        <Risk level={item.risk} />
+                        <span>{item.complexity}</span>
+                      </div>
+                      <div className="template-bottom">
+                        <span>
+                          {item.assets.join(" · ")} / {item.protocols[0]}
+                        </span>
+                        <ArrowRight size={17} />
+                      </div>
+                    </button>
+                  ))}
+              </div>
+              <button
+                className="scratch-button"
+                onClick={() => {
+                  const selected = templates.find((item) => item.type === type)!;
+                  const created = makeFarm(selected, crypto.randomUUID());
+                  created.name = "";
+                  created.values.name = "";
+                  setFarm(created);
+                  setStep(1);
+                }}
+              >
+                <Plus size={16} /> Start from scratch
+                <span>Use only the required fields for this strategy</span>
+                <ArrowRight size={16} />
+              </button>
+            </section>
+          )}
+        </div>
       )}
-      {step === 1 && (
-        <>
-          <div className="inline-heading">
-            <Badge>{type}</Badge>
-            <span className="muted small">
-              {templates.filter((t) => t.type === type).length} templates · all
-              fully configurable
-            </span>
-          </div>
-          <div className="template-grid">
-            {templates
-              .filter((t) => t.type === type)
-              .map((t, i) => (
-                <button
-                  key={t.id}
-                  className="template-card"
-                  onClick={() => selectTemplate(t.id)}
-                >
-                  <div className="card-top">
-                    <span className={`icon-tile ${t.type.toLowerCase()}`}>
-                      <StrategyIcon type={t.type} />
-                    </span>
-                    {i === 0 && (
-                      <span className="tag">POPULAR STARTING POINT</span>
-                    )}
-                  </div>
-                  <h3>{t.name}</h3>
-                  <p>{t.description}</p>
-                  <div className="template-meta">
-                    <Risk level={t.risk} />
-                    <span>{t.complexity}</span>
-                  </div>
-                  <div className="template-bottom">
-                    <span>
-                      {t.assets.join(" · ")} / {t.protocols[0]}
-                    </span>
-                    <ArrowRight size={17} />
-                  </div>
-                </button>
-              ))}
-          </div>
-          <button
-            className="scratch-button"
-            onClick={() => {
-              const t = templates.find((t) => t.type === type)!;
-              const f = makeFarm(t, crypto.randomUUID());
-              f.name = "";
-              f.values.name = "";
-              setFarm(f);
-              setStep(2);
-            }}
-          >
-            <Plus size={16} /> Start from scratch{" "}
-            <span>Build on the strategy’s required fields</span>
-            <ArrowRight size={16} />
-          </button>
-        </>
-      )}
-      {step >= 2 && farm && t && (
-        <div className={`builder-grid ${step !== 2 ? "review-layout" : ""}`}>
+      {step >= 1 && farm && t && (
+        <div className={`builder-grid no-builder-visual ${step !== 1 ? "review-layout" : ""}`}>
           <div className="configuration">
-            {step === 2 && (
+            {step === 1 && (
               <>
                 <section className="panel">
                   <div className="panel-heading">
@@ -550,7 +597,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
                       )}
                     </label>
                     {t.fields
-                      .filter((f) => !f.advanced)
+                      .filter((f) => !f.advanced && f.key !== "risk")
                       .map((f) => (
                         <ParameterField
                           key={f.key}
@@ -692,6 +739,46 @@ export function Wizard({ farmId }: { farmId?: string }) {
                     )}
                   </section>
                 )}
+              </>
+            )}
+            {step === 2 && (
+              <>
+                <section className="panel risk-settings-panel">
+                  <div className="panel-heading">
+                    <div>
+                      <h3>Risk, fees & advanced settings</h3>
+                      <p>Set the boundaries before reviewing the full Farm.</p>
+                    </div>
+                    <Risk level={risk} />
+                  </div>
+                  <div className="fields-grid">
+                    {t.fields
+                      .filter((f) => f.advanced || f.key === "risk")
+                      .map((f) => (
+                        <ParameterField
+                          key={f.key}
+                          field={f}
+                          value={values[f.key]}
+                          error={errors[f.key]}
+                          onChange={(v) => value(f.key, v)}
+                        />
+                      ))}
+                  </div>
+                </section>
+                <section className="panel risk-review-strip">
+                  <div>
+                    <span>Management fee</span>
+                    <strong>{values.managementFee}% / year</strong>
+                  </div>
+                  <div>
+                    <span>Performance fee</span>
+                    <strong>{values.performanceFee}% of gains</strong>
+                  </div>
+                  <div>
+                    <span>Illustrative risk</span>
+                    <Risk level={risk} />
+                  </div>
+                </section>
                 {farm.type === "PERPETUAL" && (
                   <Notice tone="warning">
                     <strong>
@@ -708,35 +795,11 @@ export function Wizard({ farmId }: { farmId?: string }) {
                     </p>
                   </Notice>
                 )}
-                <details
-                  className="panel advanced"
-                  open={
-                    Object.keys(errors).some((k) =>
-                      t.fields.some((f) => f.key === k && f.advanced),
-                    ) || undefined
-                  }
-                >
-                  <summary>
-                    <div>
-                      <h3>Risk, fees & advanced settings</h3>
-                      <p>Fine-tune limits and strategy behavior.</p>
-                    </div>
-                    <ChevronDown size={17} />
-                  </summary>
-                  <div className="fields-grid">
-                    {t.fields
-                      .filter((f) => f.advanced)
-                      .map((f) => (
-                        <ParameterField
-                          key={f.key}
-                          field={f}
-                          value={values[f.key]}
-                          error={errors[f.key]}
-                          onChange={(v) => value(f.key, v)}
-                        />
-                      ))}
-                  </div>
-                </details>
+                <Notice>
+                  Template defaults are only a starting point. These controls
+                  determine fees, exposure limits, and automated behavior for
+                  this demo Farm.
+                </Notice>
               </>
             )}
             {step === 3 && (
@@ -744,9 +807,14 @@ export function Wizard({ farmId }: { farmId?: string }) {
                 <section className="panel">
                   <div className="panel-heading">
                     <h3>Configuration overview</h3>
-                    <button className="text-link" onClick={() => go(2)}>
-                      Edit settings
-                    </button>
+                    <div className="review-edit-actions">
+                      <button className="text-link" onClick={() => go(1)}>
+                        Edit configuration
+                      </button>
+                      <button className="text-link" onClick={() => go(2)}>
+                        Edit risk & fees
+                      </button>
+                    </div>
                   </div>
                   <div className="review-values">
                     {t.fields.map((f) => (
@@ -935,7 +1003,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
                       enabled.
                     </p>
                   </div>
-                  <Badge tone="amber">PREVIEW ONLY</Badge>
+                  <Badge tone="mint">DEMO DEPLOYMENT</Badge>
                 </div>
                 <div className="review-values">
                   <div>
@@ -978,14 +1046,14 @@ export function Wizard({ farmId }: { farmId?: string }) {
                           }
                         </small>
                       </div>
-                      <span className="muted small">Not started</span>
+                      <span className="muted small">Ready</span>
                     </div>
                   ))}
                 </div>
                 <Notice>
-                  Complete this preview to save a Ready farm. Live approvals,
-                  transaction hashes, contract verification, and activation will
-                  be available after smart contract integration.
+                  Deploying creates an active demo Farm in Managed Farms. It can
+                  accept demo deposits, withdrawals, and eligible manager pause
+                  actions without sending a blockchain transaction.
                 </Notice>
                 <label className="check-label">
                   <input
@@ -993,8 +1061,8 @@ export function Wizard({ farmId }: { farmId?: string }) {
                     checked={accepted}
                     onChange={(e) => setAccepted(e.target.checked)}
                   />
-                  I understand this is a preview and no farm will be deployed
-                  onchain.
+                  I understand this is a demo deployment and no Farm will be
+                  deployed onchain.
                 </label>
                 {errors.deployment && (
                   <p className="field-error" role="alert">
@@ -1004,20 +1072,6 @@ export function Wizard({ farmId }: { farmId?: string }) {
               </section>
             )}
           </div>
-          {step === 2 && (
-            <div className="builder-visual">
-              <StrategyFlow
-                type={farm.type}
-                values={values}
-                allocations={allocations}
-              />
-              <div className="preview-caption">
-                A live view of how your capital moves.
-                <br />
-                Updates as you configure.
-              </div>
-            </div>
-          )}
           <aside className="strategy-summary">
             <details open>
               <summary>
@@ -1089,35 +1143,36 @@ export function Wizard({ farmId }: { farmId?: string }) {
         </button>
         <span className="muted small">
           {step === 0
-            ? "A good strategy starts with a clear intent."
+            ? type
+              ? "Choose a template to continue."
+              : "Start by selecting a strategy."
             : step === 1
-              ? "Select a template to continue."
+              ? "Core settings first. Guardrails come next."
               : "Your draft stays in this browser."}
         </span>
-        {step !== 1 && (
+        {step !== 0 && (
           <button
             className="button primary"
             disabled={
-              (step === 0 && !type) ||
               (step === 4 && !simulated) ||
               (step === 5 && !accepted)
             }
             onClick={step === 5 ? finish : next}
           >
-            {step === 0
-              ? "Choose template"
+            {step === 1
+              ? "Continue to risk & fees"
               : step === 2
-                ? "Review strategy"
+                ? "Review Farm"
                 : step === 3
                   ? "Explore simulation"
                   : step === 4
                     ? "Continue to deploy"
-                    : "Complete deployment preview"}
+                    : "Deploy demo Farm"}
             <ArrowRight size={15} />
           </button>
         )}
       </div>
-      {Object.keys(errors).length > 0 && step === 2 && (
+      {Object.keys(errors).length > 0 && (step === 1 || step === 2) && (
         <p className="field-error" role="alert">
           Please resolve the highlighted fields before continuing.
         </p>
