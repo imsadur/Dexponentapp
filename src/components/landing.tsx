@@ -41,10 +41,6 @@ export function Landing({ release = "v2" }: { release?: string }) {
   }, { scope: root });
   return (
     <main className={`landing release-${release}`} ref={root}>
-      <div className="preview-strip">
-        <span>Landing page · {release}</span>
-        <Link href="/">All product versions</Link>
-      </div>
       <nav className="landing-nav">
         <Brand />
         <div className="landing-links">

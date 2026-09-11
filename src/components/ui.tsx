@@ -39,8 +39,24 @@ export function AssetIcon({ symbol, size = 24 }: { symbol: string; size?: number
 }
 export function NetworkIcon({ network, size = 24 }: { network: string; size?: number }) {
   const key = network.toLowerCase().replaceAll(" ", "-");
-  const glyph = network === "Ethereum" ? "◆" : network === "Base" ? "B" : network === "Arbitrum" ? "A" : "◎";
-  return <span className={`network-icon network-${key}`} style={{ width: size, height: size }} aria-hidden="true">{glyph}</span>;
+  const logos: Record<string, string> = {
+    Arbitrum: "/brand/chains/arbitrum.png",
+    Base: "/brand/chains/base.svg",
+    Ethereum: "/brand/chains/ethereum.png",
+  };
+  return (
+    <span
+      className={`network-icon network-${key}`}
+      style={{ width: size, height: size }}
+      aria-hidden="true"
+    >
+      {logos[network] ? (
+        <img src={logos[network]} alt="" />
+      ) : (
+        <Layers3 size={Math.max(12, size - 8)} />
+      )}
+    </span>
+  );
 }
 export function StrategyIcon({
   type,

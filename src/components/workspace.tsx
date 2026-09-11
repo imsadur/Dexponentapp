@@ -9,14 +9,19 @@ import {
   ArrowUpRight,
   Bell,
   BookOpen,
+  Briefcase,
+  Buildings,
   Check,
   CaretDown as ChevronDown,
   Question as CircleHelp,
   Clock as Clock3,
   Compass,
+  DiscordLogo,
   Drop as Droplets,
   ArrowSquareOut as ExternalLink,
   FileText,
+  Lifebuoy,
+  LinkedinLogo,
   SquaresFour as Grid2X2,
   ChartDonut as LayoutDashboard,
   Leaf,
@@ -27,12 +32,17 @@ import {
   MagnifyingGlass as Search,
   GearSix as Settings,
   Shield,
+  SignOut,
   SlidersHorizontal,
   Sun,
+  TelegramLogo,
+  UserCircle,
   UserPlus,
   Users,
   Wallet,
   X,
+  XLogo,
+  RedditLogo,
 } from "@phosphor-icons/react";
 import {
   families,
@@ -65,11 +75,18 @@ import {
 import { useApp } from "./provider";
 import { Wizard } from "./wizard";
 
-const nav = [
+const legacyNav = [
   { label: "Capital", section: "dashboard", href: "/app/dashboard", icon: LayoutDashboard },
   { label: "Explore Farms", section: "explore", href: "/app/explore", icon: Compass },
   { label: "Managed Farms", section: "farms", href: "/app/farms", icon: Leaf },
   { label: "Strategies", section: "strategies", href: "/app/strategies", icon: Network },
+  { label: "Templates", section: "templates", href: "/app/templates", icon: Grid2X2 },
+  { label: "Metrics", section: "analytics", href: "/app/analytics", icon: Activity },
+];
+const nav = [
+  { label: "Capital", section: "dashboard", href: "/app/dashboard", icon: LayoutDashboard },
+  { label: "Managed Farms", section: "farms", href: "/app/farms", icon: Leaf },
+  { label: "Positions / Portfolio", section: "positions", href: "/app/positions", icon: Briefcase },
   { label: "Templates", section: "templates", href: "/app/templates", icon: Grid2X2 },
   { label: "Metrics", section: "analytics", href: "/app/analytics", icon: Activity },
 ];
@@ -78,7 +95,10 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
   const app = useApp();
   const [menu, setMenu] = useState(false);
   const [modal, setModal] = useState("");
-  const [network, setNetwork] = useState("All networks");
+  const [network, setNetwork] = useState("All Chains");
+  const [profileMenu, setProfileMenu] = useState(false);
+  const [utilityMenu, setUtilityMenu] = useState(false);
+  const [chainMenu, setChainMenu] = useState(false);
   const [workspaceMenu, setWorkspaceMenu] = useState(false);
   const [users, setUsers] = useState([
     { name: "Alex Morgan", workspace: "Personal workspace" },
@@ -88,6 +108,8 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
   const segments = path.split("/").filter(Boolean);
   const section = previewVersion ? "dashboard" : segments[1] || "dashboard";
+  const isV2 = previewVersion !== "v1";
+  const activeNav = isV2 ? nav : legacyNav;
   const isWizard = path === "/app/farms/new" || segments[3] === "edit";
   let content;
   if (isWizard)
@@ -111,6 +133,7 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
       <TemplateLibrary strategies={section === "strategies"} id={segments[2]} />
     );
   else if (section === "analytics") content = <Analytics network={network} />;
+  else if (section === "positions") content = <Positions network={network} />;
   else if (section === "settings")
     content = <WorkspaceSettings tab={segments[2]} />;
   else if (section === "resources") content = <Resources />;
@@ -137,9 +160,9 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
       )}
       <aside className={`sidebar ${menu ? "open" : ""}`}>
         <Brand />
-        <span className="nav-caption">WORKSPACE</span>
+        {!isV2 && <span className="nav-caption">WORKSPACE</span>}
         <nav>
-          {nav.map((item) => (
+          {activeNav.map((item) => (
             <Link
               className={section === item.section ? "active" : ""}
               key={item.href}
@@ -154,7 +177,7 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
             </Link>
           ))}
         </nav>
-        <div className="sidebar-resources">
+        {!isV2 && <div className="sidebar-resources">
           <span className="nav-caption">LEARN & EXPLORE</span>
           <Link href="/app/resources">
             <BookOpen size={17} />
@@ -169,8 +192,42 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
             <CircleHelp size={17} />
             Support
           </button>
-        </div>
+        </div>}
         <div className="sidebar-bottom">
+          {isV2 ? (
+            <div className="profile-account">
+              {profileMenu && (
+                <div className="profile-account-menu" role="menu">
+                  <Link href="/app/settings" role="menuitem" onClick={() => setProfileMenu(false)}>
+                    <UserCircle size={17} /> Profile
+                  </Link>
+                  <button role="menuitem" onClick={() => { setProfileMenu(false); setModal("wallet"); }}>
+                    <Wallet size={17} />
+                    {app.wallet ? "Connected wallet" : "Connect wallet"}
+                  </button>
+                  <Link href="/login" role="menuitem" onClick={() => setProfileMenu(false)}>
+                    <SignOut size={17} /> Log out
+                  </Link>
+                </div>
+              )}
+              <button
+                className="profile-row profile-trigger"
+                aria-expanded={profileMenu}
+                aria-haspopup="menu"
+                onClick={() => setProfileMenu((open) => !open)}
+              >
+                <span className="avatar">
+                  {app.profile.name.split(" ").map((name) => name[0]).slice(0, 2).join("")}
+                </span>
+                <span className="profile-copy">
+                  <strong>{app.profile.name}</strong>
+                  <small>Fund manager</small>
+                </span>
+                <ChevronDown className={profileMenu ? "workspace-chevron open" : "workspace-chevron"} size={15} />
+              </button>
+            </div>
+          ) : (
+          <>
           <div className="workspace-account">
             {workspaceMenu && (
               <div className="workspace-account-menu">
@@ -256,6 +313,8 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
               {app.theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
             </button>
           </div>
+          </>
+          )}
         </div>
       </aside>
       <div className="workspace-main">
@@ -273,24 +332,66 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
             <strong>
               {isWizard
                 ? "Create farm"
-                : nav.find((item) => item.section === section)?.label ||
+                : activeNav.find((item) => item.section === section)?.label ||
                   section.charAt(0).toUpperCase() + section.slice(1)}
             </strong>
           </div>
           <div className="topbar-actions">
-            <label className="network-selector">
-              <NetworkIcon network={network === "All networks" ? "All" : network} size={20} />
-              <select
-                aria-label="Filter workspace by network"
-                value={network}
-                onChange={(e) => setNetwork(e.target.value)}
-              >
-                {["All networks", "Arbitrum", "Base", "Ethereum"].map((n) => (
-                  <option key={n}>{n}</option>
-                ))}
-              </select>
-            </label>
+            {isV2 ? (
+              <div className="chain-filter">
+                <button
+                  className="network-selector chain-trigger"
+                  aria-label="Filter workspace by chain"
+                  aria-expanded={chainMenu}
+                  aria-haspopup="listbox"
+                  onClick={() => setChainMenu((open) => !open)}
+                >
+                  <NetworkIcon network={network === "All Chains" ? "All" : network} size={20} />
+                  <span>{network}</span>
+                  <ChevronDown className={chainMenu ? "workspace-chevron open" : "workspace-chevron"} size={14} />
+                </button>
+                {chainMenu && (
+                  <div className="chain-menu" role="listbox" aria-label="Available chains">
+                    {["All Chains", "Arbitrum", "Base", "Ethereum"].map((chain) => (
+                      <button
+                        key={chain}
+                        className={network === chain ? "selected" : ""}
+                        role="option"
+                        aria-selected={network === chain}
+                        onClick={() => { setNetwork(chain); setChainMenu(false); }}
+                      >
+                        <NetworkIcon network={chain === "All Chains" ? "All" : chain} size={22} />
+                        <span>{chain}</span>
+                        {network === chain && <Check size={15} />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <label className="network-selector">
+                <NetworkIcon network={network === "All Chains" ? "All" : network} size={20} />
+                <select
+                  aria-label="Filter workspace by chain"
+                  value={network}
+                  onChange={(event) => setNetwork(event.target.value)}
+                >
+                  {["All Chains", "Arbitrum", "Base", "Ethereum"].map((chain) => (
+                    <option key={chain}>{chain}</option>
+                  ))}
+                </select>
+              </label>
+            )}
             <span className="topbar-divider" />
+            {isV2 && (
+              <button
+                className="icon-button"
+                aria-label="Support"
+                onClick={() => setModal("support")}
+              >
+                <Lifebuoy size={18} />
+              </button>
+            )}
             <button
               className="icon-button notification-button"
               aria-label="Notifications"
@@ -299,6 +400,37 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
               <Bell size={18} />
               <span />
             </button>
+            {isV2 && (
+              <div className="utility-account">
+                <button
+                  className="icon-button"
+                  aria-label="Open company menu"
+                  aria-expanded={utilityMenu}
+                  aria-haspopup="menu"
+                  onClick={() => setUtilityMenu((open) => !open)}
+                >
+                  <Menu size={19} />
+                </button>
+                {utilityMenu && (
+                  <div className="utility-menu" role="menu">
+                    <span>Dexponent</span>
+                    <a href="https://dexponent.com/aboutus" target="_blank" rel="noreferrer" role="menuitem"><Buildings size={17} /> Company</a>
+                    <a href="https://docs.dexponent.com/" target="_blank" rel="noreferrer" role="menuitem"><BookOpen size={17} /> Resources</a>
+                    <a href="https://docs.dexponent.com/" target="_blank" rel="noreferrer" role="menuitem"><FileText size={17} /> Documentation</a>
+                    <a href="https://dexponent.com/privacy" target="_blank" rel="noreferrer" role="menuitem"><Shield size={17} /> Privacy policy</a>
+                    <a href="https://dexponent.com/terms" target="_blank" rel="noreferrer" role="menuitem"><FileText size={17} /> Terms of use</a>
+                    <span>Social</span>
+                    <div className="utility-socials">
+                      <a href="https://discord.com/invite/yermEKz6rc" target="_blank" rel="noreferrer" aria-label="Dexponent on Discord"><DiscordLogo size={18} /></a>
+                      <a href="https://t.me/+5NZOk4DLnWE4ZjY1" target="_blank" rel="noreferrer" aria-label="Dexponent on Telegram"><TelegramLogo size={18} /></a>
+                      <a href="https://x.com/Dexponentx" target="_blank" rel="noreferrer" aria-label="Dexponent on X"><XLogo size={18} /></a>
+                      <a href="https://www.linkedin.com/company/dexponent/" target="_blank" rel="noreferrer" aria-label="Dexponent on LinkedIn"><LinkedinLogo size={18} /></a>
+                      <a href="https://www.reddit.com/r/Dexponent_Official/" target="_blank" rel="noreferrer" aria-label="Dexponent on Reddit"><RedditLogo size={18} /></a>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             <button
               className="button wallet-button"
               onClick={() => setModal("wallet")}
@@ -314,12 +446,6 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
           id="main"
           className={isWizard ? "main-content wizard-content" : "main-content"}
         >
-          {previewVersion && (
-            <div className="preview-strip workspace-preview-strip">
-              <span>Capital dashboard · {previewVersion}</span>
-              <Link href="/">All product versions</Link>
-            </div>
-          )}
           {app.storageError && (
             <Notice tone="warning">
               {app.storageError}{" "}
@@ -344,7 +470,7 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
         </footer>
       </div>
       <nav className="bottom-nav">
-        {nav.slice(0, 4).map((item) => (
+        {activeNav.slice(0, 4).map((item) => (
           <Link
             key={item.href}
             className={section === item.section ? "active" : ""}
@@ -469,6 +595,48 @@ function CreateButton() {
     </Link>
   );
 }
+function Positions({ network }: { network: string }) {
+  const app = useApp();
+  const farms = app.farms.filter(
+    (farm) =>
+      farm.status === "ACTIVE" &&
+      (network === "All Chains" || farm.network === network),
+  );
+  const capital = farms.reduce((total, farm) => total + farm.tvl, 0);
+  const weightedApy = capital
+    ? farms.reduce((total, farm) => total + farm.apy * farm.tvl, 0) / capital
+    : 0;
+  const weightedPerformance = capital
+    ? farms.reduce(
+        (total, farm) => total + farm.performance * farm.tvl,
+        0,
+      ) / capital
+    : 0;
+
+  return (
+    <>
+      <PageHeading
+        eyebrow="PORTFOLIO"
+        title="Positions"
+        description="Review active Farm exposure, allocation, yield, and performance across selected chains."
+        action={<CreateButton />}
+      />
+      <div className="overview-metrics capital-metrics">
+        <Metric label="Portfolio value" value={money(capital)} caption="active Farm capital · demo" />
+        <Metric label="Open positions" value={String(farms.length).padStart(2, "0")} caption="across selected chains" />
+        <Metric label="Blended APY" value={`${weightedApy.toFixed(2)}%`} caption="TVL-weighted · demo" />
+        <Metric label="30D performance" value={`${weightedPerformance >= 0 ? "+" : ""}${weightedPerformance.toFixed(2)}%`} caption="TVL-weighted · demo" />
+      </div>
+      <div className="section-heading">
+        <div>
+          <h2>Portfolio positions</h2>
+          <p>Active managed Farms included in your current chain filter.</p>
+        </div>
+      </div>
+      <FarmTable farms={farms} />
+    </>
+  );
+}
 function ExploreFarms({ network }: { network: string }) {
   const app = useApp();
   const [query, setQuery] = useState("");
@@ -477,7 +645,7 @@ function ExploreFarms({ network }: { network: string }) {
     (farm) =>
       farm.source === "demo" &&
       farm.status === "ACTIVE" &&
-      (network === "All networks" || farm.network === network) &&
+      (network === "All Chains" || farm.network === network) &&
       (risk === "All risk levels" || farm.risk === risk) &&
       farm.name.toLowerCase().includes(query.toLowerCase()),
   );
@@ -536,7 +704,7 @@ function ExploreFarms({ network }: { network: string }) {
 function Dashboard({ network }: { network: string }) {
   const app = useApp();
   const farms = app.farms.filter(
-    (f) => network === "All networks" || f.network === network,
+    (f) => network === "All Chains" || f.network === network,
   );
   const active = farms.filter((f) => f.status === "ACTIVE");
   const drafts = farms.filter(
@@ -914,7 +1082,7 @@ function FarmList({ drafts, network }: { drafts: boolean; network: string }) {
   const [deleting, setDeleting] = useState<Farm | null>(null);
   const visible = app.farms.filter(
     (f) =>
-      (network === "All networks" || f.network === network) &&
+      (network === "All Chains" || f.network === network) &&
       (!drafts || f.status === "DRAFT" || f.status === "SIMULATION") &&
       (filter === "All strategies" || f.type === filter) &&
       f.name.toLowerCase().includes(query.toLowerCase()),
@@ -1646,7 +1814,7 @@ function Analytics({ network }: { network: string }) {
   const demo = app.farms.filter(
     (f) =>
       f.source === "demo" &&
-      (network === "All networks" || f.network === network),
+      (network === "All Chains" || f.network === network),
   );
   const total = demo.reduce((s, f) => s + f.tvl, 0);
   const apy = total ? demo.reduce((s, f) => s + f.apy * f.tvl, 0) / total : 0;
