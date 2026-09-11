@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   farmDetailHref,
   farmEditHref,
+  farmTradeHref,
   isFarmWizardRoute,
 } from "../src/domain/routes";
 
@@ -21,4 +22,5 @@ test("Farm edit routes open the Wizard while Farm details remain separate", () =
 test("runtime Farm IDs use stable static-export routes", () => {
   assert.equal(farmDetailHref("farm 123"), "/app/farms/manage/?farm=farm%20123");
   assert.equal(farmEditHref("farm 123"), "/app/farms/edit/?farm=farm%20123");
+  assert.equal(farmTradeHref("farm 123"), "/app/trade/?farm=farm%20123");
 });

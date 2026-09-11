@@ -1090,9 +1090,19 @@ export function Wizard({ farmId }: { farmId?: string }) {
                     <strong className="token-line"><NetworkIcon network={farm.network} size={18} />{farm.network}</strong>
                   </div>
                   <div>
-                    <span>Protocol</span>
-                    <strong>{String(values.protocol)}</strong>
+                    <span>{farm.type === "PERPETUAL" ? "Trading pair" : "Protocol"}</span>
+                    <strong>
+                      {farm.type === "PERPETUAL"
+                        ? `${String(values.underlying)}/${String(values.quoteAsset)}`
+                        : String(values.protocol)}
+                    </strong>
                   </div>
+                  {farm.type === "PERPETUAL" && (
+                    <div>
+                      <span>Venue</span>
+                      <strong>{String(values.venue)}</strong>
+                    </div>
+                  )}
                   <div>
                     <span>Deposit asset</span>
                     <strong className="token-line"><AssetIcon symbol={String(values.asset)} size={18} />{String(values.asset)}</strong>

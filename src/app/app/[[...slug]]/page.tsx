@@ -13,6 +13,7 @@ const staticRoutes = [
   ["farms", "demo-0"],
   ["farms", "demo-1"],
   ["farms", "demo-2"],
+  ["trade"],
   ["positions"],
   ["strategies"],
   ["templates"],

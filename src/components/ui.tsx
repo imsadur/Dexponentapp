@@ -444,8 +444,12 @@ export function StrategyFlow({
               <Network size={18} />
             </span>
             <div>
-              <small>PROTOCOL</small>
-              <strong>{values.protocol || "Aave"}</strong>
+              <small>{type === "PERPETUAL" ? "VENUE" : "PROTOCOL"}</small>
+              <strong>
+                {type === "PERPETUAL"
+                  ? values.venue || "Hyperliquid"
+                  : values.protocol || "Aave"}
+              </strong>
             </div>
             {type === "PERPETUAL" && (
               <span className="node-label">{values.leverage}×</span>

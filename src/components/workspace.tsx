@@ -4,6 +4,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   ChartLineUp as Activity,
+  ArrowDown,
   DownloadSimple as ArrowDownToLine,
   ArrowRight,
   ArrowUpRight,
@@ -36,6 +37,8 @@ import {
   SlidersHorizontal,
   Sun,
   TelegramLogo,
+  TrendDown,
+  TrendUp,
   UserCircle,
   UserPlus,
   Users,
@@ -58,8 +61,10 @@ import {
 import {
   farmDetailHref,
   farmEditHref,
+  farmTradeHref,
   isFarmWizardRoute,
 } from "@/domain/routes";
+import { perpetualPair, placeDemoOrder } from "@/domain/trading";
 import {
   canPauseFarm,
   depositToDemoFarm,
@@ -152,6 +157,8 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
         tab={segments[3]}
       />
     );
+  else if (section === "trade")
+    content = <TradingDashboard farmId={queryFarmId} />;
   else if (section === "templates" || section === "strategies")
     content = (
       <TemplateLibrary strategies={section === "strategies"} id={segments[2]} />
@@ -1537,6 +1544,11 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
             <Link className="button" href={farmEditHref(id)}>
               {local ? "Edit strategy" : "Create editable copy"}
             </Link>
+            {farm.type === "PERPETUAL" && !local && (
+              <Link className="button primary" href={farmTradeHref(id)}>
+                <TrendUp size={15} /> Trade
+              </Link>
+            )}
             {local ? (
               <Link
                 className="button primary"
@@ -1547,7 +1559,7 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
             ) : (
               <>
                 <button
-                  className="button primary"
+                  className={farm.type === "PERPETUAL" ? "button" : "button primary"}
                   disabled={farm.status !== "ACTIVE"}
                   onClick={() => {
                     setActionError("");
@@ -1609,6 +1621,32 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
           </button>
         ))}
       </div>
+      {farm.type === "PERPETUAL" && (
+        <section className="panel perp-market-card">
+          <div className="perp-pair-identity">
+            <span className="pair-icons">
+              <AssetIcon symbol={String(farm.values.underlying || "ETH")} size={34} />
+              <AssetIcon symbol={String(farm.values.quoteAsset || "USDC")} size={28} />
+            </span>
+            <div>
+              <span className="eyebrow">PERPETUAL MARKET</span>
+              <h2>{perpetualPair(farm)}</h2>
+              <small>{String(farm.values.venue || "Hyperliquid")} · Demo execution venue</small>
+            </div>
+          </div>
+          <div className="perp-market-facts">
+            <div><span>Direction</span><strong>{String(farm.values.direction)}</strong></div>
+            <div><span>Leverage</span><strong>{farm.values.leverage}×</strong></div>
+            <div><span>Margin</span><strong>{Number(farm.values.margin).toLocaleString()} {String(farm.values.asset)}</strong></div>
+            <div><span>Funding trigger</span><strong>{farm.values.fundingThreshold}% / 8h</strong></div>
+          </div>
+          {!local && (
+            <Link className="button primary" href={farmTradeHref(id)}>
+              Open trading dashboard <ArrowRight size={15} />
+            </Link>
+          )}
+        </section>
+      )}
       {local && (
         <Notice>
           This is a local strategy. No contract is deployed, no assets are held,
@@ -2054,6 +2092,221 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
     </>
   );
 }
+
+function TradingDashboard({ farmId }: { farmId: string }) {
+  const app = useApp();
+  const farm = app.farms.find((item) => item.id === farmId);
+  const [side, setSide] = useState<"Long" | "Short">("Long");
+  const [orderType, setOrderType] = useState<"Market" | "Limit">("Market");
+  const [size, setSize] = useState("1000");
+  const [leverage, setLeverage] = useState(2);
+  const [timeframe, setTimeframe] = useState("1H");
+  const [limitPrice, setLimitPrice] = useState("");
+  const [orderError, setOrderError] = useState("");
+
+  if (!app.ready)
+    return <div className="loading-shell"><div className="skeleton" /></div>;
+  if (!farm || farm.type !== "PERPETUAL")
+    return (
+      <EmptyState
+        title="Perpetual Farm not found"
+        description="Open trading from an active Perpetual Farm in your workspace."
+        href="/app/farms"
+        label="View Managed Farms"
+      />
+    );
+
+  const base = String(farm.values.underlying || "ETH");
+  const quote = String(farm.values.quoteAsset || "USDC");
+  const market = {
+    ETH: { price: 3826.4, change: 2.84, funding: 0.0108, openInterest: "$1.28B", volume: "$684.2M" },
+    BTC: { price: 116420, change: 1.36, funding: 0.0081, openInterest: "$2.74B", volume: "$1.12B" },
+    SOL: { price: 249.83, change: -0.72, funding: 0.0124, openInterest: "$486.7M", volume: "$312.4M" },
+  }[base] || { price: 100, change: 0.4, funding: 0.01, openInterest: "$120M", volume: "$84M" };
+  const pair = perpetualPair(farm);
+  const precision = market.price > 10_000 ? 0 : 2;
+  const formattedPrice = market.price.toLocaleString(undefined, {
+    minimumFractionDigits: precision,
+    maximumFractionDigits: precision,
+  });
+  const chartPoints = Array.from({ length: 72 }, (_, index) => {
+    const trend = (index / 71) * market.change * 0.7;
+    const wave = Math.sin(index * 0.42) * 0.72 + Math.cos(index * 0.18) * 0.34;
+    return market.price * (1 + (trend + wave) / 100);
+  });
+  const asks = Array.from({ length: 7 }, (_, index) => ({
+    price: market.price * (1 + (7 - index) * 0.00042),
+    size: 18.4 + index * 7.9,
+    total: 22 + index * 11,
+  }));
+  const bids = Array.from({ length: 7 }, (_, index) => ({
+    price: market.price * (1 - (index + 1) * 0.00038),
+    size: 23.8 + index * 6.1,
+    total: 26 + index * 10,
+  }));
+  const positionSize = Number(farm.values.demoTradeSize || 0);
+  const positionSide = String(farm.values.demoTradeSide || "—");
+  const entryPrice = Number(farm.values.demoEntryPrice || market.price);
+  const pnl = positionSize
+    ? ((market.price - entryPrice) / entryPrice) * positionSize * (positionSide === "Short" ? -1 : 1)
+    : 0;
+
+  function submitOrder() {
+    try {
+      const updated = placeDemoOrder(farm!, {
+        side,
+        type: orderType,
+        size: Number(size),
+        leverage,
+        price: orderType === "Market" ? market.price : Number(limitPrice),
+      });
+      app.saveFarm(updated);
+      setOrderError("");
+      app.toast(`${side} ${pair} demo order filled.`);
+    } catch (error) {
+      setOrderError(error instanceof Error ? error.message : "Unable to place demo order.");
+    }
+  }
+
+  return (
+    <div className="trading-workspace">
+      <div className="trade-page-top">
+        <Link className="back-link" href={farmDetailHref(farm.id)}>
+          <ArrowRight className="rotate-180" size={14} /> Back to Farm
+        </Link>
+        <Badge tone="amber">DEMO TRADING</Badge>
+      </div>
+      <section className="trade-market-header">
+        <div className="trade-pair-title">
+          <span className="pair-icons">
+            <AssetIcon symbol={base} size={38} />
+            <AssetIcon symbol={quote} size={28} />
+          </span>
+          <div>
+            <h1>{pair}</h1>
+            <span>Perpetual · {String(farm.values.venue || "Hyperliquid")}</span>
+          </div>
+        </div>
+        <div className="trade-market-stat trade-price-stat">
+          <span>Simulated mark</span>
+          <strong>{formattedPrice}</strong>
+          <small className={market.change >= 0 ? "positive" : "warning-text"}>
+            {market.change >= 0 ? "+" : ""}{market.change}% · 24h
+          </small>
+        </div>
+        <div className="trade-market-stat"><span>Funding / 8h</span><strong>{market.funding}%</strong><small>Simulated</small></div>
+        <div className="trade-market-stat"><span>Open interest</span><strong>{market.openInterest}</strong><small>Demo market</small></div>
+        <div className="trade-market-stat"><span>24h volume</span><strong>{market.volume}</strong><small>Demo market</small></div>
+      </section>
+
+      <div className="trade-grid">
+        <aside className="trade-panel market-list-panel">
+          <div className="trade-panel-heading"><strong>Markets</strong><Search size={14} /></div>
+          {[base, "BTC", "ETH", "SOL"].filter((symbol, index, items) => items.indexOf(symbol) === index).map((symbol, index) => {
+            const changes = [market.change, 1.36, 2.84, -0.72];
+            return (
+              <button className={symbol === base ? "market-row active" : "market-row"} key={symbol} disabled={symbol !== base}>
+                <AssetIcon symbol={symbol} size={24} />
+                <span><strong>{symbol}/{quote}</strong><small>Perp</small></span>
+                <span><strong>{symbol === base ? formattedPrice : "—"}</strong><small className={changes[index] >= 0 ? "positive" : "warning-text"}>{changes[index] >= 0 ? "+" : ""}{changes[index]}%</small></span>
+              </button>
+            );
+          })}
+          <Notice>Other markets are visible for context. This Farm trades only its configured pair.</Notice>
+        </aside>
+
+        <main className="trade-center-column">
+          <section className="trade-panel trade-chart-panel">
+            <div className="trade-panel-heading">
+              <div><strong>{pair}</strong><span>Simulated market chart</span></div>
+              <div className="segmented trade-timeframes">
+                {["5M", "15M", "1H", "4H", "1D"].map((item) => (
+                  <button key={item} className={timeframe === item ? "active" : ""} onClick={() => setTimeframe(item)}>{item}</button>
+                ))}
+              </div>
+            </div>
+            <PerformanceChart points={chartPoints} label={`${pair} simulated ${timeframe} chart`} />
+            <div className="trade-chart-axis"><span>Earlier</span><span>{timeframe} candles · demo</span><span>Now</span></div>
+          </section>
+
+          <section className="trade-panel orderbook-panel">
+            <div className="trade-panel-heading"><strong>Order book</strong><span>Price ({quote}) · Size ({base})</span></div>
+            <div className="orderbook-columns"><span>Price</span><span>Size</span><span>Total</span></div>
+            {asks.map((row) => <OrderBookRow key={`ask-${row.price}`} row={row} side="ask" precision={precision} />)}
+            <div className="orderbook-mid"><strong>{formattedPrice}</strong><span><TrendUp size={13} /> Simulated mark</span></div>
+            {bids.map((row) => <OrderBookRow key={`bid-${row.price}`} row={row} side="bid" precision={precision} />)}
+          </section>
+        </main>
+
+        <aside className="trade-panel order-ticket">
+          <div className="trade-panel-heading"><strong>Place demo order</strong><SlidersHorizontal size={15} /></div>
+          <div className="trade-side-toggle">
+            <button className={side === "Long" ? "active long" : ""} onClick={() => setSide("Long")}><TrendUp size={14} /> Long</button>
+            <button className={side === "Short" ? "active short" : ""} onClick={() => setSide("Short")}><TrendDown size={14} /> Short</button>
+          </div>
+          <div className="tabs order-type-tabs">
+            {(["Market", "Limit"] as const).map((item) => <button key={item} className={orderType === item ? "active" : ""} onClick={() => setOrderType(item)}>{item}</button>)}
+          </div>
+          {orderType === "Limit" && (
+            <label className="field"><span>Limit price</span><div className="input-wrap"><input aria-label="Limit price" type="number" min="0" value={limitPrice} onChange={(event) => setLimitPrice(event.target.value)} /><small>{quote}</small></div></label>
+          )}
+          <label className="field"><span>Position size</span><div className="input-wrap"><input aria-label="Position size" type="number" min="1" value={size} onChange={(event) => setSize(event.target.value)} /><small>{quote}</small></div></label>
+          <label className="field trade-leverage-field">
+            <span>Leverage <strong>{leverage}×</strong></span>
+            <input aria-label="Trade leverage" type="range" min="1" max="10" step="0.5" value={leverage} onChange={(event) => setLeverage(Number(event.target.value))} />
+          </label>
+          <div className="trade-order-summary">
+            <div><span>Market</span><strong>{pair}</strong></div>
+            <div><span>Venue</span><strong>{String(farm.values.venue)}</strong></div>
+            <div><span>Buying power</span><strong>{(Number(size || 0) * leverage).toLocaleString()} {quote}</strong></div>
+            <div><span>Estimated fee</span><strong>{(Number(size || 0) * 0.00035).toFixed(2)} {quote}</strong></div>
+          </div>
+          <Notice>No wallet transaction is sent. Orders update this browser’s demo Farm only.</Notice>
+          {orderError && <p className="field-error" role="alert">{orderError}</p>}
+          <button className={`button full trade-submit ${side.toLowerCase()}`} onClick={submitOrder}>
+            {side} {base} · Demo
+          </button>
+        </aside>
+      </div>
+
+      <section className="trade-panel trade-positions-panel">
+        <div className="trade-panel-heading"><div><strong>Positions</strong><span>Demo Farm account</span></div><Link className="text-link" href={farmDetailHref(farm.id)}>View Farm details</Link></div>
+        {positionSize ? (
+          <div className="trade-position-row">
+            <div><span>Market</span><strong>{pair}</strong></div>
+            <div><span>Side</span><strong className={positionSide === "Long" ? "positive" : "warning-text"}>{positionSide}</strong></div>
+            <div><span>Size</span><strong>{positionSize.toLocaleString()} {quote}</strong></div>
+            <div><span>Entry</span><strong>{entryPrice.toLocaleString()}</strong></div>
+            <div><span>Mark</span><strong>{formattedPrice}</strong></div>
+            <div><span>Unrealized PnL</span><strong className={pnl >= 0 ? "positive" : "warning-text"}>{pnl >= 0 ? "+" : ""}{pnl.toFixed(2)} {quote}</strong></div>
+          </div>
+        ) : (
+          <EmptyState title="No open demo position" description="Place a Long or Short demo order to populate this Farm’s position." />
+        )}
+      </section>
+    </div>
+  );
+}
+
+function OrderBookRow({
+  row,
+  side,
+  precision,
+}: {
+  row: { price: number; size: number; total: number };
+  side: "ask" | "bid";
+  precision: number;
+}) {
+  return (
+    <div className={`orderbook-row ${side}`}>
+      <i style={{ width: `${Math.min(94, row.total)}%` }} />
+      <strong>{row.price.toLocaleString(undefined, { minimumFractionDigits: precision, maximumFractionDigits: precision })}</strong>
+      <span>{row.size.toFixed(2)}</span>
+      <span>{row.total.toFixed(2)}</span>
+    </div>
+  );
+}
+
 function Analytics({ network }: { network: string }) {
   const app = useApp();
   const [scenario, setScenario] = useState<Scenario>("Base");

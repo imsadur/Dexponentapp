@@ -58,6 +58,7 @@ export const localDataAdapter = {
     return (parsed.data as Farm[]).map((farm) => ({
       ...farm,
       values: {
+        ...templateById(farm.templateId)?.defaults,
         ...farm.values,
         capacity:
           farm.source === "demo" && Number(farm.values.capacity) < farm.tvl

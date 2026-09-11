@@ -156,7 +156,9 @@ const spotFields: Field[] = [
   number("maxExposure", "Maximum protocol exposure", 1, 100, "%", true),
 ];
 const perpFields: Field[] = [
-  select("underlying", "Underlying asset", ["ETH", "BTC"]),
+  select("underlying", "Base asset", ["ETH", "BTC", "SOL"]),
+  select("quoteAsset", "Quote asset", ["USDC", "USDT"]),
+  select("venue", "Trading venue", ["Hyperliquid", "GMX", "dYdX"]),
   select("direction", "Direction", ["Delta Neutral", "Long", "Short"]),
   {
     key: "leverage",
@@ -304,6 +306,8 @@ export const templates: StrategyTemplate[] = (
       maxExposure: 100,
       rebalanceThreshold: 5,
       underlying: "ETH",
+      quoteAsset: "USDC",
+      venue: "Hyperliquid",
       direction:
         name === "Leveraged Long"
           ? "Long"

@@ -121,6 +121,14 @@ test("landing, dashboard, every strategy, draft recovery and honest deployment",
       await page.getByRole("button", { name: "Documents", exact: true }).click();
       await expect(page.getByText("farm-factsheet.pdf")).toBeVisible();
     }
+    if (family === "Perpetual") {
+      await expect(page.getByRole("heading", { name: "ETH/USDC" })).toBeVisible();
+      await page.getByRole("link", { name: "Trade", exact: true }).click();
+      await expect(page.getByText("DEMO TRADING", { exact: true })).toBeVisible();
+      await page.getByRole("spinbutton", { name: "Position size" }).fill("2500");
+      await page.getByRole("button", { name: "Long ETH · Demo" }).click();
+      await expect(page.getByText(/Long ETH\/USDC demo order filled/)).toBeVisible();
+    }
   }
   expect(errors).toEqual([]);
 });

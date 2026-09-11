@@ -15,3 +15,7 @@ export function farmDetailHref(id: string) {
 export function farmEditHref(id: string) {
   return `/app/farms/edit/?farm=${encodeURIComponent(id)}`;
 }
+
+export function farmTradeHref(id: string) {
+  return `/app/trade/?farm=${encodeURIComponent(id)}`;
+}
