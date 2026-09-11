@@ -7,6 +7,14 @@ const releases = {
   dashboard: ["v1", "v2"],
 } as const;
 
+export const dynamicParams = false;
+
+export function generateStaticParams() {
+  return Object.entries(releases).flatMap(([surface, versions]) =>
+    versions.map((version) => ({ surface, version })),
+  );
+}
+
 export default async function PreviewPage({
   params,
 }: {
