@@ -1,5 +1,6 @@
 import { Workspace } from "@/components/workspace";
 import { templates } from "@/domain/strategy";
+import { Suspense } from "react";
 
 const staticRoutes = [
   ["dashboard"],
@@ -7,6 +8,8 @@ const staticRoutes = [
   ["farms"],
   ["farms", "drafts"],
   ["farms", "new"],
+  ["farms", "manage"],
+  ["farms", "edit"],
   ["farms", "demo-0"],
   ["farms", "demo-1"],
   ["farms", "demo-2"],
@@ -29,5 +32,9 @@ export function generateStaticParams() {
 }
 
 export default function Page() {
-  return <Workspace />;
+  return (
+    <Suspense fallback={<div className="loading-shell"><div className="skeleton" /></div>}>
+      <Workspace />
+    </Suspense>
+  );
 }

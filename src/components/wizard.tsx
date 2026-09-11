@@ -37,6 +37,7 @@ import {
 } from "@/domain/strategy";
 import { deploymentAdapter } from "@/adapters/deployment";
 import { deployDemoFarm } from "@/domain/farm-actions";
+import { farmDetailHref } from "@/domain/routes";
 import { useApp } from "./provider";
 import {
   Badge,
@@ -250,7 +251,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
       setFarm(finished);
       setSuccess(true);
       app.toast(`${finished.name} deployed and added to Managed Farms.`);
-      router.push(`/app/farms/${finished.id}`);
+      router.push(farmDetailHref(finished.id));
     } catch (e) {
       setErrors({
         deployment:
@@ -292,7 +293,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
         </Notice>
         {app.storageError && <Notice tone="warning">{app.storageError}</Notice>}
         <div className="hero-actions">
-          <Link className="button primary" href={`/app/farms/${farm.id}`}>
+          <Link className="button primary" href={farmDetailHref(farm.id)}>
             Manage farm <ArrowRight size={16} />
           </Link>
           <button

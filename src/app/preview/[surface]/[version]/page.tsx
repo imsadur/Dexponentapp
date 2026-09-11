@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { Landing } from "@/components/landing";
 import { Workspace } from "@/components/workspace";
+import { Suspense } from "react";
 
 const releases = {
   landing: ["v1", "v2"],
@@ -25,5 +26,9 @@ export default async function PreviewPage({
   if (!versions?.includes(version as never)) notFound();
 
   if (surface === "landing") return <Landing release={version} />;
-  return <Workspace previewVersion={version} />;
+  return (
+    <Suspense fallback={<div className="loading-shell"><div className="skeleton" /></div>}>
+      <Workspace previewVersion={version} />
+    </Suspense>
+  );
 }

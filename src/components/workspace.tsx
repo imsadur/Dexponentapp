@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   ChartLineUp as Activity,
@@ -55,7 +55,11 @@ import {
   type Scenario,
   type StrategyType,
 } from "@/domain/strategy";
-import { isFarmWizardRoute } from "@/domain/routes";
+import {
+  farmDetailHref,
+  farmEditHref,
+  isFarmWizardRoute,
+} from "@/domain/routes";
 import {
   canPauseFarm,
   depositToDemoFarm,
@@ -99,6 +103,7 @@ const nav = [
 ];
 export function Workspace({ previewVersion }: { previewVersion?: string } = {}) {
   const path = usePathname();
+  const searchParams = useSearchParams();
   const app = useApp();
   const [menu, setMenu] = useState(false);
   const [modal, setModal] = useState("");
@@ -118,12 +123,19 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
   const isV2 = previewVersion !== "v1";
   const activeNav = isV2 ? nav : legacyNav;
   const isWizard = isFarmWizardRoute(segments);
+  const queryFarmId = searchParams.get("farm") || "";
   let content;
   if (isWizard)
     content = (
       <Wizard
-        key={path}
-        farmId={segments[3] === "edit" ? segments[2] : undefined}
+        key={`${path}:${queryFarmId}`}
+        farmId={
+          segments[2] === "edit"
+            ? queryFarmId
+            : segments[3] === "edit"
+              ? segments[2]
+              : undefined
+        }
       />
     );
   else if (section === "dashboard") content = <Dashboard network={network} />;
@@ -134,7 +146,12 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
   )
     content = <FarmList drafts={segments[2] === "drafts"} network={network} />;
   else if (section === "farms")
-    content = <FarmDetail id={segments[2]} tab={segments[3]} />;
+    content = (
+      <FarmDetail
+        id={segments[2] === "manage" ? queryFarmId : segments[2]}
+        tab={segments[3]}
+      />
+    );
   else if (section === "templates" || section === "strategies")
     content = (
       <TemplateLibrary strategies={section === "strategies"} id={segments[2]} />
@@ -700,7 +717,7 @@ function ExploreFarms({ network }: { network: string }) {
               <div><span>30D</span><strong className="positive">+{farm.performance}%</strong></div>
             </div>
             <div className="farm-manager-line"><span className="avatar small-avatar">AM</span><span>Managed by <strong>Alex Morgan</strong><small>Demo manager profile</small></span></div>
-            <Link className="button primary full" href={`/app/farms/${farm.id}`}>Review Farm <ArrowRight size={15} /></Link>
+            <Link className="button primary full" href={farmDetailHref(farm.id)}>Review Farm <ArrowRight size={15} /></Link>
           </article>
         ))}
       </div>
@@ -1006,7 +1023,7 @@ function FarmTable({ farms }: { farms: Farm[] }) {
             {farms.map((f) => (
               <tr key={f.id}>
                 <td>
-                  <Link className="farm-name" href={`/app/farms/${f.id}`}>
+                  <Link className="farm-name" href={farmDetailHref(f.id)}>
                     <span className={`icon-tile ${f.type.toLowerCase()}`}>
                       <StrategyIcon type={f.type} size={18} />
                     </span>
@@ -1069,7 +1086,7 @@ function FarmTable({ farms }: { farms: Farm[] }) {
                   <Link
                     className="icon-button"
                     aria-label={`Manage ${f.name}`}
-                    href={`/app/farms/${f.id}`}
+                    href={farmDetailHref(f.id)}
                   >
                     <ArrowUpRight size={17} />
                   </Link>
@@ -1517,7 +1534,7 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
             <Badge tone={farm.status === "ACTIVE" ? "mint" : "amber"}>
               {farm.status}
             </Badge>
-            <Link className="button" href={`/app/farms/${id}/edit`}>
+            <Link className="button" href={farmEditHref(id)}>
               {local ? "Edit strategy" : "Create editable copy"}
             </Link>
             {local ? (
@@ -1857,7 +1874,7 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
             </Notice>
           )}
           <div className="heading-actions">
-            <Link className="button" href={`/app/farms/${id}/edit`}>
+            <Link className="button" href={farmEditHref(id)}>
               {local ? "Edit configuration" : "Create editable copy"}
             </Link>
             <button
