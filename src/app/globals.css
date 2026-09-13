@@ -5827,3 +5827,177 @@ textarea:focus-visible {
   .trade-center-column { grid-row: auto; }
   .trade-market-stat { min-width: 125px; padding-inline: 14px; }
 }
+
+/* Perpetual market discovery in Farm Overview */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.farm-perp-markets {
+  margin-bottom: 24px;
+  padding: 0;
+}
+.farm-perp-markets-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 96px;
+  padding: 20px 22px;
+  border-bottom: 1px solid var(--border);
+  background:
+    radial-gradient(circle at 12% -30%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 24rem),
+    var(--surface);
+}
+.farm-perp-markets-head h2 {
+  margin: 0 0 5px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -.02em;
+}
+.farm-perp-markets-head p {
+  max-width: 630px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.farm-perp-market-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+.farm-margin-chip {
+  min-width: 150px;
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+}
+.farm-margin-chip span,
+.farm-margin-chip strong { display: block; }
+.farm-margin-chip span {
+  margin-bottom: 3px;
+  color: var(--text-muted);
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.farm-margin-chip strong { font-size: 11px; }
+.farm-market-search { width: 218px; }
+.farm-perp-table-wrap { overflow-x: auto; }
+.farm-perp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.farm-perp-table th {
+  height: 42px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-elevated) 52%, transparent);
+  color: var(--text-muted);
+  font: 600 9px/1 "SFMono-Regular", Consolas, monospace;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  white-space: nowrap;
+}
+.farm-perp-table th:last-child { text-align: right; }
+.farm-perp-table td {
+  min-height: 64px;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--text-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+  transition: background .18s ease;
+}
+.farm-perp-table tbody tr:hover td { background: color-mix(in srgb, var(--accent) 4%, transparent); }
+.farm-perp-table td:last-child { text-align: right; }
+.farm-perp-table td > strong { color: var(--text-primary); font-weight: 600; }
+.farm-perp-table td > small { color: var(--text-muted); font-size: 8px; }
+.farm-market-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+}
+.farm-market-identity > span:last-child,
+.farm-market-identity strong,
+.farm-market-identity small { display: block; }
+.farm-market-identity strong { color: var(--text-primary); font-size: 12px; }
+.farm-market-identity small { margin-top: 4px; color: var(--text-muted); font-size: 8px; }
+.farm-market-identity .pair-icons { min-width: 37px; }
+.farm-market-identity .pair-icons .asset-icon:last-child {
+  margin-left: -8px;
+  border-color: var(--surface);
+}
+.farm-market-trade {
+  min-width: 72px;
+  background: transparent;
+  transition: border-color .18s ease, background .18s ease, color .18s ease, transform .18s ease;
+}
+.farm-market-trade:hover {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border)) !important;
+  background: var(--accent-dim) !important;
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+.farm-perp-footnote {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 16px;
+  color: var(--text-muted);
+  font-size: 9px;
+}
+.farm-perp-footnote svg { color: var(--accent); }
+
+@media (max-width: 980px) {
+  .farm-perp-markets-head { align-items: flex-start; flex-direction: column; }
+  .farm-perp-market-actions { width: 100%; }
+  .farm-market-search { flex: 1; width: auto; }
+}
+@media (max-width: 700px) {
+  .farm-perp-market-actions { align-items: stretch; flex-direction: column; }
+  .farm-margin-chip,
+  .farm-market-search { width: 100%; }
+  .farm-perp-table,
+  .farm-perp-table tbody { display: block; }
+  .farm-perp-table thead { display: none; }
+  .farm-perp-table tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 13px 18px;
+    padding: 15px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .farm-perp-table td {
+    display: block;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    white-space: normal;
+  }
+  .farm-perp-table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 5px;
+    color: var(--text-muted);
+    font: 600 8px/1 "SFMono-Regular", Consolas, monospace;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+  }
+  .farm-perp-table td:first-child,
+  .farm-perp-table td:last-child { grid-column: 1 / -1; }
+  .farm-perp-table td:last-child { text-align: left; }
+  .farm-perp-table td:last-child::before { display: none; }
+  .farm-market-trade { width: 100%; margin-top: 2px; }
+}

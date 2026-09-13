@@ -9,19 +9,20 @@ export type PerpetualMarket = {
   openInterest: string;
   volume: string;
   group: "Major" | "Alt";
+  maxLeverage: number;
 };
 
 export const perpetualMarkets: PerpetualMarket[] = [
-  { base: "BTC", quote: "USDC", price: 116420, change: 1.36, funding: 0.0081, openInterest: "$2.74B", volume: "$1.12B", group: "Major" },
-  { base: "ETH", quote: "USDC", price: 3826.4, change: 2.84, funding: 0.0108, openInterest: "$1.28B", volume: "$684.2M", group: "Major" },
-  { base: "SOL", quote: "USDC", price: 249.83, change: -0.72, funding: 0.0124, openInterest: "$486.7M", volume: "$312.4M", group: "Major" },
-  { base: "ARB", quote: "USDC", price: 1.17, change: 4.18, funding: 0.0064, openInterest: "$186.3M", volume: "$92.8M", group: "Alt" },
-  { base: "OP", quote: "USDC", price: 2.84, change: -1.42, funding: -0.0031, openInterest: "$142.8M", volume: "$74.1M", group: "Alt" },
-  { base: "AVAX", quote: "USDC", price: 48.62, change: 0.91, funding: 0.0048, openInterest: "$216.5M", volume: "$108.7M", group: "Alt" },
-  { base: "LINK", quote: "USDC", price: 26.38, change: 3.12, funding: 0.0072, openInterest: "$204.7M", volume: "$126.4M", group: "Alt" },
-  { base: "DOGE", quote: "USDC", price: 0.284, change: -2.06, funding: -0.0054, openInterest: "$328.1M", volume: "$198.6M", group: "Alt" },
-  { base: "BTC", quote: "USDT", price: 116398, change: 1.31, funding: 0.008, openInterest: "$812.6M", volume: "$429.3M", group: "Major" },
-  { base: "ETH", quote: "USDT", price: 3825.7, change: 2.79, funding: 0.0105, openInterest: "$604.8M", volume: "$291.5M", group: "Major" },
+  { base: "BTC", quote: "USDC", price: 116420, change: 1.36, funding: 0.0081, openInterest: "$2.74B", volume: "$1.12B", group: "Major", maxLeverage: 10 },
+  { base: "ETH", quote: "USDC", price: 3826.4, change: 2.84, funding: 0.0108, openInterest: "$1.28B", volume: "$684.2M", group: "Major", maxLeverage: 10 },
+  { base: "SOL", quote: "USDC", price: 249.83, change: -0.72, funding: 0.0124, openInterest: "$486.7M", volume: "$312.4M", group: "Major", maxLeverage: 10 },
+  { base: "ARB", quote: "USDC", price: 1.17, change: 4.18, funding: 0.0064, openInterest: "$186.3M", volume: "$92.8M", group: "Alt", maxLeverage: 7 },
+  { base: "OP", quote: "USDC", price: 2.84, change: -1.42, funding: -0.0031, openInterest: "$142.8M", volume: "$74.1M", group: "Alt", maxLeverage: 7 },
+  { base: "AVAX", quote: "USDC", price: 48.62, change: 0.91, funding: 0.0048, openInterest: "$216.5M", volume: "$108.7M", group: "Alt", maxLeverage: 7 },
+  { base: "LINK", quote: "USDC", price: 26.38, change: 3.12, funding: 0.0072, openInterest: "$204.7M", volume: "$126.4M", group: "Alt", maxLeverage: 7 },
+  { base: "DOGE", quote: "USDC", price: 0.284, change: -2.06, funding: -0.0054, openInterest: "$328.1M", volume: "$198.6M", group: "Alt", maxLeverage: 5 },
+  { base: "BTC", quote: "USDT", price: 116398, change: 1.31, funding: 0.008, openInterest: "$812.6M", volume: "$429.3M", group: "Major", maxLeverage: 10 },
+  { base: "ETH", quote: "USDT", price: 3825.7, change: 2.79, funding: 0.0105, openInterest: "$604.8M", volume: "$291.5M", group: "Major", maxLeverage: 10 },
 ];
 
 export const marketPair = (market: Pick<PerpetualMarket, "base" | "quote">) =>

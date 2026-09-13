@@ -139,6 +139,7 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
   const activeNav = isV2 ? nav : legacyNav;
   const isWizard = isFarmWizardRoute(segments);
   const queryFarmId = searchParams.get("farm") || "";
+  const queryMarket = searchParams.get("market") || "";
   let content;
   if (isWizard)
     content = (
@@ -168,7 +169,7 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
       />
     );
   else if (section === "trade")
-    content = <TradingDashboard farmId={queryFarmId} />;
+    content = <TradingDashboard farmId={queryFarmId} initialPair={queryMarket} />;
   else if (section === "templates" || section === "strategies")
     content = (
       <TemplateLibrary strategies={section === "strategies"} id={segments[2]} />
@@ -1465,6 +1466,7 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
   const [depositAmount, setDepositAmount] = useState("1000");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [actionError, setActionError] = useState("");
+  const [perpMarketSearch, setPerpMarketSearch] = useState("");
   if (!farm)
     return (
       <EmptyState
@@ -1488,6 +1490,7 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
   const configuredPair = perpetualPair(farm);
   const configuredMarket = findPerpetualMarket(configuredPair);
   const activeTradePair = String(farm.values.demoTradePair || configuredPair);
+  const farmPerpMarkets = searchPerpetualMarkets(perpMarketSearch);
   function closeAction() {
     setAction("");
     setActionError("");
@@ -1648,6 +1651,7 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
         ))}
       </div>
       {farm.type === "PERPETUAL" && activeTab === "Overview" && (
+        <>
         <section className="panel perp-market-card">
           <div className="perp-pair-identity">
             <div>
@@ -1683,6 +1687,60 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
             </Link>
           )}
         </section>
+        <section className="panel farm-perp-markets">
+          <div className="farm-perp-markets-head">
+            <div>
+              <h2>Perp markets</h2>
+              <p>Explore simulated perpetual markets available through this Farm’s {String(farm.values.venue || "configured")} venue.</p>
+            </div>
+            <div className="farm-perp-market-actions">
+              <div className="farm-margin-chip"><span>Farm margin</span><strong>{Number(farm.values.margin).toLocaleString()} {String(farm.values.asset)}</strong></div>
+              <label className="market-search farm-market-search">
+                <Search size={16} />
+                <input aria-label="Search Perp markets" placeholder="Search market" value={perpMarketSearch} onChange={(event) => setPerpMarketSearch(event.target.value)} />
+                {perpMarketSearch && <button aria-label="Clear Perp market search" onClick={() => setPerpMarketSearch("")}><X size={13} /></button>}
+              </label>
+            </div>
+          </div>
+          {farmPerpMarkets.length ? (
+            <div className="farm-perp-table-wrap">
+              <table className="farm-perp-table">
+                <thead><tr><th>Market</th><th>Mark price</th><th>24h change</th><th>24h volume</th><th>Funding / 8h</th><th>Max leverage</th><th><span className="sr-only">Action</span></th></tr></thead>
+                <tbody>
+                  {farmPerpMarkets.map((market) => {
+                    const pair = marketPair(market);
+                    const configured = pair === configuredPair;
+                    const marketPrecision = market.price > 10_000 ? 0 : market.price < 1 ? 3 : 2;
+                    return (
+                      <tr key={pair}>
+                        <td data-label="Market">
+                          <span className="farm-market-identity">
+                            <span className="pair-icons"><AssetIcon symbol={market.base} size={27} /><AssetIcon symbol={market.quote} size={21} /></span>
+                            <span><strong>{pair}</strong><small>{configured ? "Configured pair" : `${market.group} market`}</small></span>
+                          </span>
+                        </td>
+                        <td data-label="Mark price"><strong>{market.price.toLocaleString(undefined, { minimumFractionDigits: marketPrecision, maximumFractionDigits: marketPrecision })}</strong> <small>{market.quote}</small></td>
+                        <td data-label="24h change"><strong className={market.change >= 0 ? "positive" : "warning-text"}>{market.change >= 0 ? "+" : ""}{market.change}%</strong></td>
+                        <td data-label="24h volume">{market.volume}</td>
+                        <td data-label="Funding / 8h"><span className={market.funding >= 0 ? "positive" : "warning-text"}>{market.funding}%</span></td>
+                        <td data-label="Max leverage">{market.maxLeverage}×</td>
+                        <td>
+                          {!local ? (
+                            <Link className="button small farm-market-trade" href={farmTradeHref(id, pair)}>Trade <ArrowUpRight size={14} /></Link>
+                          ) : <span className="muted">Deploy to trade</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="market-empty"><Search size={20} /><strong>No matching market</strong><span>Try a token symbol such as BTC, ETH, or USDC.</span></div>
+          )}
+          <div className="farm-perp-footnote"><Shield size={14} /><span>Market values are simulated for this demo workspace. No live price feed or order execution is connected.</span></div>
+        </section>
+        </>
       )}
       {local && (
         <Notice>
@@ -2130,7 +2188,7 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
   );
 }
 
-function TradingDashboard({ farmId }: { farmId: string }) {
+function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initialPair?: string }) {
   const app = useApp();
   const farm = app.farms.find((item) => item.id === farmId);
   const [side, setSide] = useState<"Long" | "Short">("Long");
@@ -2142,12 +2200,16 @@ function TradingDashboard({ farmId }: { farmId: string }) {
   const [orderError, setOrderError] = useState("");
   const [marketQuery, setMarketQuery] = useState("");
   const [marketGroup, setMarketGroup] = useState<"All" | "Major" | "Alt">("All");
-  const [selectedPair, setSelectedPair] = useState("");
+  const [selectedPair, setSelectedPair] = useState(initialPair);
   const [orderStep, setOrderStep] = useState<"edit" | "review" | "confirmed">("edit");
 
   useEffect(() => {
+    if (initialPair && findPerpetualMarket(initialPair)) {
+      setSelectedPair(initialPair);
+      return;
+    }
     if (farm && !selectedPair) setSelectedPair(perpetualPair(farm));
-  }, [farm, selectedPair]);
+  }, [farm, initialPair, selectedPair]);
 
   if (!app.ready)
     return <div className="loading-shell"><div className="skeleton" /></div>;

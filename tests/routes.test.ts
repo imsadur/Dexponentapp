@@ -23,4 +23,8 @@ test("runtime Farm IDs use stable static-export routes", () => {
   assert.equal(farmDetailHref("farm 123"), "/app/farms/manage/?farm=farm%20123");
   assert.equal(farmEditHref("farm 123"), "/app/farms/edit/?farm=farm%20123");
   assert.equal(farmTradeHref("farm 123"), "/app/trade/?farm=farm%20123");
+  assert.equal(
+    farmTradeHref("farm 123", "BTC/USDC"),
+    "/app/trade/?farm=farm%20123&market=BTC%2FUSDC",
+  );
 });
