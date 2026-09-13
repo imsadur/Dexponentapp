@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { makeFarm, templates } from "../src/domain/strategy";
-import { perpetualPair, placeDemoOrder } from "../src/domain/trading";
+import {
+  perpetualPair,
+  placeDemoOrder,
+  searchPerpetualMarkets,
+} from "../src/domain/trading";
 
 const perpetualTemplate = templates.find((template) => template.type === "PERPETUAL")!;
 
@@ -27,6 +31,34 @@ test("placing a demo order records the Perpetual position", () => {
   assert.equal(updated.values.demoTradeSide, "Long");
   assert.equal(updated.values.demoTradeSize, 2_500);
   assert.match(updated.events.at(-1) || "", /demo order filled/);
+});
+
+test("market search matches symbols, quotes, and groups", () => {
+  assert.deepEqual(
+    searchPerpetualMarkets("arb").map((market) => market.base),
+    ["ARB"],
+  );
+  assert.ok(searchPerpetualMarkets("USDT").every((market) => market.quote === "USDT"));
+  assert.ok(searchPerpetualMarkets("", "Major").every((market) => market.group === "Major"));
+});
+
+test("a demo order can open a market different from the Farm default", () => {
+  const farm = {
+    ...makeFarm(perpetualTemplate, "perp-alt-pair"),
+    status: "ACTIVE" as const,
+    source: "demo" as const,
+  };
+  const updated = placeDemoOrder(farm, {
+    side: "Short",
+    type: "Market",
+    size: 1_500,
+    leverage: 2,
+    price: 1.17,
+    market: { base: "ARB", quote: "USDC" },
+  });
+  assert.equal(updated.values.demoTradePair, "ARB/USDC");
+  assert.equal(updated.values.demoTradeBase, "ARB");
+  assert.match(updated.events.at(-1) || "", /Short ARB\/USDC/);
 });
 
 test("demo trades require an active Perpetual Farm", () => {

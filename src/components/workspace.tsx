@@ -64,7 +64,15 @@ import {
   farmTradeHref,
   isFarmWizardRoute,
 } from "@/domain/routes";
-import { perpetualPair, placeDemoOrder } from "@/domain/trading";
+import {
+  findPerpetualMarket,
+  marketPair,
+  perpetualMarkets,
+  perpetualPair,
+  placeDemoOrder,
+  searchPerpetualMarkets,
+  type PerpetualMarket,
+} from "@/domain/trading";
 import {
   canPauseFarm,
   depositToDemoFarm,
@@ -125,6 +133,7 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
   const segments = path.split("/").filter(Boolean);
   const section = previewVersion ? "dashboard" : segments[1] || "dashboard";
+  const isTrade = section === "trade";
   const isV2 = previewVersion !== "v1";
   const activeNav = isV2 ? nav : legacyNav;
   const isWizard = isFarmWizardRoute(segments);
@@ -178,7 +187,7 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
       />
     );
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${isTrade ? "trade-shell" : ""}`}>
       <a className="skip-link" href="#main">
         Skip to content
       </a>
@@ -189,7 +198,7 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
           onClick={() => setMenu(false)}
         />
       )}
-      <aside className={`sidebar ${menu ? "open" : ""}`}>
+      <aside className={`sidebar ${isTrade ? "trade-sidebar" : ""} ${menu ? "open" : ""}`}>
         <Brand />
         {!isV2 && <span className="nav-caption">WORKSPACE</span>}
         <nav>
@@ -198,6 +207,7 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
               className={section === item.section ? "active" : ""}
               key={item.href}
               href={item.href}
+              title={isTrade ? item.label : undefined}
               onClick={() => setMenu(false)}
             >
               <item.icon size={18} />
@@ -358,14 +368,26 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
             >
               <Menu size={20} />
             </button>
-            <span>Workspace</span>
-            <span>/</span>
-            <strong>
-              {isWizard
+            {isTrade ? (
+              <>
+                <Link className="trade-top-back" href={farmDetailHref(queryFarmId)}>
+                  <ArrowRight className="rotate-180" size={14} /> Back to Farm
+                </Link>
+                <span>/</span>
+                <strong>Trade</strong>
+              </>
+            ) : (
+              <>
+                <span>Workspace</span>
+                <span>/</span>
+                <strong>
+                  {isWizard
                 ? "Create farm"
                 : activeNav.find((item) => item.section === section)?.label ||
                   section.charAt(0).toUpperCase() + section.slice(1)}
-            </strong>
+                </strong>
+              </>
+            )}
           </div>
           <div className="topbar-actions">
             {isV2 ? (
@@ -475,7 +497,7 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
         </header>
         <main
           id="main"
-          className={isWizard ? "main-content wizard-content" : "main-content"}
+          className={isWizard ? "main-content wizard-content" : isTrade ? "main-content trade-content" : "main-content"}
         >
           {app.storageError && (
             <Notice tone="warning">
@@ -2103,6 +2125,14 @@ function TradingDashboard({ farmId }: { farmId: string }) {
   const [timeframe, setTimeframe] = useState("1H");
   const [limitPrice, setLimitPrice] = useState("");
   const [orderError, setOrderError] = useState("");
+  const [marketQuery, setMarketQuery] = useState("");
+  const [marketGroup, setMarketGroup] = useState<"All" | "Major" | "Alt">("All");
+  const [selectedPair, setSelectedPair] = useState("");
+  const [orderStep, setOrderStep] = useState<"edit" | "review" | "confirmed">("edit");
+
+  useEffect(() => {
+    if (farm && !selectedPair) setSelectedPair(perpetualPair(farm));
+  }, [farm, selectedPair]);
 
   if (!app.ready)
     return <div className="loading-shell"><div className="skeleton" /></div>;
@@ -2116,14 +2146,14 @@ function TradingDashboard({ farmId }: { farmId: string }) {
       />
     );
 
-  const base = String(farm.values.underlying || "ETH");
-  const quote = String(farm.values.quoteAsset || "USDC");
-  const market = {
-    ETH: { price: 3826.4, change: 2.84, funding: 0.0108, openInterest: "$1.28B", volume: "$684.2M" },
-    BTC: { price: 116420, change: 1.36, funding: 0.0081, openInterest: "$2.74B", volume: "$1.12B" },
-    SOL: { price: 249.83, change: -0.72, funding: 0.0124, openInterest: "$486.7M", volume: "$312.4M" },
-  }[base] || { price: 100, change: 0.4, funding: 0.01, openInterest: "$120M", volume: "$84M" };
-  const pair = perpetualPair(farm);
+  const configuredPair = perpetualPair(farm);
+  const market =
+    findPerpetualMarket(selectedPair || configuredPair) ||
+    perpetualMarkets[0];
+  const base = market.base;
+  const quote = market.quote;
+  const pair = marketPair(market);
+  const filteredMarkets = searchPerpetualMarkets(marketQuery, marketGroup);
   const precision = market.price > 10_000 ? 0 : 2;
   const formattedPrice = market.price.toLocaleString(undefined, {
     minimumFractionDigits: precision,
@@ -2146,22 +2176,53 @@ function TradingDashboard({ farmId }: { farmId: string }) {
   }));
   const positionSize = Number(farm.values.demoTradeSize || 0);
   const positionSide = String(farm.values.demoTradeSide || "—");
+  const positionPair = String(farm.values.demoTradePair || configuredPair);
+  const positionMarket = findPerpetualMarket(positionPair) || market;
+  const positionQuote = String(farm.values.demoTradeQuote || positionMarket.quote);
   const entryPrice = Number(farm.values.demoEntryPrice || market.price);
   const pnl = positionSize
-    ? ((market.price - entryPrice) / entryPrice) * positionSize * (positionSide === "Short" ? -1 : 1)
+    ? ((positionMarket.price - entryPrice) / entryPrice) * positionSize * (positionSide === "Short" ? -1 : 1)
     : 0;
+  const numericSize = Number(size || 0);
+  const executionPrice = orderType === "Market" ? market.price : Number(limitPrice);
+  const estimatedMargin = numericSize / leverage;
+  const estimatedFee = numericSize * 0.00035;
+  const liquidationMove = Math.max(2.5, 92 / leverage);
+  const liquidationPrice = market.price * (side === "Long" ? 1 - liquidationMove / 100 : 1 + liquidationMove / 100);
+
+  function selectMarket(nextMarket: PerpetualMarket) {
+    setSelectedPair(marketPair(nextMarket));
+    setLimitPrice("");
+    setOrderError("");
+    setOrderStep("edit");
+  }
+
+  function reviewOrder() {
+    if (!Number.isFinite(numericSize) || numericSize <= 0) {
+      setOrderError("Enter a position size greater than zero.");
+      return;
+    }
+    if (orderType === "Limit" && (!Number.isFinite(executionPrice) || executionPrice <= 0)) {
+      setOrderError("Enter a valid limit price.");
+      return;
+    }
+    setOrderError("");
+    setOrderStep("review");
+  }
 
   function submitOrder() {
     try {
       const updated = placeDemoOrder(farm!, {
         side,
         type: orderType,
-        size: Number(size),
+        size: numericSize,
         leverage,
-        price: orderType === "Market" ? market.price : Number(limitPrice),
+        price: executionPrice,
+        market,
       });
       app.saveFarm(updated);
       setOrderError("");
+      setOrderStep("confirmed");
       app.toast(`${side} ${pair} demo order filled.`);
     } catch (error) {
       setOrderError(error instanceof Error ? error.message : "Unable to place demo order.");
@@ -2170,12 +2231,6 @@ function TradingDashboard({ farmId }: { farmId: string }) {
 
   return (
     <div className="trading-workspace">
-      <div className="trade-page-top">
-        <Link className="back-link" href={farmDetailHref(farm.id)}>
-          <ArrowRight className="rotate-180" size={14} /> Back to Farm
-        </Link>
-        <Badge tone="amber">DEMO TRADING</Badge>
-      </div>
       <section className="trade-market-header">
         <div className="trade-pair-title">
           <span className="pair-icons">
@@ -2184,7 +2239,7 @@ function TradingDashboard({ farmId }: { farmId: string }) {
           </span>
           <div>
             <h1>{pair}</h1>
-            <span>Perpetual · {String(farm.values.venue || "Hyperliquid")}</span>
+            <span>Perpetual market · Demo execution</span>
           </div>
         </div>
         <div className="trade-market-stat trade-price-stat">
@@ -2201,18 +2256,48 @@ function TradingDashboard({ farmId }: { farmId: string }) {
 
       <div className="trade-grid">
         <aside className="trade-panel market-list-panel">
-          <div className="trade-panel-heading"><strong>Markets</strong><Search size={14} /></div>
-          {[base, "BTC", "ETH", "SOL"].filter((symbol, index, items) => items.indexOf(symbol) === index).map((symbol, index) => {
-            const changes = [market.change, 1.36, 2.84, -0.72];
-            return (
-              <button className={symbol === base ? "market-row active" : "market-row"} key={symbol} disabled={symbol !== base}>
-                <AssetIcon symbol={symbol} size={24} />
-                <span><strong>{symbol}/{quote}</strong><small>Perp</small></span>
-                <span><strong>{symbol === base ? formattedPrice : "—"}</strong><small className={changes[index] >= 0 ? "positive" : "warning-text"}>{changes[index] >= 0 ? "+" : ""}{changes[index]}%</small></span>
-              </button>
-            );
-          })}
-          <Notice>Other markets are visible for context. This Farm trades only its configured pair.</Notice>
+          <div className="market-browser-heading">
+            <div><strong>Markets</strong><span>{perpetualMarkets.length} demo pairs</span></div>
+            <label className="market-search">
+              <Search size={15} />
+              <input
+                aria-label="Search market pairs"
+                placeholder="Search pair"
+                value={marketQuery}
+                onChange={(event) => setMarketQuery(event.target.value)}
+              />
+              {marketQuery && <button aria-label="Clear market search" onClick={() => setMarketQuery("")}><X size={13} /></button>}
+            </label>
+            <div className="market-group-tabs">
+              {(["All", "Major", "Alt"] as const).map((group) => (
+                <button key={group} className={marketGroup === group ? "active" : ""} onClick={() => setMarketGroup(group)}>{group}</button>
+              ))}
+            </div>
+          </div>
+          <div className="market-list-scroll">
+            {filteredMarkets.map((item) => {
+              const itemPair = marketPair(item);
+              const itemPrecision = item.price > 10_000 ? 0 : item.price < 1 ? 3 : 2;
+              return (
+                <button
+                  className={itemPair === pair ? "market-row active" : "market-row"}
+                  key={itemPair}
+                  onClick={() => selectMarket(item)}
+                  aria-pressed={itemPair === pair}
+                >
+                  <AssetIcon symbol={item.base} size={27} />
+                  <span><strong>{itemPair}</strong><small>{item.group} perpetual</small></span>
+                  <span>
+                    <strong>{item.price.toLocaleString(undefined, { maximumFractionDigits: itemPrecision })}</strong>
+                    <small className={item.change >= 0 ? "positive" : "warning-text"}>{item.change >= 0 ? "+" : ""}{item.change}%</small>
+                  </span>
+                </button>
+              );
+            })}
+            {!filteredMarkets.length && (
+              <div className="market-empty"><Search size={20} /><strong>No matching pair</strong><span>Try BTC, ETH, USDC, or USDT.</span></div>
+            )}
+          </div>
         </aside>
 
         <main className="trade-center-column">
@@ -2239,33 +2324,87 @@ function TradingDashboard({ farmId }: { farmId: string }) {
         </main>
 
         <aside className="trade-panel order-ticket">
-          <div className="trade-panel-heading"><strong>Place demo order</strong><SlidersHorizontal size={15} /></div>
-          <div className="trade-side-toggle">
-            <button className={side === "Long" ? "active long" : ""} onClick={() => setSide("Long")}><TrendUp size={14} /> Long</button>
-            <button className={side === "Short" ? "active short" : ""} onClick={() => setSide("Short")}><TrendDown size={14} /> Short</button>
+          <div className="trade-panel-heading order-ticket-heading">
+            <div><strong>{orderStep === "edit" ? "Build order" : orderStep === "review" ? "Review order" : "Order confirmed"}</strong><span>{pair} · demo environment</span></div>
+            <div className="order-progress" aria-label={`Order step ${orderStep === "edit" ? 1 : orderStep === "review" ? 2 : 3} of 3`}>
+              <i className="complete" /><i className={orderStep !== "edit" ? "complete" : ""} /><i className={orderStep === "confirmed" ? "complete" : ""} />
+            </div>
           </div>
-          <div className="tabs order-type-tabs">
-            {(["Market", "Limit"] as const).map((item) => <button key={item} className={orderType === item ? "active" : ""} onClick={() => setOrderType(item)}>{item}</button>)}
-          </div>
-          {orderType === "Limit" && (
-            <label className="field"><span>Limit price</span><div className="input-wrap"><input aria-label="Limit price" type="number" min="0" value={limitPrice} onChange={(event) => setLimitPrice(event.target.value)} /><small>{quote}</small></div></label>
+
+          {orderStep === "edit" && (
+            <div className="order-step-body">
+              <div className="trade-intent-grid">
+                <button className={side === "Long" ? "active long" : ""} onClick={() => setSide("Long")}>
+                  <TrendUp size={18} /><span><strong>Long</strong><small>Profit if price rises</small></span>
+                </button>
+                <button className={side === "Short" ? "active short" : ""} onClick={() => setSide("Short")}>
+                  <TrendDown size={18} /><span><strong>Short</strong><small>Profit if price falls</small></span>
+                </button>
+              </div>
+              <div className="tabs order-type-tabs">
+                {(["Market", "Limit"] as const).map((item) => <button key={item} className={orderType === item ? "active" : ""} onClick={() => setOrderType(item)}>{item}</button>)}
+              </div>
+              {orderType === "Limit" && (
+                <label className="field"><span>Limit price</span><div className="input-wrap"><input aria-label="Limit price" type="number" min="0" placeholder={formattedPrice} value={limitPrice} onChange={(event) => setLimitPrice(event.target.value)} /><small>{quote}</small></div></label>
+              )}
+              <label className="field"><span>Position size</span><div className="input-wrap"><input aria-label="Position size" type="number" min="1" value={size} onChange={(event) => setSize(event.target.value)} /><small>{quote}</small></div></label>
+              <div className="size-presets">
+                {[500, 1000, 2500, 5000].map((amount) => <button key={amount} onClick={() => setSize(String(amount))}>{amount >= 1000 ? `${amount / 1000}K` : amount}</button>)}
+              </div>
+              <label className="field trade-leverage-field">
+                <span>Leverage <strong>{leverage}×</strong></span>
+                <input aria-label="Trade leverage" type="range" min="1" max="10" step="0.5" value={leverage} onChange={(event) => setLeverage(Number(event.target.value))} />
+                <div className="range-labels"><small>1×</small><small>Lower liquidation buffer</small><small>10×</small></div>
+              </label>
+              <div className="trade-order-summary compact">
+                <div><span>Required margin</span><strong>{estimatedMargin.toLocaleString(undefined, { maximumFractionDigits: 2 })} {quote}</strong></div>
+                <div><span>Est. liquidation</span><strong>{liquidationPrice.toLocaleString(undefined, { maximumFractionDigits: precision })}</strong></div>
+              </div>
+              {orderError && <p className="field-error" role="alert">{orderError}</p>}
+              <button className={`button full trade-submit ${side.toLowerCase()}`} onClick={reviewOrder}>
+                Review {side} order <ArrowRight size={15} />
+              </button>
+              <p className="order-footnote">Simulated order. No wallet transaction will be sent.</p>
+            </div>
           )}
-          <label className="field"><span>Position size</span><div className="input-wrap"><input aria-label="Position size" type="number" min="1" value={size} onChange={(event) => setSize(event.target.value)} /><small>{quote}</small></div></label>
-          <label className="field trade-leverage-field">
-            <span>Leverage <strong>{leverage}×</strong></span>
-            <input aria-label="Trade leverage" type="range" min="1" max="10" step="0.5" value={leverage} onChange={(event) => setLeverage(Number(event.target.value))} />
-          </label>
-          <div className="trade-order-summary">
-            <div><span>Market</span><strong>{pair}</strong></div>
-            <div><span>Venue</span><strong>{String(farm.values.venue)}</strong></div>
-            <div><span>Buying power</span><strong>{(Number(size || 0) * leverage).toLocaleString()} {quote}</strong></div>
-            <div><span>Estimated fee</span><strong>{(Number(size || 0) * 0.00035).toFixed(2)} {quote}</strong></div>
-          </div>
-          <Notice>No wallet transaction is sent. Orders update this browser’s demo Farm only.</Notice>
-          {orderError && <p className="field-error" role="alert">{orderError}</p>}
-          <button className={`button full trade-submit ${side.toLowerCase()}`} onClick={submitOrder}>
-            {side} {base} · Demo
-          </button>
+
+          {orderStep === "review" && (
+            <div className="order-step-body order-review">
+              <div className={`review-intent ${side.toLowerCase()}`}>
+                {side === "Long" ? <TrendUp size={22} /> : <TrendDown size={22} />}
+                <div><span>{side} {pair}</span><strong>{numericSize.toLocaleString()} {quote} at {leverage}×</strong></div>
+              </div>
+              <div className="trade-order-summary">
+                <div><span>Order type</span><strong>{orderType}</strong></div>
+                <div><span>Execution price</span><strong>{executionPrice.toLocaleString(undefined, { maximumFractionDigits: precision })} {quote}</strong></div>
+                <div><span>Required margin</span><strong>{estimatedMargin.toLocaleString(undefined, { maximumFractionDigits: 2 })} {quote}</strong></div>
+                <div><span>Estimated fee</span><strong>{estimatedFee.toFixed(2)} {quote}</strong></div>
+                <div><span>Est. liquidation</span><strong>{liquidationPrice.toLocaleString(undefined, { maximumFractionDigits: precision })} {quote}</strong></div>
+                <div><span>Venue</span><strong>{String(farm.values.venue)}</strong></div>
+              </div>
+              <Notice>Leverage amplifies gains and losses. This confirmation updates demo data stored in your browser.</Notice>
+              {orderError && <p className="field-error" role="alert">{orderError}</p>}
+              <div className="review-order-actions">
+                <button className="button secondary" onClick={() => setOrderStep("edit")}>Back to edit</button>
+                <button className={`button trade-submit ${side.toLowerCase()}`} onClick={submitOrder}>Confirm {side}</button>
+              </div>
+            </div>
+          )}
+
+          {orderStep === "confirmed" && (
+            <div className="order-step-body order-confirmed">
+              <div className="confirmation-mark"><Check size={24} weight="bold" /></div>
+              <h2>{side} position opened</h2>
+              <p>{numericSize.toLocaleString()} {quote} of {pair} is now visible in this Farm’s demo positions.</p>
+              <div className="trade-order-summary">
+                <div><span>Entry</span><strong>{executionPrice.toLocaleString(undefined, { maximumFractionDigits: precision })}</strong></div>
+                <div><span>Leverage</span><strong>{leverage}×</strong></div>
+                <div><span>Status</span><strong className="positive">Open</strong></div>
+              </div>
+              <button className="button full" onClick={() => setOrderStep("edit")}>Place another order</button>
+              <Link className="text-link order-farm-link" href={farmDetailHref(farm.id)}>Return to Farm details <ArrowRight size={13} /></Link>
+            </div>
+          )}
         </aside>
       </div>
 
@@ -2273,12 +2412,12 @@ function TradingDashboard({ farmId }: { farmId: string }) {
         <div className="trade-panel-heading"><div><strong>Positions</strong><span>Demo Farm account</span></div><Link className="text-link" href={farmDetailHref(farm.id)}>View Farm details</Link></div>
         {positionSize ? (
           <div className="trade-position-row">
-            <div><span>Market</span><strong>{pair}</strong></div>
+            <div><span>Market</span><strong>{positionPair}</strong></div>
             <div><span>Side</span><strong className={positionSide === "Long" ? "positive" : "warning-text"}>{positionSide}</strong></div>
-            <div><span>Size</span><strong>{positionSize.toLocaleString()} {quote}</strong></div>
+            <div><span>Size</span><strong>{positionSize.toLocaleString()} {positionQuote}</strong></div>
             <div><span>Entry</span><strong>{entryPrice.toLocaleString()}</strong></div>
-            <div><span>Mark</span><strong>{formattedPrice}</strong></div>
-            <div><span>Unrealized PnL</span><strong className={pnl >= 0 ? "positive" : "warning-text"}>{pnl >= 0 ? "+" : ""}{pnl.toFixed(2)} {quote}</strong></div>
+            <div><span>Mark</span><strong>{positionMarket.price.toLocaleString()}</strong></div>
+            <div><span>Unrealized PnL</span><strong className={pnl >= 0 ? "positive" : "warning-text"}>{pnl >= 0 ? "+" : ""}{pnl.toFixed(2)} {positionQuote}</strong></div>
           </div>
         ) : (
           <EmptyState title="No open demo position" description="Place a Long or Short demo order to populate this Farm’s position." />
