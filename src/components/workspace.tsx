@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import {
   ChartLineUp as Activity,
   ArrowDown,
@@ -66,6 +66,7 @@ import {
 } from "@/domain/routes";
 import {
   findPerpetualMarket,
+  filledOrders,
   marketPair,
   perpetualMarkets,
   perpetualPair,
@@ -1643,7 +1644,7 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
           </button>
         ))}
       </div>
-      {farm.type === "PERPETUAL" && (
+      {farm.type === "PERPETUAL" && activeTab === "Overview" && (
         <section className="panel perp-market-card">
           <div className="perp-pair-identity">
             <span className="pair-icons">
@@ -1651,7 +1652,7 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
               <AssetIcon symbol={String(farm.values.quoteAsset || "USDC")} size={28} />
             </span>
             <div>
-              <span className="eyebrow">PERPETUAL MARKET</span>
+              <span className="eyebrow">MARKET PAIR</span>
               <h2>{perpetualPair(farm)}</h2>
               <small>{String(farm.values.venue || "Hyperliquid")} · Demo execution venue</small>
             </div>
@@ -2175,6 +2176,7 @@ function TradingDashboard({ farmId }: { farmId: string }) {
     total: 26 + index * 10,
   }));
   const positionSize = Number(farm.values.demoTradeSize || 0);
+  const orderHistory = filledOrders(farm).toReversed();
   const positionSide = String(farm.values.demoTradeSide || "—");
   const positionPair = String(farm.values.demoTradePair || configuredPair);
   const positionMarket = findPerpetualMarket(positionPair) || market;
@@ -2310,8 +2312,7 @@ function TradingDashboard({ farmId }: { farmId: string }) {
                 ))}
               </div>
             </div>
-            <PerformanceChart points={chartPoints} label={`${pair} simulated ${timeframe} chart`} />
-            <div className="trade-chart-axis"><span>Earlier</span><span>{timeframe} candles · demo</span><span>Now</span></div>
+            <TradingChart points={chartPoints} pair={pair} timeframe={timeframe} precision={precision} />
           </section>
 
           <section className="trade-panel orderbook-panel">
@@ -2423,6 +2424,127 @@ function TradingDashboard({ farmId }: { farmId: string }) {
           <EmptyState title="No open demo position" description="Place a Long or Short demo order to populate this Farm’s position." />
         )}
       </section>
+
+      <section className="trade-panel filled-orders-panel">
+        <div className="trade-panel-heading">
+          <div><strong>Filled orders</strong><span>Complete demo execution history</span></div>
+          <span className="orders-count">{orderHistory.length} filled</span>
+        </div>
+        {orderHistory.length ? (
+          <div className="filled-orders-table-wrap">
+            <table className="filled-orders-table">
+              <thead><tr><th>Time</th><th>Market</th><th>Side</th><th>Type</th><th>Size</th><th>Fill price</th><th>Leverage</th><th>Fee</th><th>Status</th></tr></thead>
+              <tbody>
+                {orderHistory.map((order) => (
+                  <tr key={order.id}>
+                    <td>{new Date(order.filledAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</td>
+                    <td><span className="order-pair"><AssetIcon symbol={order.pair.split("/")[0]} size={20} /><strong>{order.pair}</strong></span></td>
+                    <td><span className={`order-side ${order.side.toLowerCase()}`}>{order.side}</span></td>
+                    <td>{order.type}</td>
+                    <td>{order.size.toLocaleString()} {order.quote}</td>
+                    <td>{order.price.toLocaleString()}</td>
+                    <td>{order.leverage}×</td>
+                    <td>{order.fee.toFixed(2)} {order.quote}</td>
+                    <td><span className="filled-status"><Check size={12} weight="bold" /> Filled</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="orders-empty"><Clock3 size={19} /><span>Confirmed demo orders will appear here with their fill details.</span></div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function TradingChart({
+  points,
+  pair,
+  timeframe,
+  precision,
+}: {
+  points: number[];
+  pair: string;
+  timeframe: string;
+  precision: number;
+}) {
+  const [hovered, setHovered] = useState<number | null>(null);
+  const candles = points.slice(-52).map((close, index, values) => {
+    const open = index ? values[index - 1] : close * 0.998;
+    const spread = close * (0.0018 + (index % 5) * 0.0003);
+    return {
+      open,
+      close,
+      high: Math.max(open, close) + spread,
+      low: Math.min(open, close) - spread * 0.82,
+      volume: 28 + ((index * 37) % 68),
+    };
+  });
+  const min = Math.min(...candles.map((candle) => candle.low));
+  const max = Math.max(...candles.map((candle) => candle.high));
+  const range = max - min || 1;
+  const y = (value: number) => ((max - value) / range) * 78 + 4;
+  const active = hovered === null ? candles.at(-1)! : candles[hovered];
+  const activeIndex = hovered === null ? candles.length - 1 : hovered;
+  const up = active.close >= active.open;
+  const price = (value: number) => value.toLocaleString(undefined, {
+    minimumFractionDigits: precision,
+    maximumFractionDigits: precision,
+  });
+
+  return (
+    <div className="dex-trading-chart" onMouseLeave={() => setHovered(null)}>
+      <div className="chart-market-toolbar">
+        <div className="chart-ohlc">
+          <span>O <strong>{price(active.open)}</strong></span>
+          <span>H <strong>{price(active.high)}</strong></span>
+          <span>L <strong>{price(active.low)}</strong></span>
+          <span>C <strong className={up ? "positive" : "warning-text"}>{price(active.close)}</strong></span>
+        </div>
+        <div className="chart-feed"><i /> Simulated feed · {timeframe}</div>
+      </div>
+      <div className="chart-plot" role="img" aria-label={`${pair} interactive simulated candlestick chart`}>
+        <div className="chart-grid-lines">{[0, 1, 2, 3, 4].map((line) => <i key={line} style={{ top: `${line * 20}%` }} />)}</div>
+        <div className="chart-candles">
+          {candles.map((candle, index) => {
+            const left = (index / candles.length) * 100;
+            const bodyTop = y(Math.max(candle.open, candle.close));
+            const bodyHeight = Math.max(1.1, Math.abs(y(candle.open) - y(candle.close)));
+            const rising = candle.close >= candle.open;
+            return (
+              <button
+                type="button"
+                key={index}
+                className={`chart-candle ${rising ? "rising" : "falling"} ${activeIndex === index ? "active" : ""}`}
+                style={{ left: `${left}%`, width: `${100 / candles.length}%` } as CSSProperties}
+                onMouseEnter={() => setHovered(index)}
+                onFocus={() => setHovered(index)}
+                aria-label={`Candle ${index + 1}: open ${price(candle.open)}, close ${price(candle.close)}`}
+              >
+                <i className="candle-wick" style={{ top: `${y(candle.high)}%`, height: `${y(candle.low) - y(candle.high)}%` }} />
+                <i className="candle-body" style={{ top: `${bodyTop}%`, height: `${bodyHeight}%` }} />
+                <i className="candle-volume" style={{ height: `${candle.volume * 0.15}%` }} />
+              </button>
+            );
+          })}
+        </div>
+        <div className="chart-crosshair-x" style={{ left: `${((activeIndex + 0.5) / candles.length) * 100}%` }} />
+        <div className="chart-crosshair-y" style={{ top: `${y(active.close)}%` }} />
+        <div className={`chart-price-marker ${up ? "up" : "down"}`} style={{ top: `${y(active.close)}%` }}>{price(active.close)}</div>
+        {hovered !== null && (
+          <div className="chart-hover-card" style={{ left: hovered > candles.length * 0.7 ? "18px" : "auto", right: hovered > candles.length * 0.7 ? "auto" : "72px" }}>
+            <span>{pair} · {timeframe}</span>
+            <strong>{price(active.close)} {pair.split("/")[1]}</strong>
+            <small className={up ? "positive" : "warning-text"}>{up ? "+" : ""}{((active.close - active.open) / active.open * 100).toFixed(2)}%</small>
+          </div>
+        )}
+        <div className="chart-price-axis">
+          {[0, .25, .5, .75, 1].map((step) => <span key={step} style={{ top: `${step * 96}%` }}>{price(max - range * step)}</span>)}
+        </div>
+      </div>
+      <div className="chart-time-axis"><span>06:00</span><span>10:00</span><span>14:00</span><span>18:00</span><span>Now</span></div>
     </div>
   );
 }

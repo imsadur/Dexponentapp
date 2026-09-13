@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { makeFarm, templates } from "../src/domain/strategy";
 import {
+  filledOrders,
   perpetualPair,
   placeDemoOrder,
   searchPerpetualMarkets,
@@ -59,6 +60,31 @@ test("a demo order can open a market different from the Farm default", () => {
   assert.equal(updated.values.demoTradePair, "ARB/USDC");
   assert.equal(updated.values.demoTradeBase, "ARB");
   assert.match(updated.events.at(-1) || "", /Short ARB\/USDC/);
+  assert.equal(filledOrders(updated).at(-1)?.pair, "ARB/USDC");
+});
+
+test("filled demo orders retain complete execution history", () => {
+  const farm = {
+    ...makeFarm(perpetualTemplate, "perp-history"),
+    status: "ACTIVE" as const,
+    source: "demo" as const,
+  };
+  const first = placeDemoOrder(farm, {
+    side: "Long",
+    type: "Market",
+    size: 800,
+    leverage: 2,
+    price: 3_826.4,
+  });
+  const second = placeDemoOrder(first, {
+    side: "Short",
+    type: "Limit",
+    size: 500,
+    leverage: 3,
+    price: 3_900,
+  });
+  assert.equal(filledOrders(second).length, 2);
+  assert.deepEqual(filledOrders(second).map((order) => order.side), ["Long", "Short"]);
 });
 
 test("demo trades require an active Perpetual Farm", () => {

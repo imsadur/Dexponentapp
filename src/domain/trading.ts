@@ -49,6 +49,30 @@ export type DemoOrder = {
   market?: Pick<PerpetualMarket, "base" | "quote">;
 };
 
+export type FilledOrder = {
+  id: string;
+  pair: string;
+  side: "Long" | "Short";
+  type: "Market" | "Limit";
+  size: number;
+  leverage: number;
+  price: number;
+  quote: string;
+  fee: number;
+  filledAt: string;
+};
+
+export function filledOrders(farm: Farm): FilledOrder[] {
+  const raw = farm.values.demoFilledOrders;
+  if (typeof raw !== "string" || !raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 export function perpetualPair(farm: Farm) {
   return `${String(farm.values.underlying || "ETH")}/${String(farm.values.quoteAsset || "USDC")}`;
 }
@@ -68,6 +92,19 @@ export function placeDemoOrder(farm: Farm, order: DemoOrder): Farm {
   const base = order.market?.base || String(farm.values.underlying || "ETH");
   const quote = order.market?.quote || String(farm.values.quoteAsset || "USDC");
   const pair = `${base}/${quote}`;
+  const filledAt = new Date().toISOString();
+  const orderRecord: FilledOrder = {
+    id: `demo-${Date.now()}-${filledOrders(farm).length + 1}`,
+    pair,
+    side: order.side,
+    type: order.type,
+    size: order.size,
+    leverage: order.leverage,
+    price: order.price,
+    quote,
+    fee: order.size * 0.00035,
+    filledAt,
+  };
   return {
     ...farm,
     values: {
@@ -80,8 +117,9 @@ export function placeDemoOrder(farm: Farm, order: DemoOrder): Farm {
       demoTradeSize: order.size,
       demoTradeLeverage: order.leverage,
       demoEntryPrice: order.price,
+      demoFilledOrders: JSON.stringify([...filledOrders(farm), orderRecord]),
     },
-    updatedAt: new Date().toISOString(),
+    updatedAt: filledAt,
     events: [
       ...farm.events,
       `${order.side} ${pair} · ${order.size.toLocaleString()} ${quote} at ${order.leverage}× · demo order filled`,
