@@ -1485,6 +1485,9 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
   const local = farm.source === "local";
   const pauseAvailable = canPauseFarm(farm);
   const demoPosition = Number(farm.values.demoPosition || 0);
+  const configuredPair = perpetualPair(farm);
+  const configuredMarket = findPerpetualMarket(configuredPair);
+  const activeTradePair = String(farm.values.demoTradePair || configuredPair);
   function closeAction() {
     setAction("");
     setActionError("");
@@ -1647,17 +1650,28 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
       {farm.type === "PERPETUAL" && activeTab === "Overview" && (
         <section className="panel perp-market-card">
           <div className="perp-pair-identity">
-            <span className="pair-icons">
-              <AssetIcon symbol={String(farm.values.underlying || "ETH")} size={34} />
-              <AssetIcon symbol={String(farm.values.quoteAsset || "USDC")} size={28} />
-            </span>
             <div>
-              <span className="eyebrow">MARKET PAIR</span>
-              <h2>{perpetualPair(farm)}</h2>
-              <small>{String(farm.values.venue || "Hyperliquid")} · Demo execution venue</small>
+              <span className="eyebrow">PERPETUAL FARM MARKET</span>
+              <h2>Market / Pair</h2>
+              <small>The configured base asset and settlement token for this Farm.</small>
+            </div>
+            <div className="perp-token-pair" aria-label={`Configured market pair ${configuredPair}`}>
+              <div className="perp-token">
+                <AssetIcon symbol={String(farm.values.underlying || "ETH")} size={34} />
+                <span><small>Base token</small><strong>{String(farm.values.underlying || "ETH")}</strong></span>
+              </div>
+              <span className="pair-divider">/</span>
+              <div className="perp-token">
+                <AssetIcon symbol={String(farm.values.quoteAsset || "USDC")} size={34} />
+                <span><small>Quote token</small><strong>{String(farm.values.quoteAsset || "USDC")}</strong></span>
+              </div>
             </div>
           </div>
           <div className="perp-market-facts">
+            <div><span>Configured pair</span><strong>{configuredPair}</strong></div>
+            <div><span>Active trade market</span><strong>{activeTradePair}</strong></div>
+            <div><span>Mark price</span><strong>{configuredMarket ? configuredMarket.price.toLocaleString() : "Demo unavailable"}</strong></div>
+            <div><span>Venue</span><strong>{String(farm.values.venue || "Hyperliquid")}</strong></div>
             <div><span>Direction</span><strong>{String(farm.values.direction)}</strong></div>
             <div><span>Leverage</span><strong>{farm.values.leverage}×</strong></div>
             <div><span>Margin</span><strong>{Number(farm.values.margin).toLocaleString()} {String(farm.values.asset)}</strong></div>
