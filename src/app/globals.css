@@ -4900,7 +4900,7 @@ textarea:focus-visible {
 /* Perpetual Farm market identity and demo trading workspace */
 .perp-market-card {
   display: grid;
-  grid-template-columns: minmax(360px, 1.2fr) minmax(420px, 1.6fr) auto;
+  grid-template-columns: minmax(230px, 1fr) minmax(420px, 1.8fr) auto;
   align-items: center;
   gap: 28px;
   margin-bottom: 24px;
@@ -4911,41 +4911,6 @@ textarea:focus-visible {
   display: flex;
   align-items: center;
   gap: 14px;
-}
-.perp-pair-identity {
-  align-items: flex-start;
-  flex-direction: column;
-  gap: 16px;
-}
-.perp-token-pair {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-}
-.perp-token {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 11px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--background);
-}
-.perp-token span,
-.perp-token small,
-.perp-token strong { display: block; }
-.perp-token small {
-  margin-bottom: 3px;
-  color: var(--text-muted);
-  font-size: 9px;
-}
-.perp-token strong { color: var(--text-primary); font-size: 14px; }
-.pair-divider {
-  color: var(--text-muted);
-  font: 500 18px/1 "SFMono-Regular", Consolas, monospace;
 }
 .pair-icons {
   display: inline-flex;

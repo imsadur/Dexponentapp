@@ -1466,7 +1466,6 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
   const [depositAmount, setDepositAmount] = useState("1000");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [actionError, setActionError] = useState("");
-  const [perpMarketSearch, setPerpMarketSearch] = useState("");
   if (!farm)
     return (
       <EmptyState
@@ -1488,9 +1487,6 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
   const pauseAvailable = canPauseFarm(farm);
   const demoPosition = Number(farm.values.demoPosition || 0);
   const configuredPair = perpetualPair(farm);
-  const configuredMarket = findPerpetualMarket(configuredPair);
-  const activeTradePair = String(farm.values.demoTradePair || configuredPair);
-  const farmPerpMarkets = searchPerpetualMarkets(perpMarketSearch);
   function closeAction() {
     setAction("");
     setActionError("");
@@ -1651,31 +1647,19 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
         ))}
       </div>
       {farm.type === "PERPETUAL" && activeTab === "Overview" && (
-        <>
         <section className="panel perp-market-card">
           <div className="perp-pair-identity">
+            <span className="pair-icons">
+              <AssetIcon symbol={String(farm.values.underlying || "ETH")} size={34} />
+              <AssetIcon symbol={String(farm.values.quoteAsset || "USDC")} size={28} />
+            </span>
             <div>
-              <span className="eyebrow">PERPETUAL FARM MARKET</span>
-              <h2>Market / Pair</h2>
-              <small>The configured base asset and settlement token for this Farm.</small>
-            </div>
-            <div className="perp-token-pair" aria-label={`Configured market pair ${configuredPair}`}>
-              <div className="perp-token">
-                <AssetIcon symbol={String(farm.values.underlying || "ETH")} size={34} />
-                <span><small>Base token</small><strong>{String(farm.values.underlying || "ETH")}</strong></span>
-              </div>
-              <span className="pair-divider">/</span>
-              <div className="perp-token">
-                <AssetIcon symbol={String(farm.values.quoteAsset || "USDC")} size={34} />
-                <span><small>Quote token</small><strong>{String(farm.values.quoteAsset || "USDC")}</strong></span>
-              </div>
+              <span className="eyebrow">MARKET PAIR</span>
+              <h2>{configuredPair}</h2>
+              <small>{String(farm.values.venue || "Hyperliquid")} · Demo execution venue</small>
             </div>
           </div>
           <div className="perp-market-facts">
-            <div><span>Configured pair</span><strong>{configuredPair}</strong></div>
-            <div><span>Active trade market</span><strong>{activeTradePair}</strong></div>
-            <div><span>Mark price</span><strong>{configuredMarket ? configuredMarket.price.toLocaleString() : "Demo unavailable"}</strong></div>
-            <div><span>Venue</span><strong>{String(farm.values.venue || "Hyperliquid")}</strong></div>
             <div><span>Direction</span><strong>{String(farm.values.direction)}</strong></div>
             <div><span>Leverage</span><strong>{farm.values.leverage}×</strong></div>
             <div><span>Margin</span><strong>{Number(farm.values.margin).toLocaleString()} {String(farm.values.asset)}</strong></div>
@@ -1687,60 +1671,6 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
             </Link>
           )}
         </section>
-        <section className="panel farm-perp-markets">
-          <div className="farm-perp-markets-head">
-            <div>
-              <h2>Perp markets</h2>
-              <p>Explore simulated perpetual markets available through this Farm’s {String(farm.values.venue || "configured")} venue.</p>
-            </div>
-            <div className="farm-perp-market-actions">
-              <div className="farm-margin-chip"><span>Farm margin</span><strong>{Number(farm.values.margin).toLocaleString()} {String(farm.values.asset)}</strong></div>
-              <label className="market-search farm-market-search">
-                <Search size={16} />
-                <input aria-label="Search Perp markets" placeholder="Search market" value={perpMarketSearch} onChange={(event) => setPerpMarketSearch(event.target.value)} />
-                {perpMarketSearch && <button aria-label="Clear Perp market search" onClick={() => setPerpMarketSearch("")}><X size={13} /></button>}
-              </label>
-            </div>
-          </div>
-          {farmPerpMarkets.length ? (
-            <div className="farm-perp-table-wrap">
-              <table className="farm-perp-table">
-                <thead><tr><th>Market</th><th>Mark price</th><th>24h change</th><th>24h volume</th><th>Funding / 8h</th><th>Max leverage</th><th><span className="sr-only">Action</span></th></tr></thead>
-                <tbody>
-                  {farmPerpMarkets.map((market) => {
-                    const pair = marketPair(market);
-                    const configured = pair === configuredPair;
-                    const marketPrecision = market.price > 10_000 ? 0 : market.price < 1 ? 3 : 2;
-                    return (
-                      <tr key={pair}>
-                        <td data-label="Market">
-                          <span className="farm-market-identity">
-                            <span className="pair-icons"><AssetIcon symbol={market.base} size={27} /><AssetIcon symbol={market.quote} size={21} /></span>
-                            <span><strong>{pair}</strong><small>{configured ? "Configured pair" : `${market.group} market`}</small></span>
-                          </span>
-                        </td>
-                        <td data-label="Mark price"><strong>{market.price.toLocaleString(undefined, { minimumFractionDigits: marketPrecision, maximumFractionDigits: marketPrecision })}</strong> <small>{market.quote}</small></td>
-                        <td data-label="24h change"><strong className={market.change >= 0 ? "positive" : "warning-text"}>{market.change >= 0 ? "+" : ""}{market.change}%</strong></td>
-                        <td data-label="24h volume">{market.volume}</td>
-                        <td data-label="Funding / 8h"><span className={market.funding >= 0 ? "positive" : "warning-text"}>{market.funding}%</span></td>
-                        <td data-label="Max leverage">{market.maxLeverage}×</td>
-                        <td>
-                          {!local ? (
-                            <Link className="button small farm-market-trade" href={farmTradeHref(id, pair)}>Trade <ArrowUpRight size={14} /></Link>
-                          ) : <span className="muted">Deploy to trade</span>}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="market-empty"><Search size={20} /><strong>No matching market</strong><span>Try a token symbol such as BTC, ETH, or USDC.</span></div>
-          )}
-          <div className="farm-perp-footnote"><Shield size={14} /><span>Market values are simulated for this demo workspace. No live price feed or order execution is connected.</span></div>
-        </section>
-        </>
       )}
       {local && (
         <Notice>
@@ -1801,6 +1731,9 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
               title="Performance begins after deployment"
               description="Review hypothetical outcomes in the creation flow while your strategy is being prepared."
             />
+          )}
+          {activeTab === "Overview" && farm.type === "PERPETUAL" && (
+            <FarmPerpMarkets farm={farm} />
           )}
           {activeTab === "Overview" && (
             <div className="detail-grid">
@@ -2185,6 +2118,68 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
         </Modal>
       )}
     </>
+  );
+}
+
+function FarmPerpMarkets({ farm }: { farm: Farm }) {
+  const [search, setSearch] = useState("");
+  const markets = searchPerpetualMarkets(search);
+  const configuredPair = perpetualPair(farm);
+  const local = farm.source === "local";
+  return (
+    <section className="panel farm-perp-markets">
+      <div className="farm-perp-markets-head">
+        <div>
+          <h2>Perp markets</h2>
+          <p>Explore simulated perpetual markets available through this Farm’s {String(farm.values.venue || "configured")} venue.</p>
+        </div>
+        <div className="farm-perp-market-actions">
+          <div className="farm-margin-chip"><span>Farm margin</span><strong>{Number(farm.values.margin).toLocaleString()} {String(farm.values.asset)}</strong></div>
+          <label className="market-search farm-market-search">
+            <Search size={16} />
+            <input aria-label="Search Perp markets" placeholder="Search market" value={search} onChange={(event) => setSearch(event.target.value)} />
+            {search && <button aria-label="Clear Perp market search" onClick={() => setSearch("")}><X size={13} /></button>}
+          </label>
+        </div>
+      </div>
+      {markets.length ? (
+        <div className="farm-perp-table-wrap">
+          <table className="farm-perp-table">
+            <thead><tr><th>Market</th><th>Mark price</th><th>24h change</th><th>24h volume</th><th>Funding / 8h</th><th>Max leverage</th><th><span className="sr-only">Action</span></th></tr></thead>
+            <tbody>
+              {markets.map((market) => {
+                const pair = marketPair(market);
+                const configured = pair === configuredPair;
+                const marketPrecision = market.price > 10_000 ? 0 : market.price < 1 ? 3 : 2;
+                return (
+                  <tr key={pair}>
+                    <td data-label="Market">
+                      <span className="farm-market-identity">
+                        <span className="pair-icons"><AssetIcon symbol={market.base} size={27} /><AssetIcon symbol={market.quote} size={21} /></span>
+                        <span><strong>{pair}</strong><small>{configured ? "Configured pair" : `${market.group} market`}</small></span>
+                      </span>
+                    </td>
+                    <td data-label="Mark price"><strong>{market.price.toLocaleString(undefined, { minimumFractionDigits: marketPrecision, maximumFractionDigits: marketPrecision })}</strong> <small>{market.quote}</small></td>
+                    <td data-label="24h change"><strong className={market.change >= 0 ? "positive" : "warning-text"}>{market.change >= 0 ? "+" : ""}{market.change}%</strong></td>
+                    <td data-label="24h volume">{market.volume}</td>
+                    <td data-label="Funding / 8h"><span className={market.funding >= 0 ? "positive" : "warning-text"}>{market.funding}%</span></td>
+                    <td data-label="Max leverage">{market.maxLeverage}×</td>
+                    <td>
+                      {!local ? (
+                        <Link className="button small farm-market-trade" href={farmTradeHref(farm.id, pair)}>Trade <ArrowUpRight size={14} /></Link>
+                      ) : <span className="muted">Deploy to trade</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="market-empty"><Search size={20} /><strong>No matching market</strong><span>Try a token symbol such as BTC, ETH, or USDC.</span></div>
+      )}
+      <div className="farm-perp-footnote"><Shield size={14} /><span>Market values are simulated for this demo workspace. No live price feed or order execution is connected.</span></div>
+    </section>
   );
 }
 
