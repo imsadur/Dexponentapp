@@ -14,11 +14,44 @@ import {
   Lightning as Zap,
 } from "@phosphor-icons/react";
 import {
+  TokenAAVE,
+  TokenARB,
+  TokenAVAX,
+  TokenBTC,
+  TokenDAI,
+  TokenDOGE,
+  TokenETH,
+  TokenLINK,
+  TokenOP,
+  TokenSOL,
+  TokenUNI,
+  TokenUSDC,
+  TokenUSDT,
+  TokenWBTC,
+} from "@web3icons/react";
+import {
   type Allocation,
   type RiskLevel,
   type StrategyType,
   type Values,
 } from "@/domain/strategy";
+
+const TOKEN_LOGOS: Partial<Record<string, typeof TokenAAVE>> = {
+  AAVE: TokenAAVE,
+  ARB: TokenARB,
+  AVAX: TokenAVAX,
+  BTC: TokenBTC,
+  DAI: TokenDAI,
+  DOGE: TokenDOGE,
+  ETH: TokenETH,
+  LINK: TokenLINK,
+  OP: TokenOP,
+  SOL: TokenSOL,
+  UNI: TokenUNI,
+  USDC: TokenUSDC,
+  USDT: TokenUSDT,
+  WBTC: TokenWBTC,
+};
 
 export function Brand() {
   return (
@@ -29,11 +62,38 @@ export function Brand() {
   );
 }
 export function AssetIcon({ symbol, size = 24 }: { symbol: string; size?: number }) {
-  const normalized = symbol.toUpperCase().replace("W", "");
-  const labels: Record<string, string> = { USDC: "$", DAI: "◈", USDT: "₮", ETH: "Ξ", BTC: "₿", UNI: "U", AAVE: "A" };
+  const normalized = symbol.trim().toUpperCase();
+  const Logo = TOKEN_LOGOS[normalized];
   return (
-    <span className={`asset-icon asset-${normalized.toLowerCase()}`} style={{ width: size, height: size }} aria-hidden="true">
-      {labels[normalized] || normalized.slice(0, 1)}
+    <span
+      className={`asset-icon ${Logo ? "brand-token-icon" : "fallback-token-icon"}`}
+      style={{ width: size, height: size }}
+      aria-hidden="true"
+      title={normalized}
+    >
+      {Logo ? (
+        <Logo variant="background" size={size} />
+      ) : (
+        normalized.slice(0, 3)
+      )}
+    </span>
+  );
+}
+export function AssetList({
+  symbols,
+  size = 18,
+}: {
+  symbols: string[];
+  size?: number;
+}) {
+  return (
+    <span className="asset-list">
+      {symbols.map((symbol) => (
+        <span className="asset-list-item" key={symbol}>
+          <AssetIcon symbol={symbol} size={size} />
+          <span>{symbol}</span>
+        </span>
+      ))}
     </span>
   );
 }
@@ -392,7 +452,7 @@ export function StrategyFlow({
         </span>
       </div>
       <div className="flow-node deposit">
-        <span className="coin usdc">$</span>
+        <AssetIcon symbol={String(values.asset || "USDC")} size={29} />
         <div>
           <small>DEPOSIT</small>
           <strong>{values.asset || "USDC"}</strong>
@@ -417,17 +477,9 @@ export function StrategyFlow({
           <div className="asset-branches">
             {allocations
               .filter((a) => a.weight > 0)
-              .map((a, i) => (
+              .map((a) => (
                 <div key={a.asset}>
-                  <span className={`coin coin-${i}`}>
-                    {a.asset === "WBTC"
-                      ? "₿"
-                      : a.asset === "ETH"
-                        ? "Ξ"
-                        : a.asset === "USDC"
-                          ? "$"
-                          : a.asset[0]}
-                  </span>
+                  <AssetIcon symbol={a.asset} size={25} />
                   <strong>{a.asset}</strong>
                   <small>{a.weight}%</small>
                 </div>

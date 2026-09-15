@@ -42,6 +42,7 @@ import { useApp } from "./provider";
 import {
   Badge,
   AssetIcon,
+  AssetList,
   EmptyState,
   Metric,
   money,
@@ -464,8 +465,9 @@ export function Wizard({ farmId }: { farmId?: string }) {
                         <span>{item.complexity}</span>
                       </div>
                       <div className="template-bottom">
-                        <span>
-                          {item.assets.join(" · ")} / {item.protocols[0]}
+                        <span className="template-assets">
+                          <AssetList symbols={item.assets} size={17} />
+                          <span>/ {item.protocols[0]}</span>
                         </span>
                         <ArrowRight size={17} />
                       </div>
@@ -1272,9 +1274,9 @@ function ParameterField({
 function StrategyMini({ type }: { type: StrategyType }) {
   return type === "INDEX" ? (
     <div className="mini-index">
-      <span>₿</span>
-      <span>Ξ</span>
-      <span>$</span>
+      <AssetIcon symbol="WBTC" size={34} />
+      <AssetIcon symbol="ETH" size={34} />
+      <AssetIcon symbol="USDC" size={34} />
       <div />
       <span className="mini-base">
         <LayersIcon />

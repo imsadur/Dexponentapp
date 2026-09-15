@@ -739,13 +739,39 @@ select {
   font-weight: 700;
   line-height: 1;
 }
-.asset-usdc { background: #2775ca; }
-.asset-dai { background: #f4b731; color: #241b04; }
-.asset-usdt { background: #26a17b; }
-.asset-eth { background: #627eea; }
-.asset-btc { background: #f7931a; }
-.asset-uni { background: #ff007a; }
-.asset-aave { background: linear-gradient(135deg, #b6509e, #2ebac6); }
+.asset-icon.brand-token-icon {
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.asset-icon.brand-token-icon > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.asset-icon.fallback-token-icon {
+  background: #26343b;
+  border-color: #ffffff24;
+  font-size: clamp(7px, 0.55em, 10px);
+  letter-spacing: -0.02em;
+}
+.asset-list,
+.asset-list-item {
+  display: inline-flex;
+  align-items: center;
+}
+.asset-list {
+  flex-wrap: wrap;
+  gap: 7px 11px;
+}
+.asset-list-item { gap: 5px; }
+.template-assets {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
 .network-ethereum { background: #627eea; }
 .network-base { background: #0052ff; }
 .network-arbitrum { background: linear-gradient(135deg, #28a0f0, #173b67); }
@@ -2008,6 +2034,12 @@ select {
   border-radius: 50%;
   background: var(--surface);
   font-size: 17px;
+}
+.mini-index > .brand-token-icon {
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 .mini-index > div {
   position: absolute;

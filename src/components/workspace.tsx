@@ -84,6 +84,7 @@ import {
   Brand,
   AnimatedValue,
   AssetIcon,
+  AssetList,
   Badge,
   EmptyState,
   Metric,
@@ -1320,7 +1321,7 @@ function TemplateLibrary({
               </div>
               <div>
                 <span>Typical assets</span>
-                <strong>{t.assets.join(", ")}</strong>
+                <strong><AssetList symbols={t.assets} size={18} /></strong>
               </div>
               <div>
                 <span>Modeled protocols</span>
@@ -1440,7 +1441,7 @@ function TemplateLibrary({
               <span>{t.complexity}</span>
             </div>
             <div className="template-bottom">
-              <span>{t.assets.join(" · ")}</span>
+              <AssetList symbols={t.assets} size={17} />
               <ArrowRight size={16} />
             </div>
           </Link>
