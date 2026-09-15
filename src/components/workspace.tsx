@@ -100,6 +100,7 @@ import {
 } from "./ui";
 import { useApp } from "./provider";
 import { Wizard } from "./wizard";
+import { DashboardV3 } from "./dashboard-v3";
 
 const legacyNav = [
   { label: "Capital", section: "dashboard", href: "/app/dashboard", icon: LayoutDashboard },
@@ -117,6 +118,7 @@ const nav = [
   { label: "Metrics", section: "analytics", href: "/app/analytics", icon: Activity },
 ];
 export function Workspace({ previewVersion }: { previewVersion?: string } = {}) {
+  if (previewVersion === "v3") return <DashboardV3 />;
   const path = usePathname();
   const searchParams = useSearchParams();
   const app = useApp();

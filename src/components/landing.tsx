@@ -21,8 +21,10 @@ import {
   type StrategyType,
 } from "@/domain/strategy";
 import { useApp } from "./provider";
+import { LandingV3 } from "./landing-v3";
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 export function Landing({ release = "v2" }: { release?: string }) {
+  if (release === "v3") return <LandingV3 />;
   const [type, setType] = useState<StrategyType>("INDEX");
   const root = useRef<HTMLElement>(null);
   const t = templates.find((t) => t.type === type)!;

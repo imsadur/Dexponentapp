@@ -4,8 +4,8 @@ import { Workspace } from "@/components/workspace";
 import { Suspense } from "react";
 
 const releases = {
-  landing: ["v1", "v2"],
-  dashboard: ["v1", "v2"],
+  landing: ["v1", "v2", "v3"],
+  dashboard: ["v1", "v2", "v3"],
 } as const;
 
 export const dynamicParams = false;

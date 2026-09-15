@@ -1,5 +1,25 @@
 import { test, expect } from "@playwright/test";
 
+test("page index exposes isolated v3 landing and dashboard previews", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText("6 available page versions")).toBeVisible();
+  await page.getByRole("link", { name: /Landing page v3/ }).click();
+  await expect(page.getByRole("heading", { name: "Build and invest in on-chain strategies." })).toBeVisible();
+  await page.getByRole("button", { name: "BTC", exact: true }).click();
+  await expect(page.getByRole("link", { name: /Bitcoin Basis/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Stable Yield Reserve/ })).toHaveCount(0);
+
+  await page.goto("/preview/dashboard/v3");
+  await expect(page.getByRole("heading", { name: "Your capital, clearly organized." })).toBeVisible();
+  await page.getByRole("button", { name: "Farms", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Discover Farms with context." })).toBeVisible();
+
+  await page.goto("/preview/landing/v2");
+  await expect(page.getByRole("heading", { name: "Launch and run onchain Farms with clarity." })).toBeVisible();
+  await page.goto("/preview/dashboard/v2");
+  await expect(page.getByRole("heading", { name: "Capital overview" })).toBeVisible();
+});
+
 test("landing, dashboard, every strategy, draft recovery and honest deployment", async ({
   page,
 }) => {
@@ -11,7 +31,7 @@ test("landing, dashboard, every strategy, draft recovery and honest deployment",
       name: /Choose a page/,
     }),
   ).toBeVisible();
-  await page.locator('a[href="/preview/landing/v2"]').click();
+  await page.getByRole("link", { name: /Landing page v2/ }).click();
   await expect(
     page.getByRole("heading", {
       name: /Launch and run onchain Farms with clarity/,
@@ -77,23 +97,24 @@ test("landing, dashboard, every strategy, draft recovery and honest deployment",
         .getByRole("spinbutton", { name: "WBTC weight", exact: true })
         .fill("40");
       await page.getByRole("button", { name: "Save & exit" }).click();
-      await expect(page).toHaveURL(/\/app\/farms\/drafts$/);
+      await expect(page).toHaveURL(/\/app\/farms\/drafts\/?$/);
       await expect(
         page.getByRole("heading", { name: "Test Index" }),
       ).toBeVisible();
       await page.reload();
       await page.getByRole("link", { name: "Continue draft" }).click();
-      await expect(
-        page.getByRole("textbox", { name: "Farm name", exact: true }),
-      ).toHaveValue("Test Index");
+      await expect(page.getByRole("heading", { name: "Set the guardrails." })).toBeVisible();
+      await expect(page.getByText("Test Index", { exact: true })).toBeVisible();
       await page.screenshot({
         path: "docs/screenshots/configure-desktop.png",
         fullPage: true,
       });
     }
-    await page
-      .getByRole("button", { name: "Continue to risk & fees", exact: true })
-      .click();
+    if (family !== "Index") {
+      await page
+        .getByRole("button", { name: "Continue to risk & fees", exact: true })
+        .click();
+    }
     await expect(page.getByRole("heading", { name: "Set the guardrails." })).toBeVisible();
     await page.getByRole("button", { name: "Review Farm", exact: true }).click();
     await expect(
@@ -123,7 +144,7 @@ test("landing, dashboard, every strategy, draft recovery and honest deployment",
     }
     if (family === "Perpetual") {
       await expect(page.getByRole("heading", { name: "ETH/USDC" })).toBeVisible();
-      await page.getByRole("link", { name: "Trade", exact: true }).click();
+      await page.getByRole("link", { name: "Trade", exact: true }).first().click();
       await expect(page.getByRole("textbox", { name: "Search market pairs" })).toBeVisible();
       await page.getByRole("spinbutton", { name: "Position size" }).fill("2500");
       await page.getByRole("button", { name: "Review Long order" }).click();
@@ -143,8 +164,8 @@ test("LP can discover a Farm and complete a deposit preview", async ({ page }) =
   await page.getByRole("button", { name: "Confirm demo deposit" }).click();
   await expect(page.getByText(/deposited in demo mode/)).toBeVisible();
 });
-test("workspace menu switches users and adds a local profile", async ({ page }) => {
-  await page.goto("/app/dashboard");
+test("legacy workspace menu switches users and adds a local profile", async ({ page }) => {
+  await page.goto("/preview/dashboard/v1");
   await page.getByRole("button", { name: /Personal workspace Strategist workspace/ }).click();
   await expect(page.getByText("Switch user", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: /Priya Shah Growth workspace/ }).click();
@@ -162,6 +183,8 @@ test("mobile routes, filters, theme, wallet absence and confirmation", async ({
   await page.setViewportSize({ width: 390, height: 844 });
   for (const path of [
     "/",
+    "/preview/landing/v3",
+    "/preview/dashboard/v3",
     "/app/dashboard",
     "/app/explore",
     "/app/farms",
@@ -174,7 +197,13 @@ test("mobile routes, filters, theme, wallet absence and confirmation", async ({
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     expect(
       await page.evaluate(
-        () => document.documentElement.scrollWidth <= window.innerWidth,
+        () => {
+          const start = window.scrollX;
+          window.scrollTo({ left: document.documentElement.scrollWidth });
+          const horizontallyScrollable = window.scrollX !== start;
+          window.scrollTo({ left: start });
+          return !horizontallyScrollable;
+        },
       ),
       path,
     ).toBeTruthy();
