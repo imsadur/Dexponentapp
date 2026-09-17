@@ -1,23 +1,94 @@
 import { test, expect } from "@playwright/test";
 
-test("page index exposes isolated v3 landing and dashboard previews", async ({ page }) => {
+test("page index exposes independent v3 and preserved v2 products", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("6 available page versions")).toBeVisible();
-  await page.getByRole("link", { name: /Landing page v3/ }).click();
-  await expect(page.getByRole("heading", { name: "Build and invest in on-chain strategies." })).toBeVisible();
-  await page.getByRole("button", { name: "BTC", exact: true }).click();
-  await expect(page.getByRole("link", { name: /Bitcoin Basis/ })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Stable Yield Reserve/ })).toHaveCount(0);
 
-  await page.goto("/preview/dashboard/v3");
-  await expect(page.getByRole("heading", { name: "Your capital, clearly organized." })).toBeVisible();
-  await page.getByRole("button", { name: "Farms", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Discover Farms with context." })).toBeVisible();
+  await page.getByRole("link", { name: /Landing page v3/ }).click();
+  await expect(page).toHaveURL(/\/landingv3\/home\/?$/);
+  await expect(page.getByRole("heading", { name: "Investment strategies become transparent products." })).toBeVisible();
+  await page.getByRole("link", { name: "Explore Farms", exact: true }).first().click();
+  await page.getByRole("link", { name: /Blue Chip Index/ }).click();
+  await expect(page).toHaveURL(/\/landingv3\/farm-details\/blue-chip\/?$/);
+  await expect(page.getByRole("heading", { name: "Blue Chip Index" })).toBeVisible();
+
+  await page.goto("/");
+  await page.getByRole("link", { name: /Dashboard v3/ }).click();
+  await expect(page).toHaveURL(/\/dbv3\/dashboard\/?$/);
+  await expect(page.getByRole("heading", { name: "Capital decisions, without the clutter." })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "DBv3 navigation" }).getByRole("link")).toHaveCount(7);
 
   await page.goto("/preview/landing/v2");
   await expect(page.getByRole("heading", { name: "Launch and run onchain Farms with clarity." })).toBeVisible();
   await page.goto("/preview/dashboard/v2");
   await expect(page.getByRole("heading", { name: "Capital overview" })).toBeVisible();
+});
+
+test("dbv3 navigation and complete demo Farm lifecycle stay isolated", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/dbv3/dashboard");
+
+  for (const [label, route] of [
+    ["Positions", /\/dbv3\/positions\/?$/],
+    ["Explore Farms", /\/dbv3\/explore\/?$/],
+    ["Managed Farms", /\/dbv3\/farms\/?$/],
+    ["Templates", /\/dbv3\/templates\/?$/],
+    ["Analytics", /\/dbv3\/analytics\/?$/],
+  ] as const) {
+    await page.getByRole("link", { name: label, exact: true }).click();
+    await expect(page).toHaveURL(route);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await page.goto("/dbv3/dashboard");
+  }
+
+  await page.getByRole("link", { name: "Notifications" }).click();
+  await expect(page).toHaveURL(/\/dbv3\/notifications\/?$/);
+  await page.goto("/dbv3/dashboard");
+  await page.getByRole("button", { name: "90D" }).click();
+  await expect(page.getByRole("button", { name: "90D" })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("textbox", { name: "Search v3 positions" }).fill("no matching farm");
+  await expect(page.getByRole("heading", { name: "No matching positions" })).toBeVisible();
+
+  await page.goto("/dbv3/templates");
+  await page.getByRole("link", { name: /Blue Chip Index/ }).click();
+  await expect(page).toHaveURL(/\/dbv3\/farms\/create\/?\?template=Blue%20Chip%20Index$/);
+  await expect(page.getByRole("button", { name: /Blue Chip Index/ })).toHaveClass(/chosen/);
+  await page.getByRole("button", { name: /Spot/ }).click();
+  await page.getByRole("button", { name: /Stablecoin Yield/ }).click();
+  await page.getByRole("button", { name: /Continue/ }).click();
+  await page.getByRole("textbox", { name: "V3 Farm name" }).fill("Lifecycle Yield Farm");
+  await page.getByRole("button", { name: /Continue/ }).click();
+  await expect(page.getByRole("heading", { name: "Review risk and economics." })).toBeVisible();
+  await page.getByRole("button", { name: /Continue/ }).click();
+  await page.getByRole("checkbox", { name: "I understand this is a demo deployment." }).check();
+  await page.getByRole("button", { name: "Deploy demo Farm" }).click();
+
+  await expect(page).toHaveURL(/\/dbv3\/farms\/manage\/?\?farm=v3-/);
+  await expect(page.getByRole("heading", { name: "Lifecycle Yield Farm" })).toBeVisible();
+  await page.getByRole("button", { name: "Deposit", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Deposit to Farm" })).toBeVisible();
+  await page.getByRole("spinbutton", { name: "V3 deposit amount" }).fill("1000");
+  await page.getByRole("button", { name: "Confirm demo deposit" }).click();
+
+  await page.goto("/dbv3/positions");
+  await expect(page.getByText("Lifecycle Yield Farm", { exact: true })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "$1,000" })).toBeVisible();
+  await page.getByRole("link", { name: /Lifecycle Yield Farm/ }).first().click();
+  await page.getByRole("button", { name: "Withdraw", exact: true }).click();
+  await page.getByRole("spinbutton", { name: "V3 withdrawal amount" }).fill("500");
+  await page.getByRole("button", { name: "Confirm demo withdrawal" }).click();
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Pause this Farm?" })).toBeVisible();
+  await page.getByRole("button", { name: "Yes, pause Farm" }).click();
+  await expect(page.getByText("PAUSED", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Deposit", exact: true })).toBeDisabled();
+  await page.goto("/dbv3/positions");
+  await expect(page.getByRole("cell", { name: "$500" })).toBeVisible();
+
+  const v3Links = await page.locator('a[href^="/"]').evaluateAll((links) => links.map((link) => link.getAttribute("href")));
+  expect(v3Links.every((href) => !href?.startsWith("/app/"))).toBeTruthy();
+  expect(errors).toEqual([]);
 });
 
 test("landing, dashboard, every strategy, draft recovery and honest deployment", async ({
@@ -183,8 +254,10 @@ test("mobile routes, filters, theme, wallet absence and confirmation", async ({
   await page.setViewportSize({ width: 390, height: 844 });
   for (const path of [
     "/",
-    "/preview/landing/v3",
-    "/preview/dashboard/v3",
+    "/landingv3/home",
+    "/landingv3/farms",
+    "/dbv3/dashboard",
+    "/dbv3/farms/create",
     "/app/dashboard",
     "/app/explore",
     "/app/farms",

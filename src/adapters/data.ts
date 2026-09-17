@@ -1,5 +1,10 @@
 import { Farm, farmSchema, makeFarm, templateById } from "../domain/strategy";
 export const STORAGE_KEY = "farm-manager:farms:v1";
+const seedPositionByFarmId: Record<string, number> = {
+  "demo-0": 72_480,
+  "demo-1": 47_580,
+  "demo-2": 64_200,
+};
 export function seedFarms(): Farm[] {
   return [
     {
@@ -33,6 +38,7 @@ export function seedFarms(): Farm[] {
     values: {
       ...templateById(data.template)!.defaults,
       name: data.name,
+      demoPosition: [72_480, 47_580, 64_200][i],
       capacity: Math.max(
         Number(templateById(data.template)!.defaults.capacity),
         data.tvl * 2,
@@ -64,6 +70,8 @@ export const localDataAdapter = {
           farm.source === "demo" && Number(farm.values.capacity) < farm.tvl
             ? farm.tvl * 2
             : farm.values.capacity,
+        demoPosition:
+          farm.values.demoPosition ?? seedPositionByFarmId[farm.id] ?? 0,
         description:
           farm.values.description ||
           templateById(farm.templateId)?.description ||

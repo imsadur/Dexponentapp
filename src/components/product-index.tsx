@@ -46,7 +46,7 @@ const pages = [
   },
   {
     name: "Landing page v3",
-    href: "/preview/landing/v3",
+    href: "/landingv3/home",
     type: "Landing page",
     version: "v3",
     status: "Current",
@@ -54,7 +54,7 @@ const pages = [
   },
   {
     name: "Dashboard v3",
-    href: "/preview/dashboard/v3",
+    href: "/dbv3/dashboard",
     type: "Dashboard",
     version: "v3",
     status: "Current",
@@ -139,8 +139,8 @@ export function ProductIndex() {
 
       <footer className="index-footer">
         <span>Dexponent page versions</span>
-        <Link href="/app/dashboard">
-          Open current application <ArrowUpRight size={14} />
+        <Link href="/dbv3/dashboard">
+          Open v3 application <ArrowUpRight size={14} />
         </Link>
       </footer>
     </main>

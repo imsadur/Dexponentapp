@@ -100,7 +100,6 @@ import {
 } from "./ui";
 import { useApp } from "./provider";
 import { Wizard } from "./wizard";
-import { DashboardV3 } from "./dashboard-v3";
 
 const legacyNav = [
   { label: "Capital", section: "dashboard", href: "/app/dashboard", icon: LayoutDashboard },
@@ -118,7 +117,6 @@ const nav = [
   { label: "Metrics", section: "analytics", href: "/app/analytics", icon: Activity },
 ];
 export function Workspace({ previewVersion }: { previewVersion?: string } = {}) {
-  if (previewVersion === "v3") return <DashboardV3 />;
   const path = usePathname();
   const searchParams = useSearchParams();
   const app = useApp();
@@ -657,16 +655,18 @@ function Positions({ network }: { network: string }) {
   const app = useApp();
   const farms = app.farms.filter(
     (farm) =>
-      farm.status === "ACTIVE" &&
+      Number(farm.values.demoPosition || 0) > 0 &&
+      (farm.status === "ACTIVE" || farm.status === "PAUSED") &&
       (network === "All Chains" || farm.network === network),
   );
-  const capital = farms.reduce((total, farm) => total + farm.tvl, 0);
+  const positionValue = (farm: Farm) => Number(farm.values.demoPosition || 0);
+  const capital = farms.reduce((total, farm) => total + positionValue(farm), 0);
   const weightedApy = capital
-    ? farms.reduce((total, farm) => total + farm.apy * farm.tvl, 0) / capital
+    ? farms.reduce((total, farm) => total + farm.apy * positionValue(farm), 0) / capital
     : 0;
   const weightedPerformance = capital
     ? farms.reduce(
-        (total, farm) => total + farm.performance * farm.tvl,
+        (total, farm) => total + farm.performance * positionValue(farm),
         0,
       ) / capital
     : 0;
@@ -682,16 +682,33 @@ function Positions({ network }: { network: string }) {
       <div className="overview-metrics capital-metrics">
         <Metric label="Portfolio value" value={money(capital)} caption="active Farm capital · demo" />
         <Metric label="Open positions" value={String(farms.length).padStart(2, "0")} caption="across selected chains" />
-        <Metric label="Blended APY" value={`${weightedApy.toFixed(2)}%`} caption="TVL-weighted · demo" />
-        <Metric label="30D performance" value={`${weightedPerformance >= 0 ? "+" : ""}${weightedPerformance.toFixed(2)}%`} caption="TVL-weighted · demo" />
+        <Metric label="Blended APY" value={`${weightedApy.toFixed(2)}%`} caption="position-weighted · demo" />
+        <Metric label="30D performance" value={`${weightedPerformance >= 0 ? "+" : ""}${weightedPerformance.toFixed(2)}%`} caption="position-weighted · demo" />
       </div>
       <div className="section-heading">
         <div>
           <h2>Portfolio positions</h2>
-          <p>Active managed Farms included in your current chain filter.</p>
+          <p>Farms where you hold a demo balance, including paused Farms that remain withdrawable.</p>
         </div>
       </div>
-      <FarmTable farms={farms} />
+      <div className="farm-table-wrap">
+        {!farms.length ? (
+          <EmptyState title="No positions yet" description="Explore an active Farm and complete a demo deposit to open your first position." href="/app/explore" label="Explore Farms" />
+        ) : (
+          <table className="farm-table">
+            <thead><tr><th>Farm / Strategy</th><th>Status</th><th>Your position</th><th>APY</th><th>30D performance</th><th>Network</th><th aria-label="Open Farm" /></tr></thead>
+            <tbody>{farms.map((farm) => <tr key={farm.id}>
+              <td><Link className="farm-name" href={farmDetailHref(farm.id)}><span className={`icon-tile ${farm.type.toLowerCase()}`}><StrategyIcon type={farm.type} size={18} /></span><span><strong>{farm.name}</strong><small>{farm.type} · Demo position</small></span></Link></td>
+              <td><Badge tone={farm.status === "ACTIVE" ? "mint" : "amber"}>{farm.status.charAt(0) + farm.status.slice(1).toLowerCase()}</Badge></td>
+              <td className="numeric">{money(positionValue(farm))}</td>
+              <td className="numeric">{farm.apy}%</td>
+              <td><span className="positive">+{farm.performance.toFixed(2)}%</span></td>
+              <td><span className="network-name"><NetworkIcon network={farm.network} size={19} />{farm.network}</span></td>
+              <td><Link className="icon-button" aria-label={`Open ${farm.name}`} href={farmDetailHref(farm.id)}><ArrowUpRight size={17} /></Link></td>
+            </tr>)}</tbody>
+          </table>
+        )}
+      </div>
     </>
   );
 }
