@@ -21,7 +21,7 @@ test("page index exposes independent v3 and preserved v2 products", async ({ pag
   await page.goto("/preview/landing/v2");
   await expect(page.getByRole("heading", { name: "Launch and run onchain Farms with clarity." })).toBeVisible();
   await page.goto("/preview/dashboard/v2");
-  await expect(page.getByRole("heading", { name: "Capital overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Farm overview" })).toBeVisible();
 });
 
 test("dbv3 navigation and complete demo Farm lifecycle stay isolated", async ({ page }) => {
@@ -114,7 +114,7 @@ test("landing, dashboard, every strategy, draft recovery and honest deployment",
   ).toBeVisible();
   await page.getByRole("link", { name: "Explore demo workspace" }).click();
   await expect(
-    page.getByRole("heading", { name: /Capital overview/i }),
+    page.getByRole("heading", { name: /Farm overview/i }),
   ).toBeVisible();
   await page.screenshot({
     path: "docs/screenshots/dashboard-desktop.png",
@@ -137,6 +137,7 @@ test("landing, dashboard, every strategy, draft recovery and honest deployment",
     await expect(
       page.getByRole("heading", { name: "Make this Farm yours." }),
     ).toBeVisible();
+    await expect(page.getByLabel("Base token")).toHaveValue("USDC");
     if (family === "Index") {
       await page.locator('input[accept*="image/png"]').setInputFiles({
         name: "test-farm.svg",
@@ -220,20 +221,102 @@ test("landing, dashboard, every strategy, draft recovery and honest deployment",
       await page.getByRole("spinbutton", { name: "Position size" }).fill("2500");
       await page.getByRole("button", { name: "Review Long order" }).click();
       await page.getByRole("button", { name: "Confirm Long" }).click();
-      await expect(page.getByText(/Long ETH\/USDC demo order filled/)).toBeVisible();
+      await expect(page.getByText(/Long \w+\/USDC demo order filled/)).toBeVisible();
     }
   }
   expect(errors).toEqual([]);
 });
-test("LP can discover a Farm and complete a deposit preview", async ({ page }) => {
+test("LP can discover and review a Farm without manager controls", async ({ page }) => {
   await page.goto("/app/explore");
   await expect(page.getByRole("heading", { name: "Find a Farm you can understand." })).toBeVisible();
   await page.getByRole("link", { name: "Review Farm" }).first().click();
-  await page.getByRole("button", { name: "Deposit", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "Deposit to Farm" })).toBeVisible();
-  await page.getByRole("spinbutton", { name: "Deposit amount" }).fill("2500");
-  await page.getByRole("button", { name: "Confirm demo deposit" }).click();
-  await expect(page.getByText(/deposited in demo mode/)).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Edit farm" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Deposit", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Withdraw", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Pause", exact: true })).toHaveCount(0);
+});
+test("dashboard v2 reconciles capital metrics and exposes strategy actions", async ({ page }) => {
+  await page.goto("/preview/dashboard/v2");
+  await expect(page.getByRole("heading", { name: "Farm overview" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Dashboard", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Create farm" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Export report" })).toHaveCount(0);
+  await expect(page.getByText("Capital allocation")).toBeVisible();
+  await expect(page.getByText("Withdrawable capital")).toBeVisible();
+  await expect(page.getByText("Total LPs", { exact: true })).toBeVisible();
+  await expect(page.locator(".chart-summary")).toContainText("3.68%");
+  await expect(page.getByText("03", { exact: true })).toBeVisible();
+
+  await page.goto("/app/farms");
+  await expect(page.getByRole("columnheader", { name: "Farm", exact: true })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Base token" })).toBeVisible();
+  await expect(page.getByText("USDC", { exact: true }).first()).toBeVisible();
+  const firstFarmRow = page.getByRole("row").filter({ hasText: "ETH Delta Neutral" });
+  await expect(firstFarmRow).toContainText("PERPETUAL");
+  await expect(firstFarmRow).toContainText("Arbitrum Network");
+
+  await page.goto("/app/farms/manage?farm=demo-0");
+  await expect(page.getByRole("heading", { name: "ETH Delta Neutral" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "All farms" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Edit farm" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Deposit", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Withdraw", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Pause", exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Interactive performance history chart")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Activity", exact: true })).toBeVisible();
+  await expect(page.getByText("Liquidity Provider", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Risk", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Liquidity", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Settings", exact: true })).toHaveCount(0);
+  await expect(page.getByText("Period start")).toHaveCount(0);
+  await expect(page.getByText("Strategy health")).toHaveCount(0);
+  await page.getByRole("button", { name: "Strategy", exact: true }).click();
+  await expect(page.getByText("STRATEGY FLOW", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Strategy controls" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Manager guardrails" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Liquidity & fees" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /View contract/ })).toBeVisible();
+  await page.getByRole("button", { name: "Transactions", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Farm transactions" })).toBeVisible();
+  await expect(page.getByLabel("Seven day capital activity summary")).toContainText("Total inflows (7d)");
+  await expect(page.getByText("Showing 1–5 of 42 transactions")).toBeVisible();
+  for (const header of ["Transaction hash", "LP wallet", "Type", "Amount", "Status", "Date & time · UTC"]) {
+    await expect(page.getByRole("columnheader", { name: header })).toBeVisible();
+  }
+  await expect(page.locator(".transaction-table").getByText("Confirmed", { exact: true }).first()).toBeVisible();
+  await page.getByLabel("Transaction status").selectOption("Reverted");
+  await expect(page.getByText("View error").first()).toBeVisible();
+  await expect(page.getByText("Showing 1–2 of 2 transactions")).toBeVisible();
+  await page.getByRole("button", { name: "View error" }).first().click();
+  await expect(page.getByRole("dialog", { name: "Transaction reverted" })).toContainText(
+    "no Farm balance changed",
+  );
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await page.getByLabel("Transaction status").selectOption("All");
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export CSV" }).click();
+  expect((await download).suggestedFilename()).toBe("eth-delta-neutral-transactions.csv");
+  await page.getByRole("button", { name: "Overview", exact: true }).click();
+  await expect(page.getByText("Margin health", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Trade on Hyperliquid/ })).toBeVisible();
+
+  await page.goto("/app/farms/manage?farm=demo-1");
+  await expect(page.getByRole("button", { name: "Rebalance", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Liquidate", exact: true })).toBeVisible();
+  await expect(page.getByText(/rebalance due/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Asset weights vs. target" })).toBeVisible();
+  await page.getByRole("button", { name: "Rebalance", exact: true }).click();
+  await expect(page.getByRole("heading", { name: /asset.*outside target/ })).toBeVisible();
+  await page.getByRole("button", { name: "Execute demo rebalance" }).click();
+  await expect(page.getByText(/rebalance due/i)).toHaveCount(0);
+  await expect(page.getByText("Portfolio rebalanced", { exact: true })).toBeVisible();
+
+  await page.goto("/app/farms/manage?farm=demo-2");
+  await expect(page.getByRole("button", { name: "Swap", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Buy / sell", exact: true })).toBeVisible();
+  await expect(page.getByText("Impermanent loss")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Asset composition" })).toBeVisible();
 });
 test("legacy workspace menu switches users and adds a local profile", async ({ page }) => {
   await page.goto("/preview/dashboard/v1");

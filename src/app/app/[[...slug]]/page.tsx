@@ -32,10 +32,11 @@ export function generateStaticParams() {
   return staticRoutes.map((slug) => ({ slug }));
 }
 
-export default function Page() {
+export default async function Page({ params }: { params: Promise<{ slug?: string[] }> }) {
+  const { slug = [] } = await params;
   return (
     <Suspense fallback={<div className="loading-shell"><div className="skeleton" /></div>}>
-      <Workspace />
+      <Workspace routeSegments={["app", ...slug]} />
     </Suspense>
   );
 }

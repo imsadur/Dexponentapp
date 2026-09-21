@@ -10,6 +10,7 @@ import { deploymentAdapter } from "../src/adapters/deployment";
 test("all templates produce valid initial configurations", () => {
   for (const t of templates) {
     const f = makeFarm(t, "test");
+    assert.equal(f.values.asset, "USDC", `${t.name} should default to USDC`);
     assert.deepEqual(
       validateStrategy(t, f.values, f.allocations, f.network),
       {},

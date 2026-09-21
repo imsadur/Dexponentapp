@@ -8,15 +8,19 @@ import {
   DownloadSimple as ArrowDownToLine,
   ArrowRight,
   ArrowUpRight,
+  ArrowsClockwise,
+  ArrowsLeftRight,
   Bell,
   BookOpen,
   Briefcase,
   Buildings,
+  CalendarBlank,
   Check,
   CaretDown as ChevronDown,
   Question as CircleHelp,
   Clock as Clock3,
   Compass,
+  Copy,
   DiscordLogo,
   Drop as Droplets,
   ArrowSquareOut as ExternalLink,
@@ -46,6 +50,7 @@ import {
   X,
   XLogo,
   RedditLogo,
+  Scales,
 } from "@phosphor-icons/react";
 import {
   families,
@@ -60,7 +65,6 @@ import {
 } from "@/domain/strategy";
 import {
   farmDetailHref,
-  farmEditHref,
   farmTradeHref,
   isFarmWizardRoute,
 } from "@/domain/routes";
@@ -75,11 +79,13 @@ import {
   type PerpetualMarket,
 } from "@/domain/trading";
 import {
-  canPauseFarm,
-  depositToDemoFarm,
-  setFarmPaused,
-  withdrawFromDemoFarm,
-} from "@/domain/farm-actions";
+  farmFinancialMetrics,
+  indexWeights,
+  performanceForRange,
+  perpetualHealth,
+  portfolioMetrics,
+  spotComposition,
+} from "@/domain/metrics";
 import {
   Brand,
   AnimatedValue,
@@ -100,6 +106,7 @@ import {
 } from "./ui";
 import { useApp } from "./provider";
 import { Wizard } from "./wizard";
+import { TradingViewPerformanceChart } from "./tradingview-performance-chart";
 
 const legacyNav = [
   { label: "Capital", section: "dashboard", href: "/app/dashboard", icon: LayoutDashboard },
@@ -110,13 +117,13 @@ const legacyNav = [
   { label: "Metrics", section: "analytics", href: "/app/analytics", icon: Activity },
 ];
 const nav = [
-  { label: "Capital", section: "dashboard", href: "/app/dashboard", icon: LayoutDashboard },
+  { label: "Dashboard", section: "dashboard", href: "/app/dashboard", icon: LayoutDashboard },
   { label: "Managed Farms", section: "farms", href: "/app/farms", icon: Leaf },
   { label: "Positions", section: "positions", href: "/app/positions", icon: Briefcase },
   { label: "Templates", section: "templates", href: "/app/templates", icon: Grid2X2 },
   { label: "Metrics", section: "analytics", href: "/app/analytics", icon: Activity },
 ];
-export function Workspace({ previewVersion }: { previewVersion?: string } = {}) {
+export function Workspace({ previewVersion, routeSegments }: { previewVersion?: string; routeSegments?: string[] } = {}) {
   const path = usePathname();
   const searchParams = useSearchParams();
   const app = useApp();
@@ -133,7 +140,7 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
   ]);
   const [newUserName, setNewUserName] = useState("");
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
-  const segments = path.split("/").filter(Boolean);
+  const segments = routeSegments || path.split("/").filter(Boolean);
   const section = previewVersion ? "dashboard" : segments[1] || "dashboard";
   const isTrade = section === "trade";
   const isV2 = previewVersion !== "v1";
@@ -141,6 +148,7 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
   const isWizard = isFarmWizardRoute(segments);
   const queryFarmId = searchParams.get("farm") || "";
   const queryMarket = searchParams.get("market") || "";
+  const isFarmDetail = section === "farms" && !isWizard && segments.length > 2 && segments[2] !== "drafts";
   let content;
   if (isWizard)
     content = (
@@ -155,7 +163,7 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
         }
       />
     );
-  else if (section === "dashboard") content = <Dashboard network={network} />;
+  else if (section === "dashboard") content = <Dashboard network={network} enhanced={isV2} />;
   else if (section === "explore") content = <ExploreFarms network={network} />;
   else if (
     section === "farms" &&
@@ -167,6 +175,7 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
       <FarmDetail
         id={segments[2] === "manage" ? queryFarmId : segments[2]}
         tab={segments[3]}
+        enhanced={isV2}
       />
     );
   else if (section === "trade")
@@ -379,17 +388,10 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
                 <span>/</span>
                 <strong>Trade</strong>
               </>
+            ) : isFarmDetail ? (
+              <Link className="farm-top-back" href="/app/farms"><ArrowRight className="rotate-180" size={14} /> All farms</Link>
             ) : (
-              <>
-                <span>Workspace</span>
-                <span>/</span>
-                <strong>
-                  {isWizard
-                ? "Create farm"
-                : activeNav.find((item) => item.section === section)?.label ||
-                  section.charAt(0).toUpperCase() + section.slice(1)}
-                </strong>
-              </>
+              <strong>{isWizard ? "Create farm" : activeNav.find((item) => item.section === section)?.label || section.charAt(0).toUpperCase() + section.slice(1)}</strong>
             )}
           </div>
           <div className="topbar-actions">
@@ -438,23 +440,12 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
                 </select>
               </label>
             )}
-            <span className="topbar-divider" />
-            {isV2 && (
-              <button
-                className="icon-button"
-                aria-label="Support"
-                onClick={() => setModal("support")}
-              >
-                <Lifebuoy size={18} />
-              </button>
-            )}
-            <button
-              className="icon-button notification-button"
-              aria-label="Notifications"
-              onClick={() => setModal("notifications")}
-            >
-              <Bell size={18} />
-              <span />
+            <button className="button wallet-button" onClick={() => setModal("wallet")}>
+              <Wallet size={16} />
+              {app.wallet ? `${app.wallet.slice(0, 6)}…${app.wallet.slice(-4)}` : "Connect wallet"}
+            </button>
+            <button className="icon-button notification-button" aria-label="Notifications" onClick={() => setModal("notifications")}>
+              <Bell size={19} /><span />
             </button>
             {isV2 && (
               <div className="utility-account">
@@ -473,29 +464,20 @@ export function Workspace({ previewVersion }: { previewVersion?: string } = {}) 
                     <a href="https://dexponent.com/aboutus" target="_blank" rel="noreferrer" role="menuitem"><Buildings size={17} /> Company</a>
                     <a href="https://docs.dexponent.com/" target="_blank" rel="noreferrer" role="menuitem"><BookOpen size={17} /> Resources</a>
                     <a href="https://docs.dexponent.com/" target="_blank" rel="noreferrer" role="menuitem"><FileText size={17} /> Documentation</a>
-                    <a href="https://dexponent.com/privacy" target="_blank" rel="noreferrer" role="menuitem"><Shield size={17} /> Privacy policy</a>
-                    <a href="https://dexponent.com/terms" target="_blank" rel="noreferrer" role="menuitem"><FileText size={17} /> Terms of use</a>
-                    <span>Social</span>
+                    <button className="utility-support" role="menuitem" onClick={() => { setUtilityMenu(false); setModal("support"); }}><Lifebuoy size={17} /> Help &amp; support</button>
+                    <div className="utility-legal"><a href="https://dexponent.com/privacy" target="_blank" rel="noreferrer">Privacy Policy</a><span>|</span><a href="https://dexponent.com/terms" target="_blank" rel="noreferrer">Terms of Use</a></div>
+                    <span>Join Dexponent</span>
                     <div className="utility-socials">
-                      <a href="https://discord.com/invite/yermEKz6rc" target="_blank" rel="noreferrer" aria-label="Dexponent on Discord"><DiscordLogo size={18} /></a>
-                      <a href="https://t.me/+5NZOk4DLnWE4ZjY1" target="_blank" rel="noreferrer" aria-label="Dexponent on Telegram"><TelegramLogo size={18} /></a>
-                      <a href="https://x.com/Dexponentx" target="_blank" rel="noreferrer" aria-label="Dexponent on X"><XLogo size={18} /></a>
-                      <a href="https://www.linkedin.com/company/dexponent/" target="_blank" rel="noreferrer" aria-label="Dexponent on LinkedIn"><LinkedinLogo size={18} /></a>
-                      <a href="https://www.reddit.com/r/Dexponent_Official/" target="_blank" rel="noreferrer" aria-label="Dexponent on Reddit"><RedditLogo size={18} /></a>
+                      <a href="https://discord.com/invite/yermEKz6rc" target="_blank" rel="noreferrer" aria-label="Dexponent on Discord"><DiscordLogo size={20} /></a>
+                      <a href="https://t.me/+5NZOk4DLnWE4ZjY1" target="_blank" rel="noreferrer" aria-label="Dexponent on Telegram"><TelegramLogo size={20} /></a>
+                      <a href="https://x.com/Dexponentx" target="_blank" rel="noreferrer" aria-label="Dexponent on X"><XLogo size={20} /></a>
+                      <a href="https://www.linkedin.com/company/dexponent/" target="_blank" rel="noreferrer" aria-label="Dexponent on LinkedIn"><LinkedinLogo size={20} /></a>
+                      <a href="https://www.reddit.com/r/Dexponent_Official/" target="_blank" rel="noreferrer" aria-label="Dexponent on Reddit"><RedditLogo size={20} /></a>
                     </div>
                   </div>
                 )}
               </div>
             )}
-            <button
-              className="button wallet-button"
-              onClick={() => setModal("wallet")}
-            >
-              <Wallet size={15} />
-              {app.wallet
-                ? `${app.wallet.slice(0, 6)}…${app.wallet.slice(-4)}`
-                : "Connect wallet"}
-            </button>
           </div>
         </header>
         <main
@@ -776,18 +758,13 @@ function ExploreFarms({ network }: { network: string }) {
     </>
   );
 }
-function Dashboard({ network }: { network: string }) {
+function Dashboard({ network, enhanced }: { network: string; enhanced: boolean }) {
   const app = useApp();
   const farms = app.farms.filter(
     (f) => network === "All Chains" || f.network === network,
   );
-  const active = farms.filter((f) => f.status === "ACTIVE");
-  const drafts = farms.filter(
-    (f) => f.status === "DRAFT" || f.status === "SIMULATION",
-  );
-  const tvl = active.reduce((s, f) => s + f.tvl, 0);
-  const weighted = (key: "apy" | "performance") =>
-    tvl ? active.reduce((s, f) => s + f[key] * f.tvl, 0) / tvl : 0;
+  const aggregate = portfolioMetrics(farms);
+  const { active, drafts, managedCapital: tvl } = aggregate;
   const [range, setRange] = useState(30);
   const curve = Array.from(
     { length: 60 },
@@ -799,9 +776,13 @@ function Dashboard({ network }: { network: string }) {
         Math.cos(i * 0.6) * 0.007) *
       (range === 90 ? 0.85 + i * 0.0025 : 1),
   );
-  const projectedYield = tvl * (weighted("apy") / 100);
+  const projectedYield = tvl * (aggregate.blendedApy / 100);
   const modeledManagementFee = tvl * 0.01;
   const modeledPerformanceFee = projectedYield * 0.1;
+  const allocationAmount = (type: StrategyType) =>
+    aggregate.allocation.find((item) => item.type === type)?.amount || 0;
+  const indexAllocation = tvl ? allocationAmount("INDEX") / tvl * 100 : 0;
+  const spotAllocation = tvl ? allocationAmount("SPOT") / tvl * 100 : 0;
   function exportCapitalReport() {
     const rows = [
       "Farm,Strategy,Network,TVL,APY,30D performance,Status",
@@ -823,22 +804,21 @@ function Dashboard({ network }: { network: string }) {
     <>
       <PageHeading
         eyebrow="EXECUTIVE FINANCIAL SUMMARY"
-        title="Capital overview"
+        title={enhanced ? "Farm overview" : "Capital overview"}
         description="Monitor managed liquidity, capital flows, performance, and risk across every active Farm."
         action={
           <div className="heading-actions">
-            <button className="button" onClick={exportCapitalReport}>
+            {!enhanced && <button className="button" onClick={exportCapitalReport}>
               <ArrowDownToLine size={16} /> Export report
-            </button>
+            </button>}
             <CreateButton />
           </div>
         }
       />
-      <div className="overview-metrics capital-metrics">
+      <div className={`overview-metrics capital-metrics ${enhanced ? "six-metrics" : ""}`}>
         <Metric
           label="Managed capital"
           value={money(tvl)}
-          change="+3.61%"
           caption="across active Farms · demo"
         />
         <Metric
@@ -848,14 +828,24 @@ function Dashboard({ network }: { network: string }) {
         />
         <Metric
           label="Net trajectory · 30D"
-          value={`${weighted("performance") >= 0 ? "+" : ""}${weighted("performance").toFixed(2)}%`}
+          value={`${aggregate.netTrajectory30d >= 0 ? "+" : ""}${aggregate.netTrajectory30d.toFixed(2)}%`}
           caption="TVL-weighted · demo"
         />
         <Metric
           label="Blended APY"
-          value={`${weighted("apy").toFixed(2)}%`}
+          value={`${aggregate.blendedApy.toFixed(2)}%`}
           caption="TVL-weighted · demo"
         />
+        {enhanced && <Metric
+          label="Withdrawable capital"
+          value={money(aggregate.withdrawableCapital, true)}
+          caption={`${aggregate.withdrawablePct.toFixed(1)}% of managed capital · demo`}
+        />}
+        {enhanced && <Metric
+          label="Total LPs"
+          value={aggregate.totalLps.toLocaleString()}
+          caption={`largest depositor ${aggregate.topHolderPct.toFixed(1)}% of managed capital`}
+        />}
       </div>
       <div className="dashboard-middle">
         <section className="panel portfolio-panel">
@@ -885,7 +875,7 @@ function Dashboard({ network }: { network: string }) {
             <AnimatedValue value={money(tvl)} />
             <span className="positive">
               <ArrowUpRight size={15} />
-              {range === 30 ? "3.61" : range === 90 ? "8.42" : "12.87"}%{" "}
+              {performanceForRange(aggregate.netTrajectory30d, range).toFixed(2)}%{" "}
               <span className="muted">sample period</span>
             </span>
           </div>
@@ -940,8 +930,8 @@ function Dashboard({ network }: { network: string }) {
         <section className="panel allocation-panel">
           <div className="panel-heading">
             <div>
-              <span className="panel-kicker">REVENUE SOURCES</span>
-              <h3>Yield composition</h3>
+              <span className="panel-kicker">CAPITAL MIX</span>
+              <h3>Capital allocation</h3>
             </div>
             <SlidersHorizontal size={15} />
           </div>
@@ -949,7 +939,7 @@ function Dashboard({ network }: { network: string }) {
             className="allocation-donut"
             style={{
               background: tvl
-                ? `conic-gradient(var(--accent) 0 ${(active.filter((f) => f.type === "PERPETUAL").reduce((s, f) => s + f.tvl, 0) / tvl) * 100}%, #9aa3dc 0 ${(active.filter((f) => f.type !== "SPOT").reduce((s, f) => s + f.tvl, 0) / tvl) * 100}%, #c6b487 0 100%)`
+                ? `conic-gradient(var(--accent) 0 ${indexAllocation}%, #f472b6 ${indexAllocation}% ${indexAllocation + spotAllocation}%, #94dcb5 ${indexAllocation + spotAllocation}% 100%)`
                 : "var(--border)",
             }}
           >
@@ -961,9 +951,7 @@ function Dashboard({ network }: { network: string }) {
           </div>
           <div className="allocation-legend">
             {families.map((f) => {
-              const amount = active
-                .filter((x) => x.type === f.type)
-                .reduce((s, x) => s + x.tvl, 0);
+              const amount = allocationAmount(f.type);
               return (
                 <div key={f.type}>
                   <span className={`legend-dot ${f.type.toLowerCase()}`} />
@@ -1061,12 +1049,12 @@ function FarmTable({ farms }: { farms: Farm[] }) {
         <table className="farm-table">
           <thead>
             <tr>
-              <th>Farm / Strategy</th>
+              <th>Farm</th>
               <th>Status</th>
               <th>TVL</th>
               <th>APY</th>
               <th>30D performance</th>
-              <th>Network</th>
+              <th>Base token</th>
               <th aria-label="Manage" />
             </tr>
           </thead>
@@ -1081,8 +1069,8 @@ function FarmTable({ farms }: { farms: Farm[] }) {
                     <span>
                       <strong>{f.name}</strong>
                       <small>
-                        {f.type} <span>·</span>{" "}
-                        {f.source === "demo" ? "Demo farm" : "Local strategy"}
+                        <span className={`strategy-tag ${f.type.toLowerCase()}`}>{f.type}</span>
+                        <span>·</span>{" "}{f.network} Network
                       </small>
                     </span>
                   </Link>
@@ -1129,8 +1117,8 @@ function FarmTable({ farms }: { farms: Farm[] }) {
                 </td>
                 <td>
                   <span className="network-name">
-                    <NetworkIcon network={f.network} size={19} />
-                    {f.network}
+                    <AssetIcon symbol={String(f.values.asset || "USDC")} size={19} />
+                    {String(f.values.asset || "USDC")}
                   </span>
                 </td>
                 <td>
@@ -1475,7 +1463,172 @@ function TemplateLibrary({
     </>
   );
 }
-function FarmDetail({ id, tab }: { id: string; tab?: string }) {
+type FarmTransaction = {
+  hash: string;
+  wallet: string;
+  type: "Deposit" | "Withdrawal";
+  amount: number;
+  status: "Confirmed" | "Pending" | "Reverted";
+  timestamp: string;
+  failureReason?: string;
+};
+
+function demoHex(seed: string, length: number) {
+  let state = 2166136261;
+  let output = "";
+  for (let index = 0; index < seed.length; index += 1) {
+    state ^= seed.charCodeAt(index);
+    state = Math.imul(state, 16777619) >>> 0;
+  }
+  for (let index = 0; output.length < length; index += 1) {
+    state ^= index + 0x9e3779b9;
+    state = Math.imul(state, 2246822519) >>> 0;
+    output += state.toString(16).padStart(8, "0");
+  }
+  return output.slice(0, length);
+}
+
+function farmTransactions(farm: Farm): FarmTransaction[] {
+  if (farm.source === "local" && farm.tvl === 0) return [];
+  const base = Number.isNaN(Date.parse(farm.updatedAt))
+    ? Date.UTC(2026, 8, 18, 10, 30)
+    : Math.max(Date.parse(farm.updatedAt), Date.UTC(2026, 8, 12, 10, 30));
+  const amounts = [25_000, 8_500, 42_000, 12_750, 6_200, 31_400, 18_000, 9_600, 14_250, 5_800, 21_750, 11_400];
+  return Array.from({ length: 42 }, (_, index) => ({
+    hash: `0x${demoHex(`${farm.id}:transaction:${index}`, 64)}`,
+    wallet: `0x${demoHex(`${farm.id}:wallet:${index % 11}`, 40)}`,
+    type: index % 4 === 3 || index % 9 === 6 ? "Withdrawal" as const : "Deposit" as const,
+    amount: amounts[index % amounts.length] + Math.floor(index / amounts.length) * 650,
+    status: index === 0 || index === 17
+      ? "Pending" as const
+      : index === 4 || index === 29
+        ? "Reverted" as const
+        : "Confirmed" as const,
+    timestamp: new Date(base - index * 7_980_000).toISOString(),
+    ...(index === 4 || index === 29 ? { failureReason: index === 4 ? "LP allowance changed before execution" : "Transaction exceeded its gas limit" } : {}),
+  }));
+}
+
+function shortAddress(value: string, start = 6, end = 4) {
+  return `${value.slice(0, start)}…${value.slice(-end)}`;
+}
+
+function FarmTransactionLedger({ farm, transactions }: { farm: Farm; transactions: FarmTransaction[] }) {
+  const app = useApp();
+  const [query, setQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"All" | FarmTransaction["type"]>("All");
+  const [statusFilter, setStatusFilter] = useState<"All" | FarmTransaction["status"]>("All");
+  const [range, setRange] = useState<"7" | "30" | "all">("7");
+  const [page, setPage] = useState(1);
+  const [failedTransaction, setFailedTransaction] = useState<FarmTransaction | null>(null);
+  const pageSize = 5;
+  const asset = String(farm.values.asset || "USDC");
+  const newestTimestamp = transactions.length ? Math.max(...transactions.map((transaction) => Date.parse(transaction.timestamp))) : Date.now();
+  const rangeStart = range === "all" ? 0 : newestTimestamp - Number(range) * 86_400_000;
+  const sevenDayStart = newestTimestamp - 7 * 86_400_000;
+  const sevenDayConfirmed = transactions.filter((transaction) => transaction.status === "Confirmed" && Date.parse(transaction.timestamp) >= sevenDayStart);
+  const inflows = sevenDayConfirmed.filter((transaction) => transaction.type === "Deposit").reduce((sum, transaction) => sum + transaction.amount, 0);
+  const outflows = sevenDayConfirmed.filter((transaction) => transaction.type === "Withdrawal").reduce((sum, transaction) => sum + transaction.amount, 0);
+  const activeWallets = new Set(sevenDayConfirmed.map((transaction) => transaction.wallet)).size;
+  const normalizedQuery = query.trim().toLowerCase();
+  const filtered = transactions.filter((transaction) =>
+    (!normalizedQuery || transaction.hash.toLowerCase().includes(normalizedQuery) || transaction.wallet.toLowerCase().includes(normalizedQuery))
+    && (typeFilter === "All" || transaction.type === typeFilter)
+    && (statusFilter === "All" || transaction.status === statusFilter)
+    && Date.parse(transaction.timestamp) >= rangeStart,
+  );
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const visible = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => setPage(1), [query, typeFilter, statusFilter, range]);
+
+  async function copyValue(value: string, label: string) {
+    await navigator.clipboard.writeText(value);
+    app.toast(`${label} copied.`);
+  }
+
+  function exportCsv() {
+    const rows = [
+      ["Transaction hash", "LP wallet", "Type", "Amount", "Asset", "Status", "Timestamp UTC", "Failure reason"],
+      ...filtered.map((transaction) => [transaction.hash, transaction.wallet, transaction.type, transaction.amount, asset, transaction.status, transaction.timestamp, transaction.failureReason || ""]),
+    ];
+    const csv = rows.map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${farm.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-transactions.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    app.toast(`${filtered.length} transactions exported.`);
+  }
+
+  return (
+    <section className="panel transaction-ledger">
+      <div className="transaction-ledger-head">
+        <div><span className="eyebrow">LP CAPITAL ACTIVITY</span><h3>Farm transactions</h3><p>Deposits and withdrawals for this Farm.</p></div>
+        <button className="button transaction-export" onClick={exportCsv} disabled={!filtered.length}><ArrowDownToLine size={17} />Export CSV</button>
+      </div>
+      {transactions.length ? (
+        <>
+          <div className="transaction-summary" aria-label="Seven day capital activity summary">
+            <div><span>Total inflows (7d)</span><strong className="positive">+{money(inflows)}</strong></div>
+            <div><span>Total outflows (7d)</span><strong>−{money(outflows)}</strong></div>
+            <div><span>Net flow (7d)</span><strong className={inflows - outflows >= 0 ? "positive" : "negative"}>{inflows - outflows >= 0 ? "+" : "−"}{money(Math.abs(inflows - outflows))}</strong></div>
+            <div><span>Unique LPs active</span><strong>{activeWallets}</strong></div>
+          </div>
+          <div className="transaction-toolbar">
+            <label className="transaction-search"><Search size={18} /><input aria-label="Search wallet or transaction hash" placeholder="Search wallet or tx hash…" value={query} onChange={(event) => setQuery(event.target.value)} />{query && <button aria-label="Clear transaction search" onClick={() => setQuery("")}><X size={14} /></button>}</label>
+            <div className="transaction-filters">
+              <label><span className="sr-only">Transaction type</span><select aria-label="Transaction type" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as typeof typeFilter)}><option value="All">All types</option><option>Deposit</option><option>Withdrawal</option></select><ChevronDown size={13} /></label>
+              <label><span className="sr-only">Transaction status</span><select aria-label="Transaction status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}><option value="All">All statuses</option><option>Confirmed</option><option>Pending</option><option>Reverted</option></select><ChevronDown size={13} /></label>
+              <label className="date-filter"><CalendarBlank size={16} /><span className="sr-only">Transaction date range</span><select aria-label="Transaction date range" value={range} onChange={(event) => setRange(event.target.value as typeof range)}><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="all">All time</option></select><ChevronDown size={13} /></label>
+            </div>
+          </div>
+          <div className="transaction-table-wrap">
+            <table className="transaction-table">
+              <thead><tr><th>Transaction hash</th><th>LP wallet</th><th>Type</th><th>Amount</th><th>Status</th><th>Date &amp; time · UTC</th></tr></thead>
+              <tbody>{visible.map((transaction) => (
+                <tr key={transaction.hash}>
+                  <td><span className="transaction-copy-value"><span className="mono transaction-hash" title={transaction.hash}>{shortAddress(transaction.hash, 10, 6)}</span><button aria-label={`Copy transaction hash ${shortAddress(transaction.hash)}`} onClick={() => copyValue(transaction.hash, "Transaction hash")}><Copy size={14} /></button></span></td>
+                  <td><span className="transaction-copy-value"><span className="mono" title={transaction.wallet}>{shortAddress(transaction.wallet)}</span><button aria-label={`Copy LP wallet ${shortAddress(transaction.wallet)}`} onClick={() => copyValue(transaction.wallet, "LP wallet")}><Copy size={14} /></button></span></td>
+                  <td><span className={`transaction-type ${transaction.type.toLowerCase()}`}>{transaction.type}</span></td>
+                  <td><strong className={transaction.status === "Reverted" ? "muted" : transaction.type === "Deposit" ? "positive" : ""}>{transaction.type === "Withdrawal" ? "−" : "+"}{transaction.amount.toLocaleString()} {asset}</strong></td>
+                  <td><span className={`transaction-status ${transaction.status.toLowerCase()}`}><i />{transaction.status}</span>{transaction.failureReason && <button className="transaction-error" onClick={() => setFailedTransaction(transaction)}>View error</button>}</td>
+                  <td><time dateTime={transaction.timestamp}>{new Intl.DateTimeFormat("en", { month: "short", day: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" }).format(new Date(transaction.timestamp))}</time></td>
+                </tr>
+              ))}</tbody>
+            </table>
+            {!visible.length && <div className="transaction-empty"><Search size={20} /><strong>No matching transactions</strong><span>Clear a filter or search for another wallet.</span></div>}
+          </div>
+          <div className="transaction-footer"><span>Showing {visible.length ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, filtered.length)} of {filtered.length} transactions</span><div><button className="button" disabled={page === 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>Previous</button><span>Page {page} of {totalPages}</span><button className="button" disabled={page === totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>Next</button></div></div>
+          <p className="table-footnote">Illustrative transactions for product demonstration. Hashes are not linked to a live network.</p>
+        </>
+      ) : <EmptyState title="No LP transactions yet" description="Deposits and withdrawals will appear here after this Farm receives capital." />}
+      {failedTransaction && (
+        <Modal title="Transaction reverted" onClose={() => setFailedTransaction(null)}>
+          <div className="stack">
+            <Notice tone="warning">
+              <strong>{failedTransaction.failureReason}</strong>
+              <p>The LP deposit or withdrawal was not completed and no Farm balance changed.</p>
+            </Notice>
+            <div className="review-list">
+              <div><span>Transaction</span><strong className="mono">{shortAddress(failedTransaction.hash, 10, 6)}</strong></div>
+              <div><span>LP wallet</span><strong className="mono">{shortAddress(failedTransaction.wallet)}</strong></div>
+              <div><span>Attempted amount</span><strong>{failedTransaction.type === "Withdrawal" ? "−" : "+"}{failedTransaction.amount.toLocaleString()} {asset}</strong></div>
+              <div><span>Status</span><strong className="negative">Reverted</strong></div>
+            </div>
+            <div className="modal-actions">
+              <button className="button" onClick={() => copyValue(failedTransaction.hash, "Transaction hash")}><Copy size={15} />Copy transaction hash</button>
+              <button className="button primary" onClick={() => setFailedTransaction(null)}>Close</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </section>
+  );
+}
+
+function FarmDetail({ id, tab, enhanced }: { id: string; tab?: string; enhanced: boolean }) {
   const app = useApp();
   const farm = app.farms.find((f) => f.id === id);
   const [activeTab, setActiveTab] = useState(
@@ -1483,8 +1636,6 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
   );
   const [action, setAction] = useState("");
   const [period, setPeriod] = useState(30);
-  const [depositAmount, setDepositAmount] = useState("1000");
-  const [withdrawAmount, setWithdrawAmount] = useState("");
   const [actionError, setActionError] = useState("");
   if (!farm)
     return (
@@ -1495,8 +1646,7 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
         label="View farms"
       />
     );
-  const currentFarm = farm;
-  const t = templateById(currentFarm.templateId)!;
+  const t = templateById(farm.templateId)!;
   const data = simulate(
     { ...farm.values, assumedApr: farm.apy || 12 },
     farm.type,
@@ -1504,62 +1654,51 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
     period,
   );
   const local = farm.source === "local";
-  const pauseAvailable = canPauseFarm(farm);
   const demoPosition = Number(farm.values.demoPosition || 0);
   const configuredPair = perpetualPair(farm);
+  const financial = farmFinancialMetrics(farm);
+  const perpHealth = farm.type === "PERPETUAL" ? perpetualHealth(farm) : null;
+  const currentIndexWeights = farm.type === "INDEX" ? indexWeights(farm) : [];
+  const spotHealth = farm.type === "SPOT" ? spotComposition(farm) : null;
+  const transactions = farmTransactions(farm);
+  const farmAgeDays = Math.max(0, Math.floor((Date.now() - Date.parse(farm.createdAt)) / 86_400_000));
+  const farmAgeMonths = Math.floor(farmAgeDays / 30.4375);
+  const farmAge = farmAgeDays < 1
+    ? "New"
+    : farmAgeDays < 30
+      ? `${farmAgeDays} day${farmAgeDays === 1 ? "" : "s"}`
+      : farmAgeMonths < 12
+        ? `${farmAgeMonths} month${farmAgeMonths === 1 ? "" : "s"}`
+        : `${Math.floor(farmAgeMonths / 12)}y ${farmAgeMonths % 12}m`;
+  const driftedAssets = currentIndexWeights.filter((weight) => weight.flagged);
   function closeAction() {
     setAction("");
     setActionError("");
   }
-  function completeDeposit() {
-    try {
-      const updated = depositToDemoFarm(currentFarm, Number(depositAmount));
-      app.saveFarm(updated);
-      closeAction();
-      app.toast(
-        `${Number(depositAmount).toLocaleString()} ${String(currentFarm.values.asset)} deposited in demo mode.`,
-      );
-    } catch (error) {
-      setActionError(
-        error instanceof Error ? error.message : "Unable to complete deposit.",
-      );
-    }
-  }
-  function completeWithdrawal() {
-    try {
-      const updated = withdrawFromDemoFarm(currentFarm, Number(withdrawAmount));
-      app.saveFarm(updated);
-      closeAction();
-      app.toast(
-        `${Number(withdrawAmount).toLocaleString()} ${String(currentFarm.values.asset)} withdrawn in demo mode.`,
-      );
-    } catch (error) {
-      setActionError(
-        error instanceof Error
-          ? error.message
-          : "Unable to complete withdrawal.",
-      );
-    }
-  }
   function confirmAction() {
     if (!farm) return;
     try {
-      const updated =
-        action === "Pause farm" || action === "Resume farm"
-          ? setFarmPaused(farm, action === "Pause farm")
-          : {
-              ...farm,
-              updatedAt: new Date().toISOString(),
-              events: [...farm.events, `${action} · local demo action`],
-            };
+      const updated = action === "Rebalance index"
+        ? {
+            ...farm,
+            values: currentIndexWeights.reduce(
+              (values, weight) => ({ ...values, [`currentWeight_${weight.asset}`]: weight.weight }),
+              { ...farm.values },
+            ),
+            updatedAt: new Date().toISOString(),
+            events: [...farm.events, "Index rebalanced to target weights · local demo action"],
+          }
+        : {
+            ...farm,
+            updatedAt: new Date().toISOString(),
+            events: [...farm.events, `${action} · local demo action`],
+          };
       app.saveFarm(updated);
       closeAction();
       app.toast(
-        action === "Pause farm"
-          ? "Farm paused in demo mode. Deposits are now disabled."
-          : action === "Resume farm"
-            ? "Farm resumed in demo mode."
-            : "Demo Farm updated. No blockchain transaction was sent.",
+        action === "Rebalance index"
+          ? "Demo rebalance completed. All assets now match their target weights."
+          : "Demo Farm updated. No blockchain transaction was sent.",
       );
     } catch (error) {
       setActionError(
@@ -1569,93 +1708,55 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
   }
   return (
     <>
-      <Link className="back-link" href="/app/farms">
-        <ArrowRight className="rotate-180" size={14} />
-        All farms
-      </Link>
-      <PageHeading
-        eyebrow={`${farm.type} / ${farm.network}`}
-        title={farm.name || "Untitled farm"}
-        description={
-          local
-            ? "Your strategy configuration and deployment plan."
-            : "Performance, positions, and the decisions behind your strategy."
-        }
-        action={
-          <div className="heading-actions">
-            <Badge tone={farm.status === "ACTIVE" ? "mint" : "amber"}>
-              {farm.status}
-            </Badge>
-            <Link className="button" href={farmEditHref(id)}>
-              {local ? "Edit strategy" : "Create editable copy"}
-            </Link>
-            {farm.type === "PERPETUAL" && !local && (
-              <Link className="button primary" href={farmTradeHref(id)}>
-                <TrendUp size={15} /> Trade
-              </Link>
-            )}
-            {local ? (
-              <Link
-                className="button primary"
-                href={`/app/farms/new?draft=${id}`}
-              >
-                Continue setup <ArrowRight size={15} />
-              </Link>
-            ) : (
-              <>
-                <button
-                  className={farm.type === "PERPETUAL" ? "button" : "button primary"}
-                  disabled={farm.status !== "ACTIVE"}
-                  onClick={() => {
-                    setActionError("");
-                    setAction("Deposit to Farm");
-                  }}
-                >
-                  <Droplets size={15} /> Deposit
-                </button>
-                <button
-                  className="button"
-                  onClick={() => {
-                    setActionError("");
-                    setWithdrawAmount(demoPosition ? String(demoPosition) : "");
-                    setAction("Withdraw assets");
-                  }}
-                >
-                  Withdraw
-                </button>
-                <button
-                  className="button"
-                  disabled={!pauseAvailable}
-                  title={
-                    pauseAvailable
-                      ? undefined
-                      : "Pause is available only for manager-controlled demo Farms."
-                  }
-                  onClick={() => {
-                    setActionError("");
-                    setAction(
-                      farm.status === "PAUSED" ? "Resume farm" : "Pause farm",
-                    );
-                  }}
-                >
-                  {farm.status === "PAUSED" ? "Resume" : "Pause"}
-                </button>
-              </>
-            )}
+      <section className="farm-detail-hero">
+        <div className={`farm-detail-mark ${farm.type.toLowerCase()}`}>
+          {farm.icon ? <img src={farm.icon} alt="" /> : <StrategyIcon type={farm.type} />}
+        </div>
+        <div className="farm-detail-identity">
+          <div className="farm-detail-tags">
+            <span className={`strategy-tag ${farm.type.toLowerCase()}`}>{farm.type}</span>
+            <span className="farm-network-tag"><NetworkIcon network={farm.network} size={16} />{farm.network}</span>
+            <Badge tone={farm.status === "ACTIVE" ? "mint" : "amber"}>{farm.status}</Badge>
           </div>
-        }
-      />
+          <h1>{farm.name || "Untitled farm"}</h1>
+          <p>{String(farm.values.description || (local ? "Your strategy configuration and deployment plan." : "Performance, positions, and the decisions behind your strategy."))}</p>
+        </div>
+        <div className="heading-actions farm-detail-actions">
+          {farm.type === "PERPETUAL" && !local && (
+            <Link className="button primary" href={farmTradeHref(id)}><TrendUp size={16} /> Trade on Hyperliquid</Link>
+          )}
+          {enhanced && farm.type === "SPOT" && !local && (
+            <>
+              <button className="button" onClick={() => setAction("Swap assets")}><ArrowsLeftRight size={16} /> Swap</button>
+              <button className="button primary" onClick={() => setAction("Buy or sell spot assets")}><TrendUp size={16} /> Buy / sell</button>
+            </>
+          )}
+          {enhanced && farm.type === "INDEX" && !local && (
+            <>
+              <button className="button danger-soft" onClick={() => setAction("Liquidate index")}><Scales size={16} /> Liquidate</button>
+              <button className="button primary rebalance-button" onClick={() => setAction("Rebalance index")}><ArrowsClockwise size={16} /> Rebalance</button>
+            </>
+          )}
+          {local && <Link className="button primary" href={`/app/farms/new?draft=${id}`}>Continue setup <ArrowRight size={15} /></Link>}
+        </div>
+        <div className="farm-detail-facts">
+          <span><AssetIcon symbol={String(farm.values.asset || "USDC")} size={26} /><small>Base token</small><strong>{String(farm.values.asset || "USDC")}</strong></span>
+          <span><small>Strategy</small><strong>{farm.type === "INDEX" ? String(farm.values.allocationMethod || t.name) : farm.type === "SPOT" ? String(farm.values.strategy || t.name) : String(farm.values.direction || t.name)}</strong></span>
+          <span><small>Farm age</small><strong>{farmAge}</strong></span>
+          <span><small>TVL</small><strong>{local ? "—" : money(farm.tvl, true)}</strong></span>
+          <span><small>Current APY</small><strong className="positive">{local ? "—" : `${financial.currentApy.toFixed(2)}%`}</strong></span>
+        </div>
+        {farm.type === "INDEX" && driftedAssets.length > 0 && (
+          <div className="farm-rebalance-alert"><Shield size={17} />Rebalance due · {driftedAssets.map((weight) => `${weight.asset} drifted ${weight.drift >= 0 ? "+" : ""}${weight.drift.toFixed(1)}pp`).join(", ")}</div>
+        )}
+      </section>
       <div className="tabs detail-tabs">
         {[
           "Overview",
-          "Performance",
           "Positions",
           "Strategy",
-          "Liquidity",
           "Documents",
           "Transactions",
-          "Risk",
-          "Settings",
         ].map((s) => (
           <button
             key={s}
@@ -1698,113 +1799,77 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
           and performance is unavailable.
         </Notice>
       )}
-      {["Overview", "Performance"].includes(activeTab) && (
+      {activeTab === "Overview" && (
         <>
-          <div className="overview-metrics">
-            <Metric
-              label="Total value locked"
-              value={local ? "—" : money(farm.tvl)}
-              caption={local ? "Not deployed" : "Sample data"}
-            />
-            <Metric
-              label="APY"
-              value={local ? "—" : `${farm.apy}%`}
-              caption="Demo annualized yield"
-            />
-            <Metric
-              label="30D performance"
-              value={local ? "—" : `+${farm.performance}%`}
-              caption="Sample net performance"
-            />
-            <Metric
-              label="Strategy risk"
-              value={farm.risk.charAt(0) + farm.risk.slice(1).toLowerCase()}
-              caption="Illustrative risk category"
-            />
-          </div>
+          {enhanced ? (
+            <>
+              <div className="overview-metrics farm-health-metrics">
+                <Metric label="Total value locked" value={local ? "—" : money(farm.tvl)} caption={local ? "Not deployed" : "Demo Farm liquidity"} />
+                <Metric label="Current APY" value={local ? "—" : `${financial.currentApy.toFixed(2)}%`} caption="Trailing 30D · demo" />
+                {farm.type === "PERPETUAL" && perpHealth ? <>
+                  <div className="metric"><span>Margin health</span><AnimatedValue className={perpHealth.marginHealth >= 70 ? "positive" : perpHealth.marginHealth >= 40 ? "warning-text" : "negative"} value={`${perpHealth.marginHealth.toFixed(0)}%`} /><small>Liquidation buffer · demo</small></div>
+                  <Metric label="Funding rate · 8h" value={`${perpHealth.fundingRate >= 0 ? "+" : ""}${perpHealth.fundingRate.toFixed(4)}%`} caption={perpHealth.fundingRate >= 0 ? "Received · demo" : "Paid · demo"} />
+                </> : <>
+                  <Metric label="30D performance" value={local ? "—" : `${farm.performance >= 0 ? "+" : ""}${farm.performance.toFixed(2)}%`} caption="Net performance · demo" />
+                  <Metric label={farm.type === "SPOT" ? "Impermanent loss" : "Active LPs"} value={farm.type === "SPOT" && spotHealth ? `${spotHealth.impermanentLoss.toFixed(2)}%` : local ? "—" : financial.activeLps.toLocaleString()} caption={farm.type === "SPOT" ? "Current pool position · demo" : `top holder ${financial.topHolderPct.toFixed(1)}% of TVL`} />
+                </>}
+              </div>
+              {farm.type === "SPOT" && spotHealth && <section className="panel spot-composition-panel"><div className="panel-heading"><div><h3>Asset composition</h3><p>Current token weights in the demo pool position.</p></div></div><div className="composition-track">{spotHealth.assets.map((asset) => <i key={asset.asset} style={{ width: `${asset.weight}%` }} title={`${asset.asset} ${asset.weight}%`} />)}</div><div className="composition-assets">{spotHealth.assets.map((asset) => <span key={asset.asset}><AssetIcon symbol={asset.asset} size={22} /><strong>{asset.asset}</strong><small>{asset.weight}%</small></span>)}</div></section>}
+            </>
+          ) : (
+            <div className="overview-metrics">
+              <Metric label="Total value locked" value={local ? "—" : money(farm.tvl)} caption={local ? "Not deployed" : "Sample data"} />
+              <Metric label="APY" value={local ? "—" : `${farm.apy}%`} caption="Demo annualized yield" />
+              <Metric label="30D performance" value={local ? "—" : `+${farm.performance}%`} caption="Sample net performance" />
+              <Metric label="Strategy risk" value={farm.risk.charAt(0) + farm.risk.slice(1).toLowerCase()} caption="Illustrative risk category" />
+            </div>
+          )}
           {!local ? (
-            <section className="panel">
-              <div className="panel-heading">
-                <h3>
-                  Performance history <span className="subtle-label">DEMO</span>
-                </h3>
-                <div className="segmented">
-                  {[30, 90, 365].map((d) => (
-                    <button
-                      className={period === d ? "active" : ""}
-                      key={d}
-                      onClick={() => setPeriod(d)}
-                    >
-                      {d === 365 ? "All time" : `${d}D`}
-                    </button>
-                  ))}
+            <div className="farm-overview-story">
+              <section className="panel farm-performance-panel">
+                <div className="panel-heading">
+                  <h3>
+                    Performance history <span className="subtle-label">DEMO</span>
+                  </h3>
+                  <div className="segmented">
+                    {[30, 90, 365].map((d) => (
+                      <button
+                        className={period === d ? "active" : ""}
+                        key={d}
+                        onClick={() => setPeriod(d)}
+                      >
+                        {d === 365 ? "All time" : `${d}D`}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-              <PerformanceChart points={data.points} />
-              <div className="chart-axis">
-                <span>Period start</span>
-                <span>Period end</span>
-              </div>
-            </section>
+                <TradingViewPerformanceChart points={data.points} days={period} />
+              </section>
+              <FarmActivityCard farm={farm} transactions={transactions} onViewAll={() => setActiveTab("Transactions")} />
+            </div>
           ) : (
             <EmptyState
               title="Performance begins after deployment"
               description="Review hypothetical outcomes in the creation flow while your strategy is being prepared."
             />
           )}
+          {activeTab === "Overview" && farm.type === "INDEX" && (
+            <IndexAllocationPanel weights={currentIndexWeights} tvl={farm.tvl} />
+          )}
           {activeTab === "Overview" && farm.type === "PERPETUAL" && (
             <FarmPerpMarkets farm={farm} />
-          )}
-          {activeTab === "Overview" && (
-            <div className="detail-grid">
-              <StrategyFlow
-                type={farm.type}
-                values={farm.values}
-                allocations={farm.allocations}
-              />
-              <section className="panel">
-                <div className="panel-heading">
-                  <h3>Strategy health</h3>
-                  <Risk level={riskFor(t, farm.values)} />
-                </div>
-                <div className="health-row">
-                  <Check size={16} />
-                  Configuration saved
-                </div>
-                <div className="health-row warning-text">
-                  <Shield size={16} />
-                  Contract verification unavailable
-                </div>
-                <div className="health-row muted">
-                  <Clock3 size={16} />
-                  Last rebalance:{" "}
-                  {local ? "Not deployed" : "2 hours ago · demo"}
-                </div>
-                <Notice>
-                  No smart contract audit has been verified for this
-                  configuration.
-                </Notice>
-                <button
-                  className="button full"
-                  disabled={local}
-                  onClick={() => setAction("Rebalance farm")}
-                >
-                  Preview rebalance
-                </button>
-              </section>
-            </div>
           )}
         </>
       )}
       {activeTab === "Strategy" && (
-        <div className="detail-grid">
-          <section className="panel">
+        <div className="strategy-workspace-grid">
+          <section className="panel strategy-configuration-card">
             <div className="panel-heading">
-              <h3>Strategy parameters</h3>
+              <div><span className="eyebrow">LIVE CONFIGURATION</span><h3>Strategy controls</h3></div>
               <Badge>{farm.type}</Badge>
             </div>
             <div className="review-values">
-              {t.fields.map((f) => (
+              {t.fields.filter((field) => !["name", "description", "asset", "capacity", "risk", "assumedApr", "managementFee", "performanceFee"].includes(field.key)).slice(0, 8).map((f) => (
                 <div key={f.key}>
                   <span>{f.label}</span>
                   <strong>
@@ -1814,11 +1879,34 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
               ))}
             </div>
           </section>
-          <StrategyFlow
-            type={farm.type}
-            values={farm.values}
-            allocations={farm.allocations}
-          />
+          <section className="panel strategy-risk-card">
+            <div className="panel-heading">
+              <div><span className="eyebrow">RISK &amp; SAFEGUARDS</span><h3>Manager guardrails</h3></div>
+              <Risk level={riskFor(t, farm.values)} />
+            </div>
+            <div className="health-row"><Shield size={16} />Market risk · asset prices can fall</div>
+            <div className="health-row"><Shield size={16} />Liquidity risk · exits may be delayed</div>
+            <div className="health-row warning-text"><Shield size={16} />Contract verification unavailable</div>
+            {farm.type === "PERPETUAL" && <div className="health-row warning-text"><Shield size={16} />Leverage and liquidation risk · {farm.values.leverage}× configured</div>}
+            <Notice>Risk categories are illustrative and do not imply that capital is safe.</Notice>
+          </section>
+          <section className="panel strategy-capital-card">
+            <div className="panel-heading"><div><span className="eyebrow">CAPITAL RULES</span><h3>Liquidity &amp; fees</h3></div><Droplets size={18} /></div>
+            <div className="review-values">
+              <div><span>Base token</span><strong className="token-line"><AssetIcon symbol={String(farm.values.asset)} size={20} />{String(farm.values.asset)}</strong></div>
+              <div><span>Available capacity</span><strong>{money(Math.max(0, Number(farm.values.capacity) - farm.tvl), true)}</strong></div>
+              <div><span>Withdrawal window</span><strong>24 hours · demo</strong></div>
+              <div><span>Management fee</span><strong>{farm.values.managementFee}% / year</strong></div>
+              <div><span>Performance fee</span><strong>{farm.values.performanceFee}% of gains</strong></div>
+              <div><span>LP concentration</span><strong>{financial.topHolderPct.toFixed(1)}% largest</strong></div>
+            </div>
+          </section>
+          <section className="panel strategy-operations-card">
+            <div className="panel-heading"><div><span className="eyebrow">ONCHAIN OPERATIONS</span><h3>Contract &amp; execution</h3></div><Network size={18} /></div>
+            <div className="health-row"><Check size={16} />Configuration saved</div>
+            <div className="health-row muted"><Clock3 size={16} />Last rebalance: {local ? "Not deployed" : "2 hours ago · demo"}</div>
+            <button className="button full" onClick={() => setAction("View contract")}>View contract <ExternalLink size={14} /></button>
+          </section>
         </div>
       )}
       {activeTab === "Positions" &&
@@ -1840,16 +1928,6 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
                   {demoPosition.toLocaleString()} {String(farm.values.asset)}
                 </strong>
               </div>
-              <button
-                className="button small"
-                onClick={() => {
-                  setActionError("");
-                  setWithdrawAmount(demoPosition ? String(demoPosition) : "");
-                  setAction("Withdraw assets");
-                }}
-              >
-                Withdraw
-              </button>
             </div>
             {(farm.type === "INDEX"
               ? farm.allocations
@@ -1868,25 +1946,6 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
             </Notice>
           </section>
         ))}
-      {activeTab === "Liquidity" && (
-        <div className="detail-grid">
-          <section className="panel">
-            <div className="panel-heading"><div><h3>Liquidity overview</h3><p>How capital enters and exits this Farm.</p></div><Droplets size={18} /></div>
-            <div className="review-values">
-              <div><span>Deposit asset</span><strong className="token-line"><AssetIcon symbol={String(farm.values.asset)} size={20} />{String(farm.values.asset)}</strong></div>
-              <div><span>Minimum deposit</span><strong>$100</strong></div>
-              <div><span>Available capacity</span><strong>{money(Math.max(0, Number(farm.values.capacity) - farm.tvl), true)}</strong></div>
-              <div><span>Withdrawal window</span><strong>24 hours · demo</strong></div>
-            </div>
-            {!local && <button className="button primary full" disabled={farm.status !== "ACTIVE"} onClick={() => { setActionError(""); setAction("Deposit to Farm"); }}>Deposit to this Farm <ArrowRight size={15} /></button>}
-          </section>
-          <section className="panel">
-            <div className="panel-heading"><div><h3>Liquidity provider snapshot</h3><p>Illustrative participation data.</p></div><Users size={18} /></div>
-            <div className="review-values"><div><span>Liquidity providers</span><strong>{local ? "—" : "184"}</strong></div><div><span>Largest position</span><strong>{local ? "—" : "8.4% of TVL"}</strong></div><div><span>Fees</span><strong>{farm.values.managementFee}% + {farm.values.performanceFee}%</strong></div></div>
-            <Notice>Liquidity and LP counts are sample data until a live contract indexer is connected.</Notice>
-          </section>
-        </div>
-      )}
       {activeTab === "Documents" && (
         <section className="panel">
           <div className="panel-heading"><div><h3>Farm documents</h3><p>Methodology and disclosures supplied by the Farm Manager.</p></div><FileText size={18} /></div>
@@ -1898,224 +1957,36 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
         </section>
       )}
       {activeTab === "Transactions" && (
-        <section className="panel">
-          <div className="panel-heading">
-            <h3>Workspace activity</h3>
-            <Badge>LOCAL LOG</Badge>
-          </div>
-          {farm.events.map((e, i) => (
-            <div className="health-row" key={i}>
-              <Clock3 size={15} />
-              {e}
-            </div>
-          ))}
-          <Notice>
-            No onchain transactions have been submitted. Transaction hashes will
-            appear only after real execution.
-          </Notice>
-        </section>
-      )}
-      {activeTab === "Risk" && (
-        <section className="panel">
-          <div className="panel-heading">
-            <h3>Risk considerations</h3>
-            <Risk level={farm.risk} />
-          </div>
-          {[
-            "Smart contract risk · no audit verified",
-            "Market risk · asset prices can fall",
-            "Liquidity risk · exits may be delayed",
-            "Protocol exposure · " + farm.values.protocol,
-            ...(farm.type === "PERPETUAL"
-              ? [
-                  "Leverage risk · liquidation can consume all margin",
-                  "Liquidation price · requires a live exchange quote",
-                ]
-              : []),
-          ].map((s) => (
-            <div className="health-row warning-text" key={s}>
-              <Shield size={16} />
-              {s}
-            </div>
-          ))}
-          <Notice>
-            Illustrative categories are not a safety rating. The simulation
-            cannot capture all sources of loss.
-          </Notice>
-        </section>
-      )}
-      {activeTab === "Settings" && (
-        <section className="panel">
-          <h3>Farm controls</h3>
-          <p className="muted">
-            {local
-              ? "Update your local strategy or continue the creation flow."
-              : "Demo controls update this browser only."}
-          </p>
-          {!local && !pauseAvailable && (
-            <Notice>
-              Pause is unavailable for this Farm because its demo deployment
-              does not include manager pause permissions. Withdrawals remain
-              available for any demo balance you own.
-            </Notice>
-          )}
-          <div className="heading-actions">
-            <Link className="button" href={farmEditHref(id)}>
-              {local ? "Edit configuration" : "Create editable copy"}
-            </Link>
-            <button
-              className="button"
-              onClick={() => {
-                setActionError("");
-                setWithdrawAmount(demoPosition ? String(demoPosition) : "");
-                setAction("Withdraw assets");
-              }}
-            >
-              Withdraw
-            </button>
-            <button
-              className="button"
-              onClick={() => setAction("View contract")}
-            >
-              View contract <ExternalLink size={14} />
-            </button>
-          </div>
-        </section>
+        <FarmTransactionLedger farm={farm} transactions={transactions} />
       )}
       {action && (
-        <Modal
-          title={
-            action === "Pause farm"
-              ? "Pause this Farm?"
-              : action === "Resume farm"
-                ? "Resume this Farm?"
-                : action
-          }
-          onClose={closeAction}
-        >
-          {action === "Deposit to Farm" ? (
-            <>
-              <p className="muted">
-                Add {String(farm.values.asset)} to your demo position in {farm.name}.
-              </p>
-              <label className="field">
-                <span>Deposit amount</span>
-                <div className="input-wrap">
-                  <input
-                    aria-label="Deposit amount"
-                    type="number"
-                    min="100"
-                    value={depositAmount}
-                    onChange={(event) => {
-                      setDepositAmount(event.target.value);
-                      setActionError("");
-                    }}
-                  />
-                  <small>{String(farm.values.asset)}</small>
-                </div>
-              </label>
-              <div className="deposit-summary">
-                <span>You deposit</span>
-                <strong>{Number(depositAmount || 0).toLocaleString()} {String(farm.values.asset)}</strong>
-                <span>Your position after deposit</span>
-                <strong>{(demoPosition + Number(depositAmount || 0)).toLocaleString()} {String(farm.values.asset)}</strong>
-                <span>Illustrative APY</span>
-                <strong>{farm.apy}%</strong>
-              </div>
-              <Notice>
-                This updates your local demo balance immediately. No wallet or
-                blockchain transaction is used.
-              </Notice>
-              {actionError && <p className="field-error" role="alert">{actionError}</p>}
-              <button
-                className="button primary full"
-                disabled={Number(depositAmount) < 100}
-                onClick={completeDeposit}
-              >
-                Confirm demo deposit <ArrowRight size={15} />
-              </button>
-            </>
-          ) : action === "Withdraw assets" ? (
-            <>
-              <p className="muted">
-                Withdraw from your {demoPosition.toLocaleString()} {String(farm.values.asset)} demo position.
-              </p>
-              <label className="field">
-                <span>Withdrawal amount</span>
-                <div className="input-wrap">
-                  <input
-                    aria-label="Withdrawal amount"
-                    type="number"
-                    min="0"
-                    max={demoPosition}
-                    value={withdrawAmount}
-                    onChange={(event) => {
-                      setWithdrawAmount(event.target.value);
-                      setActionError("");
-                    }}
-                  />
-                  <small>{String(farm.values.asset)}</small>
-                </div>
-              </label>
-              <div className="withdraw-presets" aria-label="Withdrawal amount shortcuts">
-                {[25, 50, 100].map((percent) => (
-                  <button
-                    type="button"
-                    key={percent}
-                    disabled={!demoPosition}
-                    onClick={() => setWithdrawAmount(String((demoPosition * percent) / 100))}
-                  >
-                    {percent === 100 ? "Max" : `${percent}%`}
-                  </button>
-                ))}
-              </div>
-              <div className="deposit-summary">
-                <span>You withdraw</span>
-                <strong>{Number(withdrawAmount || 0).toLocaleString()} {String(farm.values.asset)}</strong>
-                <span>Remaining position</span>
-                <strong>{Math.max(0, demoPosition - Number(withdrawAmount || 0)).toLocaleString()} {String(farm.values.asset)}</strong>
-              </div>
-              <Notice>
-                Demo withdrawals complete immediately, including while an
-                eligible Farm is paused.
-              </Notice>
-              {actionError && <p className="field-error" role="alert">{actionError}</p>}
-              <button
-                className="button primary full"
-                disabled={!demoPosition || Number(withdrawAmount) <= 0 || Number(withdrawAmount) > demoPosition}
-                onClick={completeWithdrawal}
-              >
-                Confirm demo withdrawal
-              </button>
-            </>
-          ) : action === "View contract" ? (
+        <Modal title={action} onClose={closeAction}>
+          {action === "View contract" ? (
             <>
               <p>No live contract is connected to this demo Farm.</p>
               <button className="button full" onClick={closeAction}>Understood</button>
             </>
-          ) : action === "Pause farm" || action === "Resume farm" ? (
-            <>
-              <p>
-                {action === "Pause farm"
-                  ? `Are you sure you want to pause “${farm.name}”? New deposits will stop until you resume it.`
-                  : `Resume “${farm.name}” and allow new demo deposits again?`}
-              </p>
-              <Notice tone={action === "Pause farm" ? "warning" : "info"}>
-                Existing demo positions remain withdrawable. This control is
-                available only because this Farm was deployed with manager pause
-                permissions.
-              </Notice>
-              {actionError && <p className="field-error" role="alert">{actionError}</p>}
-              <div className="modal-actions">
-                <button className="button" onClick={closeAction}>Cancel</button>
-                <button
-                  className={action === "Pause farm" ? "button danger" : "button primary"}
-                  onClick={confirmAction}
-                >
-                  {action === "Pause farm" ? "Yes, pause Farm" : "Resume Farm"}
-                </button>
+          ) : action === "Rebalance index" ? (
+            <div className="rebalance-preview">
+              <div className="rebalance-preview-summary">
+                <span className="eyebrow">SIMULATION PREVIEW</span>
+                <h3>{driftedAssets.length ? `${driftedAssets.length} asset${driftedAssets.length === 1 ? "" : "s"} outside target` : "Portfolio matches target"}</h3>
+                <p>Dexponent will sell overweight assets and route the proceeds into underweight assets in one demo batch.</p>
               </div>
-            </>
+              <div className="rebalance-route">
+                {currentIndexWeights.filter((weight) => Math.abs(weight.drift) >= 0.1).map((weight) => (
+                  <div key={weight.asset}>
+                    <AssetIcon symbol={weight.asset} size={24} />
+                    <span><strong>{weight.drift > 0 ? "Sell" : "Buy"} {weight.asset}</strong><small>{Math.abs(weight.drift).toFixed(1)}pp · {money((Math.abs(weight.drift) / 100) * farm.tvl, true)}</small></span>
+                    <b className={weight.drift > 0 ? "negative" : "positive"}>{weight.current.toFixed(1)}% → {weight.weight.toFixed(1)}%</b>
+                  </div>
+                ))}
+              </div>
+              <div className="rebalance-estimates"><span>Estimated price impact <strong>0.04%</strong></span><span>Estimated network fee <strong>$1.82</strong></span><span>Post-rebalance drift <strong>0.0pp</strong></span></div>
+              <Notice>This is a demo simulation. No tokens will move and no blockchain transaction will be sent.</Notice>
+              {actionError && <p className="field-error" role="alert">{actionError}</p>}
+              <div className="modal-actions"><button className="button" onClick={closeAction}>Cancel</button><button className="button primary" onClick={confirmAction}><ArrowsClockwise size={16} /> Execute demo rebalance</button></div>
+            </div>
           ) : (
             <>
               <p>
@@ -2125,6 +1996,7 @@ function FarmDetail({ id, tab }: { id: string; tab?: string }) {
                 This changes local demo state only. No protocol transaction will
                 be sent.
               </Notice>
+              {actionError && <p className="field-error" role="alert">{actionError}</p>}
               <div className="modal-actions">
                 <button className="button" onClick={closeAction}>
                   Cancel
@@ -2199,6 +2071,89 @@ function FarmPerpMarkets({ farm }: { farm: Farm }) {
         <div className="market-empty"><Search size={20} /><strong>No matching market</strong><span>Try a token symbol such as BTC, ETH, or USDC.</span></div>
       )}
       <div className="farm-perp-footnote"><Shield size={14} /><span>Market values are simulated for this demo workspace. No live price feed or order execution is connected.</span></div>
+    </section>
+  );
+}
+
+function FarmActivityCard({ farm, transactions, onViewAll }: { farm: Farm; transactions: FarmTransaction[]; onViewAll: () => void }) {
+  const managerActions = farm.events
+    .filter((event) => /rebalance|deploy|pause|update/i.test(event))
+    .slice(-2)
+    .reverse()
+    .map((event, index) => ({
+      id: `manager-${index}-${event}`,
+      role: "Farm Manager",
+      title: /rebalance/i.test(event) ? "Portfolio rebalanced" : /deploy/i.test(event) ? "Farm deployed" : "Farm configuration updated",
+      detail: /rebalance/i.test(event) ? "Target weights restored" : event.split(" · ")[0],
+      time: index === 0 ? "Just now" : "2h ago",
+      kind: "manager" as const,
+    }));
+  const fallbackManager = {
+    id: "manager-review",
+    role: "Farm Manager",
+    title: farm.type === "INDEX" ? "Allocation reviewed" : farm.type === "SPOT" ? "Yield route reviewed" : "Margin health reviewed",
+    detail: farm.type === "INDEX" ? "No execution submitted" : "Strategy remains within guardrails",
+    time: "2h ago",
+    kind: "manager" as const,
+  };
+  const lpActions = transactions.slice(0, 4).map((transaction) => ({
+    id: transaction.hash,
+    role: "Liquidity Provider",
+    title: transaction.type === "Deposit" ? "Capital deposited" : "Capital withdrawn",
+    detail: `${transaction.type === "Deposit" ? "+" : "−"}${transaction.amount.toLocaleString()} ${String(farm.values.asset || "USDC")} · ${shortAddress(transaction.wallet)}`,
+    time: new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(
+      Math.max(-30, Math.round((Date.parse(transaction.timestamp) - Date.now()) / 3_600_000)),
+      "hour",
+    ),
+    kind: transaction.type === "Deposit" ? "deposit" as const : "withdrawal" as const,
+  }));
+  const items = [...(managerActions.length ? managerActions : [fallbackManager]), ...lpActions].slice(0, 5);
+
+  return (
+    <section className="panel farm-activity-card">
+      <div className="panel-heading">
+        <div><h3>Activity</h3><p>Manager and LP actions in this Farm.</p></div>
+        <span className="subtle-label">DEMO</span>
+      </div>
+      <div className="farm-activity-list">
+        {items.map((item) => (
+          <div className={`farm-activity-item ${item.kind}`} key={item.id}>
+            <span className="activity-icon">{item.kind === "manager" ? <ArrowsClockwise size={16} /> : item.kind === "deposit" ? <ArrowDown size={16} /> : <ArrowUpRight size={16} />}</span>
+            <span><small>{item.role}</small><strong>{item.title}</strong><em>{item.detail}</em></span>
+            <time>{item.time}</time>
+          </div>
+        ))}
+      </div>
+      <button className="text-link activity-view-all" onClick={onViewAll}>View LP transactions <ArrowRight size={14} /></button>
+    </section>
+  );
+}
+
+function IndexAllocationPanel({ weights, tvl }: { weights: ReturnType<typeof indexWeights>; tvl: number }) {
+  const colors = ["#f5a524", "#818cf8", "#f472b6", "#5fd0ae", "#61a5fa"];
+  const flagged = weights.filter((weight) => weight.flagged);
+  return (
+    <section className="panel index-allocation-panel">
+      <div className="panel-heading">
+        <div><span className="eyebrow">PORTFOLIO CONTROL</span><h3>Asset weights vs. target</h3><p>Compare the live demo allocation with the manager’s configured model.</p></div>
+        {flagged.length ? <span className="allocation-alert"><Shield size={15} />{flagged.length} asset{flagged.length === 1 ? "" : "s"} over threshold</span> : <Badge tone="mint">ON TARGET</Badge>}
+      </div>
+      <div className="allocation-comparison">
+        <div><span><i className="current-dot" />Current allocation</span><strong>100%</strong></div>
+        <div className="allocation-segments current">{weights.map((weight, index) => <i key={weight.asset} style={{ width: `${weight.current}%`, background: colors[index % colors.length] }}><span>{weight.weight >= 12 ? `${weight.asset} ${weight.current.toFixed(0)}%` : ""}</span></i>)}</div>
+        <div><span><i className="target-dot" />Target model</span><strong>100%</strong></div>
+        <div className="allocation-segments target">{weights.map((weight, index) => <i key={weight.asset} style={{ width: `${weight.weight}%`, background: colors[index % colors.length] }}><span>{weight.weight >= 12 ? `${weight.weight.toFixed(0)}%` : ""}</span></i>)}</div>
+      </div>
+      <div className="allocation-assets">
+        {weights.map((weight, index) => (
+          <div className={weight.flagged ? "flagged" : ""} key={weight.asset}>
+            <span className="allocation-asset-name"><AssetIcon symbol={weight.asset} size={24} /><span><strong>{weight.asset}</strong><small>{money((weight.current / 100) * tvl, true)}</small></span></span>
+            <span><small>Current</small><strong>{weight.current.toFixed(1)}%</strong></span>
+            <span><small>Target</small><strong>{weight.weight.toFixed(1)}%</strong></span>
+            <b style={{ color: weight.flagged ? "var(--warning)" : colors[index % colors.length] }}>{weight.drift >= 0 ? "+" : ""}{weight.drift.toFixed(1)}pp</b>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

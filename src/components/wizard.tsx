@@ -66,6 +66,7 @@ const steps = [
 export function Wizard({ farmId }: { farmId?: string }) {
   const app = useApp(),
     router = useRouter();
+  const editingExisting = Boolean(farmId);
   const [farm, setFarm] = useState<Farm | null>(null);
   const [type, setType] = useState<StrategyType | null>(null);
   const [step, setStep] = useState(0);
@@ -89,7 +90,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
     const existing = id ? app.farms.find((f) => f.id === id) : null;
     if (existing) {
       const copy = structuredClone(existing);
-      if (existing.source === "demo") {
+      if (existing.source === "demo" && !editingExisting) {
         copy.id = crypto.randomUUID();
         copy.source = "local";
         copy.status = "DRAFT";
@@ -100,7 +101,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
       }
       setFarm(copy);
       setType(copy.type);
-      setStep(Math.min(copy.step, 5));
+      setStep(editingExisting ? 1 : Math.min(copy.step, 5));
     } else {
       const t = templateById(params.get("template") || "");
       if (t) {
@@ -110,7 +111,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
       }
     }
     setInitialized(true);
-  }, [app.ready, app.farms, farmId, initialized]);
+  }, [app.ready, app.farms, editingExisting, farmId, initialized]);
   useGSAP(
     () => {
       if (!type || step !== 0) return;
@@ -172,7 +173,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
         ? {
             ...f,
             ...patch,
-            status: "DRAFT",
+            status: editingExisting ? f.status : "DRAFT",
             updatedAt: new Date().toISOString(),
           }
         : f,
@@ -243,6 +244,22 @@ export function Wizard({ farmId }: { farmId?: string }) {
     try {
       deploymentAdapter.prepare(farm, t);
       const projected = simulate(values, farm.type, "Base", 90);
+      if (editingExisting) {
+        const updated = {
+          ...farm,
+          name: String(values.name),
+          risk,
+          apy: Math.max(0, Number(projected.apy.toFixed(2))),
+          updatedAt: new Date().toISOString(),
+          events: [...farm.events, "Farm configuration updated · local demo action"],
+        };
+        app.saveFarm(updated);
+        setFarm(updated);
+        setSuccess(true);
+        app.toast(`${updated.name} updated.`);
+        router.push(farmDetailHref(updated.id));
+        return;
+      }
       const finished = deployDemoFarm(
         { ...farm, name: String(values.name) },
         risk,
@@ -353,10 +370,10 @@ export function Wizard({ farmId }: { farmId?: string }) {
           className="button small"
           onClick={() => {
             if (farm) app.saveFarm(farm);
-            router.push("/app/farms/drafts");
+            router.push(editingExisting && farm ? farmDetailHref(farm.id) : "/app/farms/drafts");
           }}
         >
-          Save & exit
+          {editingExisting ? "Save & return" : "Save & exit"}
         </button>
       </div>
       <nav aria-label="Creation steps" className="stepper">
@@ -1106,7 +1123,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
                     </div>
                   )}
                   <div>
-                    <span>Deposit asset</span>
+                    <span>Base token</span>
                     <strong className="token-line"><AssetIcon symbol={String(values.asset)} size={18} />{String(values.asset)}</strong>
                   </div>
                   <div>
@@ -1180,7 +1197,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
                   ? "Explore simulation"
                   : step === 4
                     ? "Continue to deploy"
-                    : "Deploy demo Farm"}
+                    : editingExisting ? "Save changes" : "Deploy demo Farm"}
             <ArrowRight size={15} />
           </button>
         )}

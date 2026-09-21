@@ -57,6 +57,7 @@ export type Farm = {
   events: string[];
   icon?: string;
   documents?: { name: string; size: number; type: string }[];
+  lpPositions?: { address: string; depositedUsd: number }[];
 };
 export type User = { name: string; workspace: string };
 export type FarmManager = User & { wallet?: string };
@@ -118,7 +119,7 @@ const common: Field[] = [
     kind: "textarea",
     help: "Explain the Farm’s objective and source of return in plain language.",
   },
-  select("asset", "Deposit asset", ["USDC", "ETH", "WBTC"]),
+  select("asset", "Base token", ["USDC", "ETH", "WBTC"]),
   number("capacity", "TVL capacity", 100, 100000000, "USD"),
   select("risk", "Risk profile", ["Balanced", "Conservative", "Aggressive"]),
   number("assumedApr", "Assumed annual gross return", -80, 100, "%", true),
@@ -552,5 +553,8 @@ export const farmSchema = z.object({
   icon: z.string().optional(),
   documents: z
     .array(z.object({ name: z.string(), size: z.number(), type: z.string() }))
+    .optional(),
+  lpPositions: z
+    .array(z.object({ address: z.string(), depositedUsd: z.number() }))
     .optional(),
 });
