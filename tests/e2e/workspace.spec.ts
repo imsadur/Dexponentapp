@@ -6,8 +6,11 @@ test("page index exposes independent v3 and preserved v2 products", async ({ pag
 
   await page.getByRole("link", { name: /Landing page v3/ }).click();
   await expect(page).toHaveURL(/\/landingv3\/home\/?$/);
-  await expect(page.getByRole("heading", { name: "Investment strategies become transparent products." })).toBeVisible();
-  await page.getByRole("link", { name: "Explore Farms", exact: true }).first().click();
+  await expect(page.getByRole("heading", { name: "Launch, raise and run onchain funds." })).toBeVisible();
+  await page.getByRole("tab", { name: "Index" }).click();
+  await expect(page.getByLabel("Interactive demo Farm preview")).toContainText("Blue Chip Index");
+  await expect(page.getByLabel("Interactive demo Farm preview")).toContainText("12.6%");
+  await page.getByRole("link", { name: "Explore demo Farms", exact: true }).click();
   await page.getByRole("link", { name: /Blue Chip Index/ }).click();
   await expect(page).toHaveURL(/\/landingv3\/farm-details\/blue-chip\/?$/);
   await expect(page.getByRole("heading", { name: "Blue Chip Index" })).toBeVisible();
