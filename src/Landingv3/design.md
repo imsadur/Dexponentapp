@@ -2,154 +2,195 @@
 
 ## Design intent
 
-Landing V3 is a warm editorial interpretation of Dexponent. It combines an institutional financial tone with a clear public explanation of the product. It should feel credible, data-aware, and product-led without resembling a generic crypto dashboard.
+Landing V3 presents Dexponent as the operating layer for transparent onchain managed capital. It combines premium financial restraint, crypto-native infrastructure visuals, meaningful market data, and direct paths for both Liquidity Providers and Farm Managers.
 
-Landing V3 is intentionally distinct from the future dark green cinematic direction described for Landing V4. Preserve this identity for version comparison.
+The page uses dark mode only. It should feel technical, credible, editorial, and interactive without becoming a neon crypto dashboard, a card-heavy SaaS template, or a decorative WebGL experiment.
 
 ## Product narrative
 
-The Home page follows this order:
+The Home page follows this sequence:
 
-1. **Category and value** — launch, raise, and run onchain funds.
-2. **Interactive product proof** — switch among Perpetual, Index, and Spot demo Farms.
-3. **Illustrative snapshot** — clearly labeled demo capital, positions, Farms, and networks.
-4. **Opportunity set** — compare strategy, network, APY, TVL, and risk.
-5. **Strategy systems** — explain where each return comes from.
-6. **Operating model** — choose a strategy, set guardrails, and operate with context.
-7. **Two-sided value** — separate LP and Farm Manager journeys.
-8. **Final action** — explore Farms or launch one.
+1. **Category** — Capital, managed onchain.
+2. **Capital-flow proof** — LP capital passes through Dexponent into Index, Spot, and Perpetual strategies.
+3. **Protocol snapshot** — clearly labeled illustrative metrics.
+4. **The shift** — fragmented DeFi activity becomes one transparent operating model.
+5. **Strategy marketplace** — useful Farm data, filters, return sources, capacity, and risk.
+6. **Yield education** — explain the return before the APY.
+7. **Two-sided product** — separate LP and Farm Manager experiences.
+8. **Farm creation** — one connected path from strategy type to operation.
+9. **Dexponent system** — one operating model, transparent capital, manager infrastructure, and decision-ready LP context.
+10. **Onchain activity** — manager and LP actions remain attributable.
+11. **Networks and security** — current support, controls, and audit links.
+12. **Why now** — asset management is becoming programmable.
+13. **Manager invitation** — turn a strategy thesis into an allocatable product.
+14. **Closing action** — explore strategies or launch a Farm.
 
-Avoid repeating a headline-and-three-cards pattern. Use full-width transitions, editorial rows, interactive product modules, sticky explanation, and paired audience blocks.
+Avoid repeated headline-and-three-card layouts. Use connected diagrams, dense editorial rows, pinned explanation, interactive product modules, horizontal process flows, and full-width transitions.
 
 ## Visual tokens
 
 ### Color
 
-- Paper background: `#F4F1E8`
-- Strong paper surface: `#FBFAF5`
-- Primary ink: `#10192C`
-- Secondary text: `#626A78`
-- Cobalt action: `#3158ED`
-- Cobalt hover: `#2444C2`
-- Acid-lime proof accent: `#C7FF57`
-- Positive green: `#128258`
-- Hairline border: `#C9C9C3`
+- Primary background: `#030706`
+- Secondary background: `#050A08`
+- Primary surface: `#0A110E`
+- Elevated surface: `#0D1512`
+- Primary green: `#00E89A`
+- Green hover: `#26F1AC`
+- Primary text: `#F4F7F5`
+- Secondary text: `#8F9A94`
+- Supporting text: `#C2CBC6`
+- Border: `rgba(255,255,255,0.09)`
+- Strong border: `rgba(255,255,255,0.16)`
 
-Use cobalt for primary actions and selection. Use lime for proof points and high-contrast accents. Keep gradients minimal.
+Use green for primary actions, selected states, capital paths, positive metrics, and restrained atmospheric lighting. Keep most of the interface near-black, charcoal, off-white, and muted gray. Do not wash entire sections in green or layer excessive gradients.
 
 ### Typography
 
 - Primary family: Outfit.
-- Hero: `58–88px` desktop, tight tracking, maximum three lines.
-- Section headline: `44–76px` desktop.
-- Body: `15–17px` with generous line height.
-- Eyebrow: uppercase monospace, `10px`, wide tracking.
-- Data labels: `10–12px`.
+- Hero: `64–108px` desktop with very tight tracking and a maximum of three lines.
+- Section headline: `46–78px` desktop.
+- Product headline: `30–44px`.
+- Body: `16–19px` for narrative copy.
+- Interface copy: `10–14px`.
+- Eyebrow: uppercase `11px`, wide tracking.
 
-Headlines are short and editorial. Paragraphs explain one idea at a time.
+Headlines are short and editorial. Paragraphs explain one product idea at a time. Financial labels remain compact and precise.
 
 ### Layout
 
-- Main content width: `1320px` maximum.
-- Desktop page gutter: `20px` minimum.
-- Floating navigation: `68px` minimum height.
-- Section spacing: approximately `82–112px`.
-- Corners: `10–18px`; avoid making every item a card.
-- Borders: one-pixel neutral or dark hairlines.
+- Navigation and hero maximum width: `1440px`.
+- Narrative sections: `1400px` maximum.
+- Desktop gutters: `24px` minimum.
+- Desktop chapter spacing: approximately `170px`.
+- Mobile chapter spacing: approximately `110px`.
+- Corners: `8–22px`, used on interactive surfaces rather than every content block.
+- Use one-pixel hairlines to structure dense financial information.
 
 ## Core components
 
 ### Navigation
 
-- Floating and sticky.
-- Brand left, public destinations centered, app actions right.
+- Floating and sticky with a translucent near-black background.
+- Brand left, narrative anchors centered, LP and manager actions right.
 - Primary action: Launch a Farm.
-- Secondary action: Open dashboard.
-- Mobile uses a dismissible menu below `960px`.
+- Secondary action: Explore strategies.
+- Mobile uses a compact button and a full-width menu below `800px`.
 
-### Hero
+### Hero and capital-flow visual
 
-- Two-column asymmetric desktop layout.
-- Headline remains readable in two or three lines.
-- LP action: Explore demo Farms.
-- Manager action: Create a Farm.
-- Trust notes state that the experience is a demo, requires no wallet, and exposes risk context.
+- Artistic asymmetric layout: editorial copy left and an interactive infrastructure diagram right.
+- Headline: “Capital, managed onchain.”
+- LP action: Explore strategies.
+- Manager action: Launch a Farm.
+- The diagram shows LP capital entering the Dexponent engine and routing into Index, Spot, and Perpetual strategies.
+- SVG capital paths animate continuously and react with restrained cursor lighting.
+- Label the routing visual illustrative.
+- Use SVG and CSS instead of WebGL to preserve performance and mobile clarity.
 
-### Interactive Farm monitor
+### Protocol strip
 
-- Dark market-data surface against the paper hero.
-- Tabs for Perpetual, Index, and Spot.
-- Shows return source, token path, token logos, chain logo, estimated APY, demo TVL, and risk.
-- Uses semantic tab roles and `aria-selected`.
-- Updates immediately without motion that delays reading.
+- Full-width moving statistics row directly below the hero.
+- Values are structured demo data and explicitly labeled “Demo network snapshot” or “Illustrative.”
+- Do not present fabricated values as live protocol figures.
 
-### Farm directory
+### Strategy marketplace
 
-- Use dense editorial rows instead of a generic card grid.
-- Required information: Farm, strategy type, return source, network, estimated APY, demo TVL, and risk.
-- Risk uses text plus color.
-- Row hover may shift only a few pixels.
+- Structured Farm objects power both the focus visualization and dense list.
+- Filters: All, Index, Spot, Perpetual.
+- Required information: Farm, manager, return source, network, estimated APY, demo TVL, capacity, risk, LP count, and illustrative performance history.
+- Hover or keyboard focus updates the featured Farm.
+- Real token and network marks remain visible.
 
-### Strategy education
+### Yield mechanisms
 
-- Index: `USDC → allocation → assets → rebalance`.
-- Spot: `USDC → protocol → yield → compound`.
-- Perpetual: `USDC → margin → hedge → funding`.
-- Explain mechanics and risk before directing users to Farms.
+- Use semantic tabs for Index, Spot, and Perpetual.
+- Index: `Capital → Portfolio allocation → Rules-based rebalance → Portfolio return`.
+- Spot: `Capital → Lending or LP → Yield and fees → Compounding`.
+- Perpetual: `Collateral → Market position → Hedge → Funding and P&L`.
+- Each state explains return source, risk source, liquidity, and networks.
+- Keep the narrative heading pinned on wide screens while the product explanation scrolls.
 
-### LP and manager journeys
+### LP and manager switch
 
-- LP: Understand → Compare → Decide.
-- Manager: Create → Deploy → Operate.
-- Each journey names concrete capabilities and links to a real V3 destination.
+- One visible semantic tab switch controls the audience story.
+- LP view prioritizes discovery, risk, positions, liquidity, and manager activity.
+- Manager view prioritizes configuration, risk controls, exposure, LP flows, and rebalancing.
+- Each state uses realistic product UI rather than a generic screenshot.
+
+### Farm creation
+
+Connect five steps in one continuous visual flow:
+
+1. Choose a strategy type.
+2. Configure capital rules.
+3. Set risk and fees.
+4. Deploy onchain.
+5. Accept LP capital and operate.
+
+The flow becomes a horizontal carousel on narrow screens.
+
+### Activity, networks, and trust
+
+- Activity rows show action, value, block, timestamp, network, and transaction fragment.
+- Network visuals use actual Base, Ethereum, and Arbitrum assets.
+- Base is identified as the current beta network; other networks use accurate demo-support language.
+- Security includes non-custodial architecture, permissions, transaction visibility, Farm risk controls, and the Hacken audit link.
+- Preserve a visible risk statement.
 
 ### Footer
 
-- Dark full-width conclusion.
-- Include Explore, Product, and Company columns.
-- Include documentation and legal links.
-- State that V3 figures are illustrative.
+- Include Product, Managers, Resources, and Legal destinations.
+- Include documentation, audits, beta guide, privacy, terms, and risk disclosure.
+- State that V3 financial figures are demo or illustrative.
 
 ## Interaction and motion
 
-- Use `150–250ms` state transitions.
-- Favor tab transitions, link underlines, slight row movement, and button elevation.
-- Avoid bouncing, meaningless particles, long loaders, and continuous motion behind text.
-- Disable non-essential transitions under `prefers-reduced-motion`.
+- GSAP reveals hero and chapter content with short opacity and vertical movement.
+- A scrubbed text reveal introduces the fragmented-to-unified problem statement.
+- The yield explanation pins on desktop.
+- Hovering strategy rows updates the featured strategy without delayed animation.
+- Capital paths use lightweight SVG animation.
+- Buttons move no more than two pixels on hover.
+- Avoid bouncing, spinning decoration, random particles, long loaders, or motion that blocks reading.
+- Under `prefers-reduced-motion`, animations and transitions collapse to near-zero duration.
 
 ## Responsive behavior
 
 Support `1440`, `1280`, `1024`, `768`, `390`, and `375`.
 
-- Below `1080px`, simplify Farm directory columns.
-- Below `960px`, stack the hero and use mobile navigation.
-- Below `680px`, stack actions, trust notes, strategy modules, audience panels, and footer groups.
-- Hide secondary table fields only when Farm, strategy, APY, and destination remain clear.
-- Do not allow horizontal page scrolling.
+- Below `1180px`, stack the hero, marketplace focus, yield explanation, audience view, system section, and manager invitation.
+- Below `800px`, use mobile navigation, stacked financial layouts, reduced table columns, and a horizontal Farm-creation sequence.
+- Below `430px`, make hero actions full width and tighten diagrams without hiding the product meaning.
+- Complex network and infrastructure diagrams simplify vertically on mobile.
+- Never allow horizontal page scrolling.
 
 ## Accessibility
 
-- Use semantic landmarks and heading order.
-- Interactive previews use buttons or links, visible focus, and accessible names.
-- Color supplements labels and never carries meaning alone.
-- Token and network marks are decorative when adjacent text identifies them.
-- Maintain contrast on paper, cobalt, and dark sections.
+- Keep semantic landmarks and a valid heading hierarchy.
+- Filters and audience controls use tab roles with `aria-selected`.
+- Icon-only controls need accessible names.
+- Focus states use the primary green and remain visible against dark surfaces.
+- Color supplements labels and does not carry meaning alone.
+- Token and network graphics are decorative when adjacent text identifies them.
+- Maintain strong contrast for all body copy and actions.
 
 ## Performance
 
-- Prefer CSS and SVG-style visuals to heavy WebGL in V3.
-- Avoid large video or bitmap hero assets.
-- Keep layout dimensions stable.
-- Lazy-load future below-fold media.
-- A WebGL capital-flow narrative belongs in Landing V4 and requires a lightweight fallback.
+- Prefer CSS and SVG to heavy 3D rendering.
+- Avoid video and large hero bitmaps.
+- Keep graphic dimensions stable to prevent layout shift.
+- Reuse the local logo and network assets.
+- Structure below-fold content so heavier visual modules can be lazy-loaded later.
+- Target smooth desktop motion and simplified mobile effects.
 
 ## Data architecture
 
 V3 demo Farms use structured objects with:
 
-`id`, `name`, `type`, `source`, `pair`, `apy`, `tvl`, `network`, `risk`, and `assets`.
+`id`, `name`, `type`, `manager`, `source`, `pair`, `apy`, `tvl`, `network`, `risk`, `capacity`, `lpCount`, `status`, `assets`, and `history`.
 
-Keep data replaceable by a future adapter. Do not scatter Farm metrics through page markup. Public values remain estimated or demo until backed by a verified API.
+Activity and yield-mechanism content also use structured data. Keep data replaceable by a future adapter and avoid scattering strategy metrics through markup. Values remain estimated, demo, or illustrative until backed by verified APIs.
 
 ## Routing
 
@@ -158,4 +199,4 @@ Keep data replaceable by a future adapter. Do not scatter Farm metrics through p
 - `/landingv3/farms`
 - `/landingv3/farm-details/[farm-id]`
 - `/landingv3/networks`
-- `/dbv3/*` for product handoff
+- `/dbv3/*` for application handoff

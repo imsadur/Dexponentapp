@@ -5,7 +5,7 @@
 - This directory owns the independent public **Landing V3** experience.
 - Preserve Landing V1 and V2. Do not import their components or styles into V3.
 - Keep public V3 destinations under `/landingv3/*` and application handoffs under `/dbv3/*`.
-- A future dark, green, cinematic marketing rebuild belongs in a new version such as `/landingv4/*`. Do not silently convert V3 into that version.
+- V3 uses the dark, green, cinematic marketing system documented in `design.md`. Keep that visual and narrative system coherent across all `/landingv3/*` routes.
 - V3 must stay available from the page-version index for comparison.
 
 ## Product purpose
@@ -41,8 +41,8 @@ Within ten seconds the visitor should understand what Dexponent is, what each au
 
 ## Page and interaction rules
 
-- Preserve the CTA hierarchy: **Explore demo Farms** for LPs and **Launch a Farm** for managers.
-- The featured Farm monitor must be keyboard accessible and expose selected-tab state.
+- Preserve the CTA hierarchy: **Explore strategies** for LPs and **Launch a Farm** for managers.
+- Strategy filters, yield-mechanism tabs, and the LP/manager switch must be keyboard accessible and expose selected-tab state.
 - Farm rows link to the corresponding public Farm profile.
 - Farm profiles hand off to the matching `/dbv3/farms/manage` workspace.
 - Mobile navigation must close, support keyboards, and avoid horizontal overflow.
@@ -65,7 +65,7 @@ All routes must work with static export and trailing slashes.
 Before completing a Landing V3 change:
 
 1. Verify Home, Yield, Farms, each Farm profile, and Networks.
-2. Test the Perpetual, Index, and Spot featured-preview tabs.
+2. Test the strategy filters, Index/Spot/Perpetual yield tabs, and LP/manager switch.
 3. Follow Home → Farms → Farm profile → V3 workspace.
 4. Follow Home → Launch a Farm → V3 builder.
 5. Verify desktop and mobile layouts without horizontal overflow.
