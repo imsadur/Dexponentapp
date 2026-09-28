@@ -2669,6 +2669,7 @@ function TradeMetricRow({ label, value, help }: { label: string; value: string; 
 
 function PositionSizeSlider({ value, onChange, disabled }: { value: number; onChange: (value: number) => void; disabled?: boolean }) {
   const safeValue = Math.min(100, Math.max(0, Number.isFinite(value) ? value : 0));
+  const marks = [0, 25, 50, 100];
   return (
     <div className={`position-size-slider ${disabled ? "disabled" : ""}`} style={{ "--size-fill": `${safeValue}%` } as CSSProperties}>
       <div className="position-size-slider-track">
@@ -2685,6 +2686,8 @@ function PositionSizeSlider({ value, onChange, disabled }: { value: number; onCh
           disabled={disabled}
           onChange={(event) => onChange(Number(event.target.value))}
         />
+        <span className="position-slider-value">{Math.round(safeValue)}%</span>
+        {marks.map((mark) => <i key={mark} style={{ left: `${mark}%` }} />)}
       </div>
     </div>
   );
