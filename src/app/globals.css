@@ -5777,8 +5777,10 @@ textarea:focus-visible {
 .position-value-toggle { display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; background: transparent; color: var(--text-muted); cursor: pointer; }
 .position-value-toggle:hover,.position-value-toggle:focus-visible { color: var(--accent); }
 .position-value-toggle strong { color: var(--text-primary); }
-.size-input-wrap { display: flex; align-items: center; overflow: hidden; border: 1px solid var(--border); background: var(--background); }
-.size-input-wrap input { min-width: 0; padding-right: 8px; border: 0 !important; background: transparent !important; text-align: right; font-variant-numeric: tabular-nums; box-shadow: none !important; }
+.size-input-wrap { display: flex; min-height: 54px !important; align-items: stretch; overflow: hidden; border: 1px solid var(--border); background: var(--background); }
+.size-input-label { position: absolute; z-index: 1; top: 8px; left: 11px; color: var(--text-muted); font-size: 9px; line-height: 1; pointer-events: none; }
+.size-input-wrap input { min-width: 0; padding: 20px 8px 6px 11px; border: 0 !important; background: transparent !important; text-align: right; font-variant-numeric: tabular-nums; box-shadow: none !important; -moz-appearance: textfield; appearance: textfield; }
+.size-input-wrap input::-webkit-inner-spin-button,.size-input-wrap input::-webkit-outer-spin-button { margin: 0; -webkit-appearance: none; appearance: none; }
 .size-unit-toggle { display: inline-flex; min-width: 58px; align-self: stretch; align-items: center; justify-content: center; gap: 5px; padding: 0 8px; border: 0; border-left: 1px solid var(--border-soft); background: color-mix(in srgb,var(--surface-elevated) 74%,transparent); color: var(--text-secondary); font: inherit; font-size: 9px; font-weight: 650; cursor: pointer; }
 .size-unit-toggle:hover,.size-unit-toggle:focus-visible { background: var(--accent-dim); color: var(--accent); }
 .reduce-only-checkbox { display: inline-flex; align-items: center; gap: 8px; margin-top: 7px; color: var(--text-secondary); font-size: 10px; cursor: pointer; }
