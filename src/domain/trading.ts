@@ -10,20 +10,44 @@ export type PerpetualMarket = {
   volume: string;
   group: "Major" | "Alt";
   maxLeverage: number;
+  quantityPrecision: number;
+  minQuantity: number;
 };
 
 export const perpetualMarkets: PerpetualMarket[] = [
-  { base: "BTC", quote: "USDC", price: 116420, change: 1.36, funding: 0.0081, openInterest: "$2.74B", volume: "$1.12B", group: "Major", maxLeverage: 10 },
-  { base: "ETH", quote: "USDC", price: 3826.4, change: 2.84, funding: 0.0108, openInterest: "$1.28B", volume: "$684.2M", group: "Major", maxLeverage: 10 },
-  { base: "SOL", quote: "USDC", price: 249.83, change: -0.72, funding: 0.0124, openInterest: "$486.7M", volume: "$312.4M", group: "Major", maxLeverage: 10 },
-  { base: "ARB", quote: "USDC", price: 1.17, change: 4.18, funding: 0.0064, openInterest: "$186.3M", volume: "$92.8M", group: "Alt", maxLeverage: 7 },
-  { base: "OP", quote: "USDC", price: 2.84, change: -1.42, funding: -0.0031, openInterest: "$142.8M", volume: "$74.1M", group: "Alt", maxLeverage: 7 },
-  { base: "AVAX", quote: "USDC", price: 48.62, change: 0.91, funding: 0.0048, openInterest: "$216.5M", volume: "$108.7M", group: "Alt", maxLeverage: 7 },
-  { base: "LINK", quote: "USDC", price: 26.38, change: 3.12, funding: 0.0072, openInterest: "$204.7M", volume: "$126.4M", group: "Alt", maxLeverage: 7 },
-  { base: "DOGE", quote: "USDC", price: 0.284, change: -2.06, funding: -0.0054, openInterest: "$328.1M", volume: "$198.6M", group: "Alt", maxLeverage: 5 },
-  { base: "BTC", quote: "USDT", price: 116398, change: 1.31, funding: 0.008, openInterest: "$812.6M", volume: "$429.3M", group: "Major", maxLeverage: 10 },
-  { base: "ETH", quote: "USDT", price: 3825.7, change: 2.79, funding: 0.0105, openInterest: "$604.8M", volume: "$291.5M", group: "Major", maxLeverage: 10 },
+  { base: "BTC", quote: "USDC", price: 116420, change: 1.36, funding: 0.0081, openInterest: "$2.74B", volume: "$1.12B", group: "Major", maxLeverage: 10, quantityPrecision: 5, minQuantity: 0.0001 },
+  { base: "ETH", quote: "USDC", price: 3826.4, change: 2.84, funding: 0.0108, openInterest: "$1.28B", volume: "$684.2M", group: "Major", maxLeverage: 10, quantityPrecision: 4, minQuantity: 0.001 },
+  { base: "SOL", quote: "USDC", price: 249.83, change: -0.72, funding: 0.0124, openInterest: "$486.7M", volume: "$312.4M", group: "Major", maxLeverage: 10, quantityPrecision: 2, minQuantity: 0.01 },
+  { base: "ARB", quote: "USDC", price: 1.17, change: 4.18, funding: 0.0064, openInterest: "$186.3M", volume: "$92.8M", group: "Alt", maxLeverage: 7, quantityPrecision: 1, minQuantity: 1 },
+  { base: "OP", quote: "USDC", price: 2.84, change: -1.42, funding: -0.0031, openInterest: "$142.8M", volume: "$74.1M", group: "Alt", maxLeverage: 7, quantityPrecision: 1, minQuantity: 1 },
+  { base: "AVAX", quote: "USDC", price: 48.62, change: 0.91, funding: 0.0048, openInterest: "$216.5M", volume: "$108.7M", group: "Alt", maxLeverage: 7, quantityPrecision: 2, minQuantity: 0.1 },
+  { base: "LINK", quote: "USDC", price: 26.38, change: 3.12, funding: 0.0072, openInterest: "$204.7M", volume: "$126.4M", group: "Alt", maxLeverage: 7, quantityPrecision: 2, minQuantity: 0.1 },
+  { base: "DOGE", quote: "USDC", price: 0.284, change: -2.06, funding: -0.0054, openInterest: "$328.1M", volume: "$198.6M", group: "Alt", maxLeverage: 5, quantityPrecision: 0, minQuantity: 10 },
+  { base: "BTC", quote: "USDT", price: 116398, change: 1.31, funding: 0.008, openInterest: "$812.6M", volume: "$429.3M", group: "Major", maxLeverage: 10, quantityPrecision: 5, minQuantity: 0.0001 },
+  { base: "ETH", quote: "USDT", price: 3825.7, change: 2.79, funding: 0.0105, openInterest: "$604.8M", volume: "$291.5M", group: "Major", maxLeverage: 10, quantityPrecision: 4, minQuantity: 0.001 },
 ];
+
+export function roundOrderQuantity(value: number, precision: number) {
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  const factor = 10 ** Math.max(0, precision);
+  return Math.floor(value * factor + Number.EPSILON) / factor;
+}
+
+export function percentageToSize({ percentage, maxSize, precision }: { percentage: number; maxSize: number; precision: number }) {
+  const safePercentage = Math.min(100, Math.max(0, Number.isFinite(percentage) ? percentage : 0));
+  const safeMax = Number.isFinite(maxSize) ? Math.max(0, maxSize) : 0;
+  return roundOrderQuantity(safeMax * safePercentage / 100, precision);
+}
+
+export function sizeToPercentage({ size, maxSize }: { size: number; maxSize: number }) {
+  if (!Number.isFinite(size) || !Number.isFinite(maxSize) || maxSize <= 0) return 0;
+  return Math.min(100, Math.max(0, size / maxSize * 100));
+}
+
+export function maximumOrderNotional({ availableMargin, leverage, feeRate = 0.00035 }: { availableMargin: number; leverage: number; feeRate?: number }) {
+  if (!Number.isFinite(availableMargin) || !Number.isFinite(leverage) || availableMargin <= 0 || leverage <= 0) return 0;
+  return availableMargin * leverage / (1 + leverage * Math.max(0, feeRate));
+}
 
 export const marketPair = (market: Pick<PerpetualMarket, "base" | "quote">) =>
   `${market.base}/${market.quote}`;
@@ -48,6 +72,8 @@ export type DemoOrder = {
   leverage: number;
   price: number;
   market?: Pick<PerpetualMarket, "base" | "quote">;
+  quantity?: number;
+  reduceOnly?: boolean;
 };
 
 export type FilledOrder = {
@@ -61,6 +87,9 @@ export type FilledOrder = {
   quote: string;
   fee: number;
   filledAt: string;
+  base?: string;
+  quantity?: number;
+  reduceOnly?: boolean;
 };
 
 export function filledOrders(farm: Farm): FilledOrder[] {
@@ -105,7 +134,24 @@ export function placeDemoOrder(farm: Farm, order: DemoOrder): Farm {
     quote,
     fee: order.size * 0.00035,
     filledAt,
+    base,
+    quantity: order.quantity,
+    reduceOnly: order.reduceOnly,
   };
+  const existingPair = String(farm.values.demoTradePair || "");
+  const existingNotional = Number(farm.values.demoTradeSize || 0);
+  const existingQuantity = Number(farm.values.demoTradeQuantity || (existingNotional && Number(farm.values.demoEntryPrice) ? existingNotional / Number(farm.values.demoEntryPrice) : 0));
+  if (order.reduceOnly && (existingPair !== pair || existingNotional <= 0))
+    throw new Error(`No open ${pair} position is available to reduce.`);
+  const orderQuantity = Number(order.quantity || order.size / order.price);
+  if (order.reduceOnly && orderQuantity > existingQuantity + Number.EPSILON)
+    throw new Error("Reduce-only size cannot exceed the open position.");
+  const existingSide = String(farm.values.demoTradeSide || "");
+  if (order.reduceOnly && ((existingSide === "Long" && order.side !== "Short") || (existingSide === "Short" && order.side !== "Long")))
+    throw new Error(`A ${existingSide} position must be reduced with a ${existingSide === "Long" ? "Short" : "Long"} order.`);
+  const remainingQuantity = order.reduceOnly ? Math.max(0, existingQuantity - orderQuantity) : orderQuantity;
+  const remainingNotional = order.reduceOnly ? existingNotional * (existingQuantity ? remainingQuantity / existingQuantity : 0) : order.size;
+  const nextSide = order.reduceOnly ? String(farm.values.demoTradeSide || order.side) : order.side;
   return {
     ...farm,
     values: {
@@ -113,9 +159,10 @@ export function placeDemoOrder(farm: Farm, order: DemoOrder): Farm {
       demoTradePair: pair,
       demoTradeBase: base,
       demoTradeQuote: quote,
-      demoTradeSide: order.side,
+      demoTradeSide: nextSide,
       demoTradeType: order.type,
-      demoTradeSize: order.size,
+      demoTradeSize: remainingNotional,
+      demoTradeQuantity: remainingQuantity,
       demoTradeLeverage: order.leverage,
       demoEntryPrice: order.price,
       demoFilledOrders: JSON.stringify([...filledOrders(farm), orderRecord]),
@@ -123,7 +170,7 @@ export function placeDemoOrder(farm: Farm, order: DemoOrder): Farm {
     updatedAt: filledAt,
     events: [
       ...farm.events,
-      `${order.side} ${pair} · ${order.size.toLocaleString()} ${quote} at ${order.leverage}× · demo order filled`,
+      `${order.reduceOnly ? "Reduce" : order.side} ${pair} · ${order.size.toLocaleString()} ${quote} at ${order.leverage}× · demo order filled`,
     ],
   };
 }

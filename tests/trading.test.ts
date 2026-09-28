@@ -3,9 +3,12 @@ import test from "node:test";
 import { makeFarm, templates } from "../src/domain/strategy";
 import {
   filledOrders,
+  maximumOrderNotional,
+  percentageToSize,
   perpetualPair,
   placeDemoOrder,
   searchPerpetualMarkets,
+  sizeToPercentage,
 } from "../src/domain/trading";
 
 const perpetualTemplate = templates.find((template) => template.type === "PERPETUAL")!;
@@ -100,4 +103,54 @@ test("demo trades require an active Perpetual Farm", () => {
       }),
     /Resume this Farm/,
   );
+});
+
+test("position sizing helpers clamp, round down, and synchronize percentages", () => {
+  assert.equal(percentageToSize({ percentage: 50, maxSize: 0.123456, precision: 5 }), 0.06172);
+  assert.equal(percentageToSize({ percentage: 120, maxSize: 2, precision: 3 }), 2);
+  assert.equal(sizeToPercentage({ size: 0.5, maxSize: 1 }), 50);
+  assert.equal(sizeToPercentage({ size: 2, maxSize: 1 }), 100);
+  assert.ok(maximumOrderNotional({ availableMargin: 1_000, leverage: 10 }) < 10_000);
+  assert.equal(maximumOrderNotional({ availableMargin: 0, leverage: 10 }), 0);
+  assert.equal(percentageToSize({ percentage: 50, maxSize: 0, precision: 5 }), 0);
+});
+
+test("reduce-only orders close a percentage of the existing quantity without flipping side", () => {
+  const farm = {
+    ...makeFarm(perpetualTemplate, "perp-reduce"),
+    status: "ACTIVE" as const,
+    source: "demo" as const,
+  };
+  const opened = placeDemoOrder(farm, {
+    side: "Long",
+    type: "Market",
+    size: 7_652.8,
+    quantity: 2,
+    leverage: 2,
+    price: 3_826.4,
+  });
+  const reduced = placeDemoOrder(opened, {
+    side: "Short",
+    type: "Market",
+    size: 3_826.4,
+    quantity: 1,
+    leverage: 2,
+    price: 3_826.4,
+    reduceOnly: true,
+  });
+  assert.equal(reduced.values.demoTradeSide, "Long");
+  assert.equal(reduced.values.demoTradeQuantity, 1);
+  assert.equal(reduced.values.demoTradeSize, 3_826.4);
+  assert.equal(filledOrders(reduced).at(-1)?.reduceOnly, true);
+});
+
+test("reduce-only orders cannot exceed or increase the open position", () => {
+  const farm = {
+    ...makeFarm(perpetualTemplate, "perp-reduce-guard"),
+    status: "ACTIVE" as const,
+    source: "demo" as const,
+  };
+  const opened = placeDemoOrder(farm, { side: "Short", type: "Market", size: 3_826.4, quantity: 1, leverage: 2, price: 3_826.4 });
+  assert.throws(() => placeDemoOrder(opened, { side: "Long", type: "Market", size: 7_652.8, quantity: 2, leverage: 2, price: 3_826.4, reduceOnly: true }), /cannot exceed/);
+  assert.throws(() => placeDemoOrder(opened, { side: "Short", type: "Market", size: 1_913.2, quantity: .5, leverage: 2, price: 3_826.4, reduceOnly: true }), /must be reduced/);
 });
