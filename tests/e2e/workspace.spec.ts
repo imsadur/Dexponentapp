@@ -235,8 +235,16 @@ test("landing, dashboard, every strategy, draft recovery and honest deployment",
       await page.getByRole("radio", { name: /Portfolio Margin/ }).click();
       await page.getByRole("button", { name: "Save account type" }).click();
       await expect(page.getByRole("button", { name: "Account type, Portfolio Margin" })).toBeVisible();
-      await page.getByRole("button", { name: "Use 25% of position capacity" }).click();
-      await expect(page.getByRole("spinbutton", { name: "Position size" })).not.toHaveValue("");
+      const pairTitle = await page.locator(".order-context-bar h2").textContent();
+      const tradeToken = pairTitle?.split("-")[0] || "ETH";
+      const initialSize = tradeToken === "BTC" ? "0.01" : tradeToken === "ETH" ? "0.1" : tradeToken === "SOL" ? "1" : "10";
+      const reducedSize = tradeToken === "BTC" ? "0.005" : tradeToken === "ETH" ? "0.05" : tradeToken === "SOL" ? "0.5" : "5";
+      const sizeInput = page.getByRole("spinbutton", { name: "Size" });
+      await expect(page.getByRole("slider", { name: "Position size percentage" })).toHaveCount(0);
+      await sizeInput.fill(initialSize);
+      await page.getByRole("button", { name: "Enter size in USDC" }).click();
+      await expect(page.getByRole("button", { name: `Enter size in ${tradeToken}` })).toBeVisible();
+      await page.getByRole("button", { name: `Enter size in ${tradeToken}` }).click();
       await page.getByRole("button", { name: /^Long [A-Z]+$/ }).click();
       const orderUpdates = page.getByLabel("Order updates");
       await expect(orderUpdates.getByText("Placing order…", { exact: true })).toBeVisible();
@@ -244,7 +252,7 @@ test("landing, dashboard, every strategy, draft recovery and honest deployment",
       await page.getByRole("button", { name: "Show current position in USDC" }).click();
       await expect(page.getByRole("button", { name: /^Show current position in [A-Z]+$/ })).toContainText("USDC");
       await page.getByRole("checkbox", { name: "Reduce only" }).check();
-      await page.getByRole("button", { name: "Use 50% of position capacity" }).click();
+      await sizeInput.fill(reducedSize);
       await page.getByRole("button", { name: /^Short [A-Z]+$/ }).click();
       await expect(orderUpdates.getByText("Position reduced", { exact: true })).toBeVisible();
     }

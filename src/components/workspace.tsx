@@ -74,11 +74,9 @@ import {
   filledOrders,
   marketPair,
   maximumOrderNotional,
-  percentageToSize,
   perpetualMarkets,
   perpetualPair,
   placeDemoOrder,
-  sizeToPercentage,
   searchPerpetualMarkets,
   type PerpetualMarket,
 } from "@/domain/trading";
@@ -2168,7 +2166,7 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
   const [side, setSide] = useState<"Long" | "Short">("Long");
   const [orderType, setOrderType] = useState<"Market" | "Limit">("Market");
   const [size, setSize] = useState("");
-  const [sizePercentage, setSizePercentage] = useState(0);
+  const [sizeUnit, setSizeUnit] = useState<"base" | "quote">("base");
   const [reduceOnly, setReduceOnly] = useState(false);
   const [leverage, setLeverage] = useState(2);
   const [timeframe, setTimeframe] = useState("1H");
@@ -2271,35 +2269,31 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
   const liquidationMove = Math.max(2.5, 92 / leverage);
   const liquidationReference = Number.isFinite(executionPrice) && executionPrice > 0 ? executionPrice : market.price;
   const liquidationPrice = liquidationReference * (side === "Long" ? 1 - liquidationMove / 100 : 1 + liquidationMove / 100);
+  const displayedSize = sizeUnit === "base"
+    ? size
+    : size && Number.isFinite(executionPrice) && executionPrice > 0
+      ? (numericSize * executionPrice).toFixed(2)
+      : "";
 
   function formatQuantity(value: number) {
     if (!Number.isFinite(value) || value <= 0) return "";
     return value.toFixed(market.quantityPrecision).replace(/\.?0+$/, "");
   }
 
-  function calculateMaxSize(price: number, nextLeverage = leverage, nextReduceOnly = reduceOnly) {
-    if (nextReduceOnly) return positionMatchesMarket ? positionQuantity : 0;
-    if (!Number.isFinite(price) || price <= 0) return 0;
-    return maximumOrderNotional({ availableMargin, leverage: nextLeverage }) / price;
-  }
-
-  function setPercentage(nextPercentage: number, overrideMax = maxSize) {
-    const next = Math.min(100, Math.max(0, nextPercentage));
-    setSizePercentage(next);
-    setSize(formatQuantity(percentageToSize({ percentage: next, maxSize: overrideMax, precision: market.quantityPrecision })));
-    setOrderError("");
-  }
-
-  function setManualSize(next: string) {
-    setSize(next);
-    setSizePercentage(sizeToPercentage({ size: Number(next), maxSize }));
+  function setOrderSizeInput(next: string) {
+    if (!next) {
+      setSize("");
+      setOrderError("");
+      return;
+    }
+    if (sizeUnit === "base") setSize(next);
+    else if (Number.isFinite(executionPrice) && executionPrice > 0) setSize(formatQuantity(Number(next) / executionPrice));
     setOrderError("");
   }
 
   function updateLeverage(nextLeverage: number) {
     const next = Math.min(market.maxLeverage, Math.max(1, nextLeverage));
     setLeverage(next);
-    if (sizePercentage > 0) setPercentage(sizePercentage, calculateMaxSize(executionPrice, next));
   }
 
   function selectMarket(nextMarket: PerpetualMarket) {
@@ -2307,7 +2301,7 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
     setLimitPrice("");
     setOrderError("");
     setSize("");
-    setSizePercentage(0);
+    setSizeUnit("base");
     setReduceOnly(false);
   }
 
@@ -2361,7 +2355,6 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
           remaining: Number(updated.values.demoTradeQuantity || 0),
         });
         setSize("");
-        setSizePercentage(0);
         setOrderError("");
       } catch (error) {
         app.orderToast.update(toastId, { status: "rejected", rawError: error });
@@ -2486,7 +2479,6 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
               <div className="tabs order-type-tabs">
                 {(["Market", "Limit"] as const).map((item) => <button key={item} className={orderType === item ? "active" : ""} onClick={() => {
                   setOrderType(item);
-                  if (sizePercentage > 0) setPercentage(sizePercentage, calculateMaxSize(item === "Market" ? market.price : Number(limitPrice)));
                 }}>{item}</button>)}
               </div>
               <div className="trade-balance-summary" aria-label="Trading capacity">
@@ -2497,17 +2489,15 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
                 <label className="field"><span>Limit price</span><div className="input-wrap"><input aria-label="Limit price" type="number" min="0" placeholder={formattedPrice} value={limitPrice} onChange={(event) => {
                   const next = event.target.value;
                   setLimitPrice(next);
-                  if (sizePercentage > 0) setPercentage(sizePercentage, calculateMaxSize(Number(next)));
                 }} /><small>{quote}</small></div></label>
               )}
-              <label className="field"><span>Size</span><div className="input-wrap"><input aria-label="Position size" type="number" min="0" step={10 ** -market.quantityPrecision} placeholder={`0 ${base}`} value={size} onChange={(event) => setManualSize(event.target.value)} /><small>{base}</small></div></label>
-              <PositionSizeSlider value={sizePercentage} onChange={setPercentage} disabled={maxSize <= 0 || (orderType === "Limit" && (!Number.isFinite(executionPrice) || executionPrice <= 0))} />
+              <label className="field size-field"><span>Size</span><div className="input-wrap size-input-wrap"><input aria-label="Size" type="number" min="0" step={sizeUnit === "base" ? 10 ** -market.quantityPrecision : .01} placeholder="0" value={displayedSize} onChange={(event) => setOrderSizeInput(event.target.value)} /><button type="button" className="size-unit-toggle" aria-label={`Enter size in ${sizeUnit === "base" ? quote : base}`} onClick={() => setSizeUnit((value) => value === "base" ? "quote" : "base")}><span>{sizeUnit === "base" ? base : quote}</span><ArrowsDownUp size={12} /></button></div></label>
               <label className={`reduce-only-checkbox ${!positionMatchesMarket ? "disabled" : ""}`} title={positionMatchesMarket ? `Close up to ${formatQuantity(positionQuantity)} ${base}` : `No open ${pair} position`}>
                 <input type="checkbox" checked={reduceOnly} disabled={!positionMatchesMarket} onChange={(event) => {
                   const next = event.target.checked;
                   setReduceOnly(next);
                   if (next) setSide(positionSide === "Long" ? "Short" : "Long");
-                  setPercentage(sizePercentage, calculateMaxSize(executionPrice, leverage, next));
+                  if (next && numericSize > positionQuantity) setSize(formatQuantity(positionQuantity));
                 }} />
                 <span>Reduce only</span>
               </label>
@@ -2515,7 +2505,6 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
                 <TradeMetricRow label="Liquidation price" value={numericSize > 0 ? `${liquidationPrice.toLocaleString(undefined, { maximumFractionDigits: precision })} ${quote}` : "—"} help="Estimated price where the position could be liquidated based on the selected side and leverage." />
                 <TradeMetricRow label="Order value" value={`${orderNotional.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${quote}`} help="Total notional value of this order at its expected execution price." />
                 <TradeMetricRow label="Margin required" value={`${estimatedMargin.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${quote}`} help="Collateral reserved for this order after applying the selected leverage." />
-                <TradeMetricRow label="Order exposure" value={orderNotional > 0 ? `${leverage.toFixed(2)}×` : "—"} tone={leverage >= 10 ? "danger" : undefined} help="Order value divided by margin required. Higher exposure narrows the liquidation buffer." />
                 <TradeMetricRow label="Slippage" value={`Est ${estimatedSlippage.toFixed(2)}% / Max ${maximumSlippage.toFixed(2)}%`} help="Estimated execution movement and the maximum price movement allowed for this demo order." />
                 <TradeMetricRow label="Fees (maker/taker)" value="0.0150% / 0.0350%" help="Maker fees apply when an order adds liquidity. Taker fees apply when it executes against resting liquidity." />
                 <TradeMetricRow label="Gas (Arbitrum)" value="0.00 ETH" help="Demo orders do not submit a wallet transaction, so no network gas is charged." />
@@ -2652,52 +2641,14 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
   );
 }
 
-function TradeMetricRow({ label, value, help, tone }: { label: string; value: string; help: string; tone?: "danger" }) {
+function TradeMetricRow({ label, value, help }: { label: string; value: string; help: string }) {
   return (
     <div>
       <span className="trade-metric-help" tabIndex={0} aria-label={`${label}. ${help}`}>
         {label}
         <span role="tooltip">{help}</span>
       </span>
-      <strong className={tone === "danger" ? "danger-text" : ""}>{value}</strong>
-    </div>
-  );
-}
-
-function PositionSizeSlider({ value, onChange, disabled }: { value: number; onChange: (value: number) => void; disabled?: boolean }) {
-  const safeValue = Math.min(100, Math.max(0, Number.isFinite(value) ? value : 0));
-  return (
-    <div className={`position-size-slider ${disabled ? "disabled" : ""}`} style={{ "--size-fill": `${safeValue}%` } as CSSProperties}>
-      <div className="position-size-slider-track">
-        <input
-          aria-label="Position size percentage"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(safeValue)}
-          type="range"
-          min="0"
-          max="100"
-          step="0.1"
-          value={safeValue}
-          disabled={disabled}
-          onChange={(event) => onChange(Number(event.target.value))}
-          onKeyDown={(event) => {
-            if (event.key === "Home") {
-              event.preventDefault();
-              onChange(0);
-            }
-            if (event.key === "End") {
-              event.preventDefault();
-              onChange(100);
-            }
-          }}
-        />
-        <span className="position-slider-value">{Math.round(safeValue)}%</span>
-        {[0, 25, 50, 75, 100].map((mark) => <i key={mark} style={{ left: `${mark}%` }} />)}
-      </div>
-      <div className="position-size-marks">
-        {[0, 25, 50, 75, 100].map((mark) => <button type="button" key={mark} disabled={disabled} aria-label={`Use ${mark}% of position capacity`} onClick={() => onChange(mark)}>{mark}%</button>)}
-      </div>
+      <strong>{value}</strong>
     </div>
   );
 }
