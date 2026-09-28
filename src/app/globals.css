@@ -5781,7 +5781,9 @@ textarea:focus-visible {
 .size-input-label { position: absolute; z-index: 1; top: 50%; left: 11px; color: var(--text-muted); font-size: 14px; line-height: 1; transform: translateY(-50%); pointer-events: none; }
 .size-input-wrap input { min-width: 0; padding: 6px 8px 6px 70px; border: 0 !important; background: transparent !important; text-align: right; font-variant-numeric: tabular-nums; box-shadow: none !important; -moz-appearance: textfield; appearance: textfield; }
 .size-input-wrap input::-webkit-inner-spin-button,.size-input-wrap input::-webkit-outer-spin-button { margin: 0; -webkit-appearance: none; appearance: none; }
-.size-unit-toggle { display: inline-flex; min-width: 68px; align-self: stretch; align-items: center; justify-content: center; gap: 5px; padding: 0 8px; border: 0; border-left: 1px solid var(--border-soft); background: color-mix(in srgb,var(--surface-elevated) 74%,transparent); color: var(--text-secondary); font: inherit; font-size: 14px; font-weight: 650; cursor: pointer; }
+.size-unit-control { display: inline-flex; min-width: 66px; align-self: stretch; align-items: center; justify-content: flex-end; gap: 2px; padding: 0 8px 0 4px; color: var(--text-secondary); background: transparent; }
+.size-unit-control > span { font-size: 12px; font-weight: 400; line-height: 1; pointer-events: none; }
+.size-unit-toggle { display: inline-flex; width: 24px; height: 30px; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--text-muted); cursor: pointer; }
 .size-unit-toggle:hover,.size-unit-toggle:focus-visible { background: var(--accent-dim); color: var(--accent); }
 .reduce-only-checkbox { display: inline-flex; align-items: center; gap: 8px; margin: 12px 0; color: var(--text-secondary); font-size: 10px; cursor: pointer; }
 .reduce-only-checkbox input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); cursor: pointer; }
