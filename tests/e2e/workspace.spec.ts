@@ -237,15 +237,16 @@ test("landing, dashboard, every strategy, draft recovery and honest deployment",
       await expect(page.getByRole("button", { name: "Account type, Portfolio Margin" })).toBeVisible();
       await page.getByRole("button", { name: "Use 25% of position capacity" }).click();
       await expect(page.getByRole("spinbutton", { name: "Position size" })).not.toHaveValue("");
-      await page.getByRole("button", { name: "Review Long order" }).click();
-      await page.getByRole("button", { name: "Confirm Long" }).click();
-      await expect(page.getByText(/Long \w+\/USDC demo order filled/)).toBeVisible();
-      await page.getByRole("button", { name: "Place another order" }).click();
+      await page.getByRole("button", { name: /^Long [A-Z]+$/ }).click();
+      const orderUpdates = page.getByLabel("Order updates");
+      await expect(orderUpdates.getByText("Placing order…", { exact: true })).toBeVisible();
+      await expect(orderUpdates.getByText("Order filled", { exact: true })).toBeVisible();
+      await page.getByRole("button", { name: "Show current position in USDC" }).click();
+      await expect(page.getByRole("button", { name: /^Show current position in [A-Z]+$/ })).toContainText("USDC");
       await page.getByRole("checkbox", { name: "Reduce only" }).check();
       await page.getByRole("button", { name: "Use 50% of position capacity" }).click();
-      await page.getByRole("button", { name: "Review Short order" }).click();
-      await page.getByRole("button", { name: "Confirm Short" }).click();
-      await expect(page.getByText(/Reduce \w+\/USDC demo order filled/)).toBeVisible();
+      await page.getByRole("button", { name: /^Short [A-Z]+$/ }).click();
+      await expect(orderUpdates.getByText("Position reduced", { exact: true })).toBeVisible();
     }
   }
   expect(errors).toEqual([]);

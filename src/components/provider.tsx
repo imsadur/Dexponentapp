@@ -1,13 +1,30 @@
 "use client";
 import {
+  CheckCircle,
+  Info,
+  SpinnerGap,
+  WarningCircle,
+  X,
+  XCircle,
+} from "@phosphor-icons/react";
+import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useState,
+  type CSSProperties,
   type ReactNode,
 } from "react";
 import { type Farm, type User } from "@/domain/strategy";
 import { localDataAdapter, seedFarms } from "@/adapters/data";
+import {
+  mapOrderEvent,
+  type OrderToastAction,
+  type OrderToastEvent,
+  type OrderToastOrder,
+  type OrderToastView,
+} from "@/domain/order-toast";
 type ProviderRpc = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
   on?: (event: string, cb: (data: unknown) => void) => void;
@@ -36,7 +53,13 @@ type Context = {
   connect: () => Promise<void>;
   disconnect: () => void;
   toast: (text: string) => void;
+  orderToast: {
+    start: (order: OrderToastOrder, initialStatus?: OrderToastEvent["status"]) => string;
+    update: (id: string, event: OrderToastEvent) => void;
+    dismiss: (id: string) => void;
+  };
 };
+type OrderToastRecord = { id: string; order: OrderToastOrder; event: OrderToastEvent; view: OrderToastView };
 const AppContext = createContext<Context | null>(null);
 export function useApp() {
   const ctx = useContext(AppContext);
@@ -57,6 +80,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [walletError, setWalletError] = useState("");
   const [connecting, setConnecting] = useState(false);
   const [message, setMessage] = useState("");
+  const [orderToasts, setOrderToasts] = useState<OrderToastRecord[]>([]);
   useEffect(() => {
     try {
       setFarms(localDataAdapter.read());
@@ -165,6 +189,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setMessage("Preferences changed for this visit only.");
     }
   }
+  const dismissOrderToast = useCallback((id: string) => {
+    setOrderToasts((items) => items.filter((item) => item.id !== id));
+  }, []);
+  const startOrderToast = useCallback((order: OrderToastOrder, initialStatus: OrderToastEvent["status"] = "sending") => {
+    const id = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `order-${Date.now()}`;
+    const event: OrderToastEvent = { status: initialStatus };
+    setOrderToasts((items) => [...items.filter((item) => item.id !== id), { id, order, event, view: mapOrderEvent(order, event) }]);
+    return id;
+  }, []);
+  const updateOrderToast = useCallback((id: string, event: OrderToastEvent) => {
+    if (event.rawError) console.error("Order submission failed", event.rawError);
+    setOrderToasts((items) => items.map((item) => item.id === id ? { ...item, event, view: mapOrderEvent(item.order, event) } : item));
+  }, []);
   return (
     <AppContext.Provider
       value={{
@@ -188,6 +225,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setWalletChain("");
         },
         toast: setMessage,
+        orderToast: {
+          start: startOrderToast,
+          update: updateOrderToast,
+          dismiss: dismissOrderToast,
+        },
       }}
     >
       {children}
@@ -196,6 +238,76 @@ export function AppProvider({ children }: { children: ReactNode }) {
           {message}
         </div>
       )}
+      <div className="order-toast-stack" aria-label="Order updates">
+        {orderToasts.map((toast) => <OrderToastItem key={toast.id} toast={toast} dismiss={dismissOrderToast} />)}
+      </div>
     </AppContext.Provider>
+  );
+}
+
+const orderActionLabels: Record<OrderToastAction, string> = {
+  view_position: "View position",
+  view_order: "View order",
+  view_history: "View history",
+  details: "Details",
+  cancel_rest: "Cancel rest",
+  retry_market: "Retry at market",
+  edit_price: "Edit price",
+  edit_trigger: "Edit trigger",
+  add_funds: "Add funds",
+  lower_size: "Lower size",
+  turn_off_reduce_only: "Turn off Reduce Only",
+  approve: "Approve",
+  try_again: "Try again",
+  copy_ref: "Copy ref",
+};
+
+function OrderToastItem({ toast, dismiss }: { toast: OrderToastRecord; dismiss: (id: string) => void }) {
+  useEffect(() => {
+    if (!toast.view.autoDismissMs) return;
+    const timer = window.setTimeout(() => dismiss(toast.id), toast.view.autoDismissMs);
+    return () => window.clearTimeout(timer);
+  }, [dismiss, toast.id, toast.view.autoDismissMs, toast.view.state]);
+  const icon = toast.view.spinner
+    ? <SpinnerGap size={24} className="order-toast-spinner" />
+    : toast.view.kind === "success"
+      ? <CheckCircle size={24} weight="fill" />
+      : toast.view.kind === "error"
+        ? <XCircle size={24} weight="fill" />
+        : toast.view.kind === "warning"
+          ? <WarningCircle size={24} weight="fill" />
+          : <Info size={24} weight="fill" />;
+  const actionHref = (action: OrderToastAction) => {
+    if (action === "details") return "#filled-orders";
+    if (action === "view_position" || action === "view_history") return toast.order.farmId ? `/app/farms/manage/?farm=${toast.order.farmId}` : "/app/positions";
+    if (action === "view_order") return "#filled-orders";
+    if (action === "add_funds") return "/app/positions";
+    return "";
+  };
+  return (
+    <section
+      className={`order-toast ${toast.view.kind}`}
+      role={toast.view.kind === "error" ? "alert" : "status"}
+      aria-live={toast.view.kind === "error" ? "assertive" : "polite"}
+      style={{ "--toast-duration": `${toast.view.autoDismissMs || 0}ms` } as CSSProperties}
+    >
+      <span className="order-toast-icon">{icon}</span>
+      <div className="order-toast-copy">
+        <strong>{toast.view.title}</strong>
+        <p>{toast.view.body}</p>
+        {!!toast.view.actions.length && (
+          <div className="order-toast-actions">
+            {toast.view.actions.map((action) => {
+              const href = actionHref(action);
+              return href
+                ? <a key={action} href={href} onClick={() => dismiss(toast.id)}>{orderActionLabels[action]}</a>
+                : <button key={action} type="button" onClick={() => dismiss(toast.id)}>{orderActionLabels[action]}</button>;
+            })}
+          </div>
+        )}
+      </div>
+      <button className="order-toast-dismiss" type="button" aria-label="Dismiss order update" onClick={() => dismiss(toast.id)}><X size={17} /></button>
+      {toast.view.autoDismissMs && <span className="order-toast-countdown" />}
+    </section>
   );
 }
