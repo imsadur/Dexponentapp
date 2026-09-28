@@ -221,9 +221,11 @@ test("landing, dashboard, every strategy, draft recovery and honest deployment",
       await expect(page.getByRole("heading", { name: "ETH/USDC" })).toBeVisible();
       await page.getByRole("link", { name: "Trade", exact: true }).first().click();
       await expect(page.getByRole("textbox", { name: "Search market pairs" })).toBeVisible();
-      await page.getByRole("button", { name: "Cross margin settings" }).click();
-      await expect(page.getByRole("dialog", { name: "Cross margin" })).toBeVisible();
-      await page.getByRole("button", { name: "Done", exact: true }).click();
+      await page.getByRole("button", { name: "Margin mode, Cross" }).click();
+      await expect(page.getByRole("dialog", { name: /margin mode/ })).toBeVisible();
+      await page.getByRole("radio", { name: /Isolated/ }).click();
+      await page.getByRole("button", { name: "Apply margin mode" }).click();
+      await expect(page.getByRole("button", { name: "Margin mode, Isolated" })).toBeVisible();
       await page.getByRole("button", { name: /Adjust leverage/ }).click();
       await expect(page.getByRole("dialog", { name: "Adjust leverage" })).toBeVisible();
       await page.getByRole("button", { name: "5×", exact: true }).click();

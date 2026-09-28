@@ -2178,8 +2178,10 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
   const [selectedPair, setSelectedPair] = useState(initialPair);
   const [orderStep, setOrderStep] = useState<"edit" | "review" | "confirmed">("edit");
   const [tradeSettingsPanel, setTradeSettingsPanel] = useState<"margin" | "leverage" | "account" | null>(null);
-  const [accountType, setAccountType] = useState<"Unified" | "Portfolio Margin">("Unified");
-  const [pendingAccountType, setPendingAccountType] = useState<"Unified" | "Portfolio Margin">("Unified");
+  const [marginMode, setMarginMode] = useState<"Cross" | "Isolated">("Cross");
+  const [pendingMarginMode, setPendingMarginMode] = useState<"Cross" | "Isolated">("Cross");
+  const [accountType, setAccountType] = useState<"Unified" | "Portfolio Margin" | "Manual">("Unified");
+  const [pendingAccountType, setPendingAccountType] = useState<"Unified" | "Portfolio Margin" | "Manual">("Unified");
   const [lastSubmitted, setLastSubmitted] = useState<{ quantity: number; notional: number; price: number } | null>(null);
 
   useEffect(() => {
@@ -2263,6 +2265,8 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
   const orderNotional = Number.isFinite(executionPrice) && executionPrice > 0 ? numericSize * executionPrice : 0;
   const estimatedMargin = orderNotional / leverage;
   const estimatedFee = orderNotional * 0.00035;
+  const estimatedSlippage = orderType === "Market" ? 0.08 : 0;
+  const maximumSlippage = 0.5;
   const liquidationMove = Math.max(2.5, 92 / leverage);
   const liquidationReference = Number.isFinite(executionPrice) && executionPrice > 0 ? executionPrice : market.price;
   const liquidationPrice = liquidationReference * (side === "Long" ? 1 - liquidationMove / 100 : 1 + liquidationMove / 100);
@@ -2446,17 +2450,11 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
         </main>
 
         <aside className="trade-panel order-ticket">
-          <div className="trade-panel-heading order-ticket-heading">
-            <div className="order-heading-copy"><strong>{orderStep === "edit" ? "Build order" : orderStep === "review" ? "Review order" : "Order confirmed"}</strong><span>{pair} · demo environment</span></div>
-            <div className="order-heading-tools">
-              <div className="order-context-actions" aria-label="Order account settings">
-                <button type="button" aria-label="Cross margin settings" onClick={() => setTradeSettingsPanel("margin")}>Cross <ChevronDown size={11} weight="bold" /></button>
-                <button type="button" aria-label={`Adjust leverage, currently ${leverage}×`} onClick={() => setTradeSettingsPanel("leverage")}>{leverage}× <ChevronDown size={11} weight="bold" /></button>
-                <button type="button" aria-label={`Account type, ${accountType}`} onClick={() => { setPendingAccountType(accountType); setTradeSettingsPanel("account"); }}>{accountType === "Unified" ? "Unified" : "Portfolio"} <ChevronDown size={11} weight="bold" /></button>
-              </div>
-              <div className="order-progress" aria-label={`Order step ${orderStep === "edit" ? 1 : orderStep === "review" ? 2 : 3} of 3`}>
-                <i className="complete" /><i className={orderStep !== "edit" ? "complete" : ""} /><i className={orderStep === "confirmed" ? "complete" : ""} />
-              </div>
+          <div className="order-context-bar">
+            <div className="order-context-actions" aria-label="Order account settings">
+              <button type="button" aria-label={`Margin mode, ${marginMode}`} onClick={() => { setPendingMarginMode(marginMode); setTradeSettingsPanel("margin"); }}>{marginMode} <ChevronDown size={11} weight="bold" /></button>
+              <button type="button" aria-label={`Adjust leverage, currently ${leverage}×`} onClick={() => setTradeSettingsPanel("leverage")}>{leverage}× <ChevronDown size={11} weight="bold" /></button>
+              <button type="button" aria-label={`Account type, ${accountType}`} onClick={() => { setPendingAccountType(accountType); setTradeSettingsPanel("account"); }}>{accountType === "Portfolio Margin" ? "Portfolio" : accountType} <ChevronDown size={11} weight="bold" /></button>
             </div>
           </div>
 
@@ -2498,17 +2496,19 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
                 }} />
                 <span>Reduce only</span>
               </label>
-              <div className="trade-order-summary compact">
-                <div><span>Order value</span><strong>{orderNotional.toLocaleString(undefined, { maximumFractionDigits: 2 })} {quote}</strong></div>
-                <div><span>Required margin</span><strong>{estimatedMargin.toLocaleString(undefined, { maximumFractionDigits: 2 })} {quote}</strong></div>
-                <div><span>Remaining margin</span><strong>{Math.max(0, availableMargin - estimatedMargin - estimatedFee).toLocaleString(undefined, { maximumFractionDigits: 2 })} {quote}</strong></div>
-                <div><span>Est. liquidation</span><strong>{liquidationPrice.toLocaleString(undefined, { maximumFractionDigits: precision })}</strong></div>
+              <div className="trade-order-summary compact pre-submit-metrics">
+                <TradeMetricRow label="Liquidation price" value={numericSize > 0 ? `${liquidationPrice.toLocaleString(undefined, { maximumFractionDigits: precision })} ${quote}` : "—"} help="Estimated price where the position could be liquidated based on the selected side and leverage." />
+                <TradeMetricRow label="Order value" value={`${orderNotional.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${quote}`} help="Total notional value of this order at its expected execution price." />
+                <TradeMetricRow label="Margin required" value={`${estimatedMargin.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${quote}`} help="Collateral reserved for this order after applying the selected leverage." />
+                <TradeMetricRow label="Order exposure" value={orderNotional > 0 ? `${leverage.toFixed(2)}×` : "—"} tone={leverage >= 10 ? "danger" : undefined} help="Order value divided by margin required. Higher exposure narrows the liquidation buffer." />
+                <TradeMetricRow label="Slippage" value={`Est ${estimatedSlippage.toFixed(2)}% / Max ${maximumSlippage.toFixed(2)}%`} help="Estimated execution movement and the maximum price movement allowed for this demo order." />
+                <TradeMetricRow label="Fees (maker/taker)" value="0.0150% / 0.0350%" help="Maker fees apply when an order adds liquidity. Taker fees apply when it executes against resting liquidity." />
+                <TradeMetricRow label="Gas (Arbitrum)" value="0.00 ETH" help="Demo orders do not submit a wallet transaction, so no network gas is charged." />
               </div>
               {orderError && <p className="field-error" role="alert">{orderError}</p>}
               <button className={`button full trade-submit ${side.toLowerCase()}`} onClick={reviewOrder}>
                 Review {side} order <ArrowRight size={15} />
               </button>
-              <p className="order-footnote">Simulated order. No wallet transaction will be sent.</p>
             </div>
           )}
 
@@ -2609,7 +2609,7 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
               <div>
                 <span className="eyebrow">ORDER SETTINGS</span>
                 <h2 id="trade-settings-title">
-                  {tradeSettingsPanel === "margin" ? "Cross margin" : tradeSettingsPanel === "leverage" ? "Adjust leverage" : "Account type"}
+                  {tradeSettingsPanel === "margin" ? `${pair} margin mode` : tradeSettingsPanel === "leverage" ? "Adjust leverage" : "Account type"}
                 </h2>
               </div>
               <button type="button" aria-label="Close order settings" onClick={() => setTradeSettingsPanel(null)}><X size={18} /></button>
@@ -2617,22 +2617,27 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
 
             {tradeSettingsPanel === "margin" && (
               <div className="trade-settings-content">
-                <div className="trade-settings-icon"><Scales size={22} /></div>
-                <h3>Cross margin is active</h3>
-                <p>All available margin in this Farm account can support the position. Profit, loss, and margin requirements are shared across open positions.</p>
+                <p>Choose how collateral supports this {pair} position. This setting applies to the order you are building.</p>
+                <div className="account-type-options margin-mode-options" role="radiogroup" aria-label="Margin mode">
+                  <button type="button" role="radio" aria-checked={pendingMarginMode === "Cross"} className={pendingMarginMode === "Cross" ? "active" : ""} onClick={() => setPendingMarginMode("Cross")}>
+                    <span><strong>Cross</strong><small>Share available margin across open positions. Losses can use more of the Farm account balance before liquidation.</small></span><i>{pendingMarginMode === "Cross" && <Check size={13} weight="bold" />}</i>
+                  </button>
+                  <button type="button" role="radio" aria-checked={pendingMarginMode === "Isolated"} className={pendingMarginMode === "Isolated" ? "active" : ""} onClick={() => setPendingMarginMode("Isolated")}>
+                    <span><strong>Isolated</strong><small>Limit risk to margin assigned to this position. Additional margin can be added or removed independently.</small></span><i>{pendingMarginMode === "Isolated" && <Check size={13} weight="bold" />}</i>
+                  </button>
+                </div>
                 <div className="trade-settings-facts">
                   <div><span>Available margin</span><strong>{availableMargin.toLocaleString(undefined, { maximumFractionDigits: 2 })} {quote}</strong></div>
                   <div><span>Margin in use</span><strong>{marginInUse.toLocaleString(undefined, { maximumFractionDigits: 2 })} {quote}</strong></div>
-                  <div><span>Mode</span><strong>Cross</strong></div>
                 </div>
-                <Notice>Cross margin can reduce immediate liquidation risk, but losses can consume more of the shared account balance.</Notice>
-                <button className="button full" type="button" onClick={() => setTradeSettingsPanel(null)}>Done</button>
+                <button className="button full" type="button" onClick={() => { setMarginMode(pendingMarginMode); setTradeSettingsPanel(null); }}>Apply margin mode</button>
               </div>
             )}
 
             {tradeSettingsPanel === "leverage" && (
               <div className="trade-settings-content">
-                <div className="leverage-display"><span>Selected leverage</span><strong>{leverage}×</strong><small>Maximum {market.maxLeverage}× for {pair}</small></div>
+                <p>Control the leverage used for {pair}. The maximum available leverage for this market is {market.maxLeverage}×.</p>
+                <div className="leverage-display"><span>Selected leverage</span><strong>{leverage}×</strong><small>Available to trade ${availableNotional.toLocaleString(undefined, { maximumFractionDigits: 2 })}</small></div>
                 <div className="leverage-quick-actions">
                   {Array.from(new Set([1, 2, 5, 10, market.maxLeverage])).filter((value) => value <= market.maxLeverage).map((value) => (
                     <button type="button" key={value} className={leverage === value ? "active" : ""} onClick={() => updateLeverage(value)}>{value}×</button>
@@ -2640,14 +2645,10 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
                 </div>
                 <label className="drawer-leverage-slider">
                   <span>Leverage</span>
-                  <input aria-label="Trade leverage" type="range" min="1" max={market.maxLeverage} step="0.5" value={leverage} onChange={(event) => updateLeverage(Number(event.target.value))} />
+                  <div className="drawer-leverage-control"><input aria-label="Trade leverage" type="range" min="1" max={market.maxLeverage} step="0.5" value={leverage} onChange={(event) => updateLeverage(Number(event.target.value))} /><label><input aria-label="Leverage value" type="number" min="1" max={market.maxLeverage} step="0.5" value={leverage} onChange={(event) => updateLeverage(Number(event.target.value))} /><span>×</span></label></div>
                   <div><small>1×</small><small>{market.maxLeverage}×</small></div>
                 </label>
-                <div className="trade-settings-facts">
-                  <div><span>Available to trade</span><strong>${availableNotional.toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong></div>
-                  <div><span>Estimated liquidation</span><strong>{liquidationPrice.toLocaleString(undefined, { maximumFractionDigits: precision })}</strong></div>
-                </div>
-                <Notice>Higher leverage increases buying power and liquidation risk. This setting applies to the order you are building.</Notice>
+                <Notice tone="danger">Higher leverage increases buying power and liquidation risk. Your liquidation buffer becomes smaller as leverage increases.</Notice>
                 <button className="button full" type="button" onClick={() => setTradeSettingsPanel(null)}>Apply leverage</button>
               </div>
             )}
@@ -2657,19 +2658,34 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
                 <p>Choose how this demo trading account groups collateral and risk. This preference does not send an on-chain transaction.</p>
                 <div className="account-type-options" role="radiogroup" aria-label="Trading account type">
                   <button type="button" role="radio" aria-checked={pendingAccountType === "Unified"} className={pendingAccountType === "Unified" ? "active" : ""} onClick={() => setPendingAccountType("Unified")}>
-                    <span><strong>Unified Account</strong><small>Use one balance for collateral, positions, fees, and settlement.</small></span><i>{pendingAccountType === "Unified" && <Check size={13} weight="bold" />}</i>
+                    <span><strong>Unified Account <em>Recommended</em></strong><small>Keep each collateral asset in a separate balance. Perpetual positions use their settlement asset as collateral, shared across positions with the same collateral.</small></span><i>{pendingAccountType === "Unified" && <Check size={13} weight="bold" />}</i>
                   </button>
                   <button type="button" role="radio" aria-checked={pendingAccountType === "Portfolio Margin"} className={pendingAccountType === "Portfolio Margin" ? "active" : ""} onClick={() => setPendingAccountType("Portfolio Margin")}>
-                    <span><strong>Portfolio Margin</strong><small>Evaluate eligible position offsets together for portfolio-level risk.</small></span><i>{pendingAccountType === "Portfolio Margin" && <Check size={13} weight="bold" />}</i>
+                    <span><strong>Portfolio Margin</strong><small>Evaluate eligible spot and perpetual positions together for capital-efficient margin and portfolio-level risk offsets.</small></span><i>{pendingAccountType === "Portfolio Margin" && <Check size={13} weight="bold" />}</i>
+                  </button>
+                  <button type="button" role="radio" aria-checked={pendingAccountType === "Manual"} className={pendingAccountType === "Manual" ? "active" : ""} onClick={() => setPendingAccountType("Manual")}>
+                    <span><strong>Manual</strong><small>Keep venue balances and margin settings separate. Best suited to automated traders managing collateral directly.</small></span><i>{pendingAccountType === "Manual" && <Check size={13} weight="bold" />}</i>
                   </button>
                 </div>
-                <Notice>Account modes are simulated in this demo. Production eligibility and risk requirements can vary by venue.</Notice>
+                {pendingAccountType === "Portfolio Margin" && <Notice tone="danger">Portfolio Margin is an advanced mode. Eligibility and collateral requirements depend on the connected execution venue.</Notice>}
                 <button className="button full" type="button" onClick={() => { setAccountType(pendingAccountType); setTradeSettingsPanel(null); }}>Save account type</button>
               </div>
             )}
           </aside>
         </div>
       )}
+    </div>
+  );
+}
+
+function TradeMetricRow({ label, value, help, tone }: { label: string; value: string; help: string; tone?: "danger" }) {
+  return (
+    <div>
+      <span className="trade-metric-help" tabIndex={0} aria-label={`${label}. ${help}`}>
+        {label}
+        <span role="tooltip">{help}</span>
+      </span>
+      <strong className={tone === "danger" ? "danger-text" : ""}>{value}</strong>
     </div>
   );
 }
