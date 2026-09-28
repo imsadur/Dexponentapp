@@ -2177,6 +2177,9 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
   const [marketGroup, setMarketGroup] = useState<"All" | "Major" | "Alt">("All");
   const [selectedPair, setSelectedPair] = useState(initialPair);
   const [orderStep, setOrderStep] = useState<"edit" | "review" | "confirmed">("edit");
+  const [tradeSettingsPanel, setTradeSettingsPanel] = useState<"margin" | "leverage" | "account" | null>(null);
+  const [accountType, setAccountType] = useState<"Unified" | "Portfolio Margin">("Unified");
+  const [pendingAccountType, setPendingAccountType] = useState<"Unified" | "Portfolio Margin">("Unified");
   const [lastSubmitted, setLastSubmitted] = useState<{ quantity: number; notional: number; price: number } | null>(null);
 
   useEffect(() => {
@@ -2186,6 +2189,15 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
     }
     if (farm && !selectedPair) setSelectedPair(perpetualPair(farm));
   }, [farm, initialPair, selectedPair]);
+
+  useEffect(() => {
+    if (!tradeSettingsPanel) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setTradeSettingsPanel(null);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [tradeSettingsPanel]);
 
   if (!app.ready)
     return <div className="loading-shell"><div className="skeleton" /></div>;
@@ -2277,6 +2289,12 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
     setSize(next);
     setSizePercentage(sizeToPercentage({ size: Number(next), maxSize }));
     setOrderError("");
+  }
+
+  function updateLeverage(nextLeverage: number) {
+    const next = Math.min(market.maxLeverage, Math.max(1, nextLeverage));
+    setLeverage(next);
+    if (sizePercentage > 0) setPercentage(sizePercentage, calculateMaxSize(executionPrice, next));
   }
 
   function selectMarket(nextMarket: PerpetualMarket) {
@@ -2429,9 +2447,16 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
 
         <aside className="trade-panel order-ticket">
           <div className="trade-panel-heading order-ticket-heading">
-            <div><strong>{orderStep === "edit" ? "Build order" : orderStep === "review" ? "Review order" : "Order confirmed"}</strong><span>{pair} · demo environment</span></div>
-            <div className="order-progress" aria-label={`Order step ${orderStep === "edit" ? 1 : orderStep === "review" ? 2 : 3} of 3`}>
-              <i className="complete" /><i className={orderStep !== "edit" ? "complete" : ""} /><i className={orderStep === "confirmed" ? "complete" : ""} />
+            <div className="order-heading-copy"><strong>{orderStep === "edit" ? "Build order" : orderStep === "review" ? "Review order" : "Order confirmed"}</strong><span>{pair} · demo environment</span></div>
+            <div className="order-heading-tools">
+              <div className="order-context-actions" aria-label="Order account settings">
+                <button type="button" aria-label="Cross margin settings" onClick={() => setTradeSettingsPanel("margin")}>Cross <ChevronDown size={11} weight="bold" /></button>
+                <button type="button" aria-label={`Adjust leverage, currently ${leverage}×`} onClick={() => setTradeSettingsPanel("leverage")}>{leverage}× <ChevronDown size={11} weight="bold" /></button>
+                <button type="button" aria-label={`Account type, ${accountType}`} onClick={() => { setPendingAccountType(accountType); setTradeSettingsPanel("account"); }}>{accountType === "Unified" ? "Unified" : "Portfolio"} <ChevronDown size={11} weight="bold" /></button>
+              </div>
+              <div className="order-progress" aria-label={`Order step ${orderStep === "edit" ? 1 : orderStep === "review" ? 2 : 3} of 3`}>
+                <i className="complete" /><i className={orderStep !== "edit" ? "complete" : ""} /><i className={orderStep === "confirmed" ? "complete" : ""} />
+              </div>
             </div>
           </div>
 
@@ -2439,10 +2464,10 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
             <div className="order-step-body">
               <div className="trade-intent-grid">
                 <button className={side === "Long" ? "active long" : ""} disabled={reduceOnly} onClick={() => setSide("Long")}>
-                  <TrendUp size={18} /><span><strong>Long</strong><small>Profit if price rises</small></span>
+                  Long
                 </button>
                 <button className={side === "Short" ? "active short" : ""} disabled={reduceOnly} onClick={() => setSide("Short")}>
-                  <TrendDown size={18} /><span><strong>Short</strong><small>Profit if price falls</small></span>
+                  Short
                 </button>
               </div>
               <div className="tabs order-type-tabs">
@@ -2451,15 +2476,10 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
                   if (sizePercentage > 0) setPercentage(sizePercentage, calculateMaxSize(item === "Market" ? market.price : Number(limitPrice)));
                 }}>{item}</button>)}
               </div>
-              <button type="button" role="switch" aria-checked={reduceOnly} className={`reduce-only-toggle ${!positionMatchesMarket ? "disabled" : ""}`} disabled={!positionMatchesMarket} onClick={() => {
-                const next = !reduceOnly;
-                setReduceOnly(next);
-                if (next) setSide(positionSide === "Long" ? "Short" : "Long");
-                setPercentage(sizePercentage, calculateMaxSize(executionPrice, leverage, next));
-              }}>
-                <span><strong>Reduce only</strong><small>{positionMatchesMarket ? `Close up to ${formatQuantity(positionQuantity)} ${base}` : `No open ${pair} position`}</small></span>
-                <i />
-              </button>
+              <div className="trade-balance-summary" aria-label="Trading capacity">
+                <div><span>Available to trade</span><strong>${availableNotional.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></div>
+                <div><span>Current position</span><strong>{(positionMatchesMarket ? positionQuantity : 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: Math.max(2, market.quantityPrecision) })} {base}</strong></div>
+              </div>
               {orderType === "Limit" && (
                 <label className="field"><span>Limit price</span><div className="input-wrap"><input aria-label="Limit price" type="number" min="0" placeholder={formattedPrice} value={limitPrice} onChange={(event) => {
                   const next = event.target.value;
@@ -2467,20 +2487,16 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
                   if (sizePercentage > 0) setPercentage(sizePercentage, calculateMaxSize(Number(next)));
                 }} /><small>{quote}</small></div></label>
               )}
-              <div className="trade-available-row">
-                <span>{reduceOnly ? "Open position" : "Available to trade"}</span>
-                <strong>{maxSize > 0 ? `${formatQuantity(maxSize)} ${base}` : `0 ${base}`}</strong>
-              </div>
               <label className="field"><span>Size</span><div className="input-wrap"><input aria-label="Position size" type="number" min="0" step={10 ** -market.quantityPrecision} placeholder={`0 ${base}`} value={size} onChange={(event) => setManualSize(event.target.value)} /><small>{base}</small></div></label>
               <PositionSizeSlider value={sizePercentage} onChange={setPercentage} disabled={maxSize <= 0 || (orderType === "Limit" && (!Number.isFinite(executionPrice) || executionPrice <= 0))} />
-              <label className="field trade-leverage-field">
-                <span>Leverage <strong>{leverage}×</strong></span>
-                <input aria-label="Trade leverage" type="range" min="1" max={market.maxLeverage} step="0.5" value={leverage} onChange={(event) => {
-                  const next = Number(event.target.value);
-                  setLeverage(next);
-                  if (sizePercentage > 0) setPercentage(sizePercentage, calculateMaxSize(executionPrice, next));
+              <label className={`reduce-only-checkbox ${!positionMatchesMarket ? "disabled" : ""}`} title={positionMatchesMarket ? `Close up to ${formatQuantity(positionQuantity)} ${base}` : `No open ${pair} position`}>
+                <input type="checkbox" checked={reduceOnly} disabled={!positionMatchesMarket} onChange={(event) => {
+                  const next = event.target.checked;
+                  setReduceOnly(next);
+                  if (next) setSide(positionSide === "Long" ? "Short" : "Long");
+                  setPercentage(sizePercentage, calculateMaxSize(executionPrice, leverage, next));
                 }} />
-                <div className="range-labels"><small>1×</small><small>Lower liquidation buffer</small><small>{market.maxLeverage}×</small></div>
+                <span>Reduce only</span>
               </label>
               <div className="trade-order-summary compact">
                 <div><span>Order value</span><strong>{orderNotional.toLocaleString(undefined, { maximumFractionDigits: 2 })} {quote}</strong></div>
@@ -2584,6 +2600,76 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
           <div className="orders-empty"><Clock3 size={19} /><span>Confirmed demo orders will appear here with their fill details.</span></div>
         )}
       </section>
+
+      {tradeSettingsPanel && (
+        <div className="trade-settings-layer">
+          <button className="trade-settings-backdrop" aria-label="Close order settings" onClick={() => setTradeSettingsPanel(null)} />
+          <aside className="trade-settings-drawer" role="dialog" aria-modal="true" aria-labelledby="trade-settings-title">
+            <div className="trade-settings-header">
+              <div>
+                <span className="eyebrow">ORDER SETTINGS</span>
+                <h2 id="trade-settings-title">
+                  {tradeSettingsPanel === "margin" ? "Cross margin" : tradeSettingsPanel === "leverage" ? "Adjust leverage" : "Account type"}
+                </h2>
+              </div>
+              <button type="button" aria-label="Close order settings" onClick={() => setTradeSettingsPanel(null)}><X size={18} /></button>
+            </div>
+
+            {tradeSettingsPanel === "margin" && (
+              <div className="trade-settings-content">
+                <div className="trade-settings-icon"><Scales size={22} /></div>
+                <h3>Cross margin is active</h3>
+                <p>All available margin in this Farm account can support the position. Profit, loss, and margin requirements are shared across open positions.</p>
+                <div className="trade-settings-facts">
+                  <div><span>Available margin</span><strong>{availableMargin.toLocaleString(undefined, { maximumFractionDigits: 2 })} {quote}</strong></div>
+                  <div><span>Margin in use</span><strong>{marginInUse.toLocaleString(undefined, { maximumFractionDigits: 2 })} {quote}</strong></div>
+                  <div><span>Mode</span><strong>Cross</strong></div>
+                </div>
+                <Notice>Cross margin can reduce immediate liquidation risk, but losses can consume more of the shared account balance.</Notice>
+                <button className="button full" type="button" onClick={() => setTradeSettingsPanel(null)}>Done</button>
+              </div>
+            )}
+
+            {tradeSettingsPanel === "leverage" && (
+              <div className="trade-settings-content">
+                <div className="leverage-display"><span>Selected leverage</span><strong>{leverage}×</strong><small>Maximum {market.maxLeverage}× for {pair}</small></div>
+                <div className="leverage-quick-actions">
+                  {Array.from(new Set([1, 2, 5, 10, market.maxLeverage])).filter((value) => value <= market.maxLeverage).map((value) => (
+                    <button type="button" key={value} className={leverage === value ? "active" : ""} onClick={() => updateLeverage(value)}>{value}×</button>
+                  ))}
+                </div>
+                <label className="drawer-leverage-slider">
+                  <span>Leverage</span>
+                  <input aria-label="Trade leverage" type="range" min="1" max={market.maxLeverage} step="0.5" value={leverage} onChange={(event) => updateLeverage(Number(event.target.value))} />
+                  <div><small>1×</small><small>{market.maxLeverage}×</small></div>
+                </label>
+                <div className="trade-settings-facts">
+                  <div><span>Available to trade</span><strong>${availableNotional.toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong></div>
+                  <div><span>Estimated liquidation</span><strong>{liquidationPrice.toLocaleString(undefined, { maximumFractionDigits: precision })}</strong></div>
+                </div>
+                <Notice>Higher leverage increases buying power and liquidation risk. This setting applies to the order you are building.</Notice>
+                <button className="button full" type="button" onClick={() => setTradeSettingsPanel(null)}>Apply leverage</button>
+              </div>
+            )}
+
+            {tradeSettingsPanel === "account" && (
+              <div className="trade-settings-content">
+                <p>Choose how this demo trading account groups collateral and risk. This preference does not send an on-chain transaction.</p>
+                <div className="account-type-options" role="radiogroup" aria-label="Trading account type">
+                  <button type="button" role="radio" aria-checked={pendingAccountType === "Unified"} className={pendingAccountType === "Unified" ? "active" : ""} onClick={() => setPendingAccountType("Unified")}>
+                    <span><strong>Unified Account</strong><small>Use one balance for collateral, positions, fees, and settlement.</small></span><i>{pendingAccountType === "Unified" && <Check size={13} weight="bold" />}</i>
+                  </button>
+                  <button type="button" role="radio" aria-checked={pendingAccountType === "Portfolio Margin"} className={pendingAccountType === "Portfolio Margin" ? "active" : ""} onClick={() => setPendingAccountType("Portfolio Margin")}>
+                    <span><strong>Portfolio Margin</strong><small>Evaluate eligible position offsets together for portfolio-level risk.</small></span><i>{pendingAccountType === "Portfolio Margin" && <Check size={13} weight="bold" />}</i>
+                  </button>
+                </div>
+                <Notice>Account modes are simulated in this demo. Production eligibility and risk requirements can vary by venue.</Notice>
+                <button className="button full" type="button" onClick={() => { setAccountType(pendingAccountType); setTradeSettingsPanel(null); }}>Save account type</button>
+              </div>
+            )}
+          </aside>
+        </div>
+      )}
     </div>
   );
 }
