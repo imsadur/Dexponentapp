@@ -240,7 +240,8 @@ test("landing, dashboard, every strategy, draft recovery and honest deployment",
       const initialSize = tradeToken === "BTC" ? "0.01" : tradeToken === "ETH" ? "0.1" : tradeToken === "SOL" ? "1" : "10";
       const reducedSize = tradeToken === "BTC" ? "0.005" : tradeToken === "ETH" ? "0.05" : tradeToken === "SOL" ? "0.5" : "5";
       const sizeInput = page.getByRole("spinbutton", { name: "Size" });
-      await expect(page.getByRole("slider", { name: "Position size percentage" })).toHaveCount(0);
+      await expect(page.getByRole("slider", { name: "Position size percentage" })).toBeVisible();
+      await expect(page.getByRole("button", { name: /Use \d+% of position capacity/ })).toHaveCount(0);
       await sizeInput.fill(initialSize);
       await page.getByRole("button", { name: "Enter size in USDC" }).click();
       await expect(page.getByRole("button", { name: `Enter size in ${tradeToken}` })).toBeVisible();

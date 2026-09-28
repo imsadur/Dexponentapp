@@ -74,10 +74,12 @@ import {
   filledOrders,
   marketPair,
   maximumOrderNotional,
+  percentageToSize,
   perpetualMarkets,
   perpetualPair,
   placeDemoOrder,
   searchPerpetualMarkets,
+  sizeToPercentage,
   type PerpetualMarket,
 } from "@/domain/trading";
 import {
@@ -2261,6 +2263,7 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
   const availableNotional = maximumOrderNotional({ availableMargin, leverage });
   const normalMaxSize = Number.isFinite(executionPrice) && executionPrice > 0 ? availableNotional / executionPrice : 0;
   const maxSize = reduceOnly && positionMatchesMarket ? positionQuantity : normalMaxSize;
+  const sizePercentage = sizeToPercentage({ size: numericSize, maxSize });
   const orderNotional = Number.isFinite(executionPrice) && executionPrice > 0 ? numericSize * executionPrice : 0;
   const estimatedMargin = orderNotional / leverage;
   const estimatedFee = orderNotional * 0.00035;
@@ -2288,6 +2291,16 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
     }
     if (sizeUnit === "base") setSize(next);
     else if (Number.isFinite(executionPrice) && executionPrice > 0) setSize(formatQuantity(Number(next) / executionPrice));
+    setOrderError("");
+  }
+
+  function setSizeFromPercentage(nextPercentage: number) {
+    const nextSize = percentageToSize({
+      percentage: Math.min(100, Math.max(0, nextPercentage)),
+      maxSize,
+      precision: market.quantityPrecision,
+    });
+    setSize(formatQuantity(nextSize));
     setOrderError("");
   }
 
@@ -2492,6 +2505,7 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
                 }} /><small>{quote}</small></div></label>
               )}
               <label className="field size-field"><span>Size</span><div className="input-wrap size-input-wrap"><input aria-label="Size" type="number" min="0" step={sizeUnit === "base" ? 10 ** -market.quantityPrecision : .01} placeholder="0" value={displayedSize} onChange={(event) => setOrderSizeInput(event.target.value)} /><button type="button" className="size-unit-toggle" aria-label={`Enter size in ${sizeUnit === "base" ? quote : base}`} onClick={() => setSizeUnit((value) => value === "base" ? "quote" : "base")}><span>{sizeUnit === "base" ? base : quote}</span><ArrowsDownUp size={12} /></button></div></label>
+              <PositionSizeSlider value={sizePercentage} onChange={setSizeFromPercentage} disabled={maxSize <= 0 || (orderType === "Limit" && (!Number.isFinite(executionPrice) || executionPrice <= 0))} />
               <label className={`reduce-only-checkbox ${!positionMatchesMarket ? "disabled" : ""}`} title={positionMatchesMarket ? `Close up to ${formatQuantity(positionQuantity)} ${base}` : `No open ${pair} position`}>
                 <input type="checkbox" checked={reduceOnly} disabled={!positionMatchesMarket} onChange={(event) => {
                   const next = event.target.checked;
@@ -2649,6 +2663,29 @@ function TradeMetricRow({ label, value, help }: { label: string; value: string; 
         <span role="tooltip">{help}</span>
       </span>
       <strong>{value}</strong>
+    </div>
+  );
+}
+
+function PositionSizeSlider({ value, onChange, disabled }: { value: number; onChange: (value: number) => void; disabled?: boolean }) {
+  const safeValue = Math.min(100, Math.max(0, Number.isFinite(value) ? value : 0));
+  return (
+    <div className={`position-size-slider ${disabled ? "disabled" : ""}`} style={{ "--size-fill": `${safeValue}%` } as CSSProperties}>
+      <div className="position-size-slider-track">
+        <input
+          aria-label="Position size percentage"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(safeValue)}
+          type="range"
+          min="0"
+          max="100"
+          step="0.1"
+          value={safeValue}
+          disabled={disabled}
+          onChange={(event) => onChange(Number(event.target.value))}
+        />
+      </div>
     </div>
   );
 }
