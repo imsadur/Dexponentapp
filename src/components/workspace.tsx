@@ -154,6 +154,7 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
   const isWizard = isFarmWizardRoute(segments);
   const queryFarmId = searchParams.get("farm") || "";
   const queryMarket = searchParams.get("market") || "";
+  const tradeFarmName = app.farms.find((farm) => farm.id === queryFarmId)?.name || "Perpetual Farm";
   const isFarmDetail = section === "farms" && !isWizard && segments.length > 2 && segments[2] !== "drafts";
   let content;
   if (isWizard)
@@ -388,11 +389,10 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
             </button>
             {isTrade ? (
               <>
-                <Link className="trade-top-back" href={farmDetailHref(queryFarmId)}>
-                  <ArrowRight className="rotate-180" size={14} /> Back to Farm
+                <Link className="trade-top-back" href={farmDetailHref(queryFarmId)} aria-label="Back to Farm">
+                  <ArrowRight className="rotate-180" size={17} />
                 </Link>
-                <span>/</span>
-                <strong>Trade</strong>
+                <strong>{tradeFarmName}</strong>
               </>
             ) : isFarmDetail ? (
               <Link className="farm-top-back" href="/app/farms"><ArrowRight className="rotate-180" size={14} /> All farms</Link>
@@ -2164,6 +2164,17 @@ function IndexAllocationPanel({ weights, tvl }: { weights: ReturnType<typeof ind
   );
 }
 
+const perpetualTokenNames: Record<string, string> = {
+  BTC: "Bitcoin",
+  ETH: "Ethereum",
+  SOL: "Solana",
+  ARB: "Arbitrum",
+  OP: "Optimism",
+  AVAX: "Avalanche",
+  LINK: "Chainlink",
+  DOGE: "Dogecoin",
+};
+
 function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initialPair?: string }) {
   const app = useApp();
   const farm = app.farms.find((item) => item.id === farmId);
@@ -2189,6 +2200,7 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
   const [orderBookTab, setOrderBookTab] = useState<"book" | "trades">("book");
   const [orderBookView, setOrderBookView] = useState<"both" | "bids" | "asks">("both");
   const [orderBookMenuOpen, setOrderBookMenuOpen] = useState(false);
+  const [marketPickerOpen, setMarketPickerOpen] = useState(false);
   const [fundingCountdown, setFundingCountdown] = useState("08:00:00");
 
   useEffect(() => {
@@ -2207,6 +2219,15 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [tradeSettingsPanel]);
+
+  useEffect(() => {
+    if (!marketPickerOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMarketPickerOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [marketPickerOpen]);
 
   useEffect(() => {
     const updateCountdown = () => {
@@ -2342,6 +2363,7 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
     setSize("");
     setSizeUnit("base");
     setReduceOnly(false);
+    setMarketPickerOpen(false);
   }
 
   function placeOrder() {
@@ -2407,72 +2429,68 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
     <div className="trading-workspace">
       <section className="trade-market-header">
         <div className="trade-pair-title">
+          <button className="market-picker-trigger" aria-label="Open markets" aria-expanded={marketPickerOpen} onClick={() => setMarketPickerOpen(true)}>
+            <Menu size={20} />
+          </button>
           <span className="pair-icons">
             <AssetIcon symbol={base} size={38} />
             <AssetIcon symbol={quote} size={28} />
           </span>
           <div>
             <h1>{pair}</h1>
-            <span>{market.group} perpetual · Demo market</span>
+            <span>{perpetualTokenNames[base] || base}</span>
           </div>
         </div>
         <div className="trade-market-stat trade-price-stat">
           <span>Market price</span>
           <strong>{formattedPrice}</strong>
-          <small>Simulated mark</small>
         </div>
-        <div className="trade-market-stat"><span>24h change</span><strong className={market.change >= 0 ? "positive" : "warning-text"}>{market.change >= 0 ? "+" : ""}{market.change}%</strong><small>Demo change</small></div>
-        <div className="trade-market-stat"><span>24h volume</span><strong>{market.volume}</strong><small>Simulated</small></div>
-        <div className="trade-market-stat"><span>Open interest</span><strong>{market.openInterest}</strong><small>Simulated</small></div>
-        <div className="trade-market-stat funding-countdown"><span>Funding / countdown</span><strong>{market.funding}% <em>/ {fundingCountdown}</em></strong><small>8h interval · simulated</small></div>
+        <div className="trade-market-stat"><span>24h change</span><strong className={market.change >= 0 ? "positive" : "warning-text"}>{market.change >= 0 ? "+" : ""}{market.change}%</strong></div>
+        <div className="trade-market-stat"><span>24h volume</span><strong>{market.volume}</strong></div>
+        <div className="trade-market-stat"><span>Open interest</span><strong>{market.openInterest}</strong></div>
+        <div className="trade-market-stat funding-countdown"><span>Funding / countdown</span><strong>{market.funding}% <em>/ {fundingCountdown}</em></strong></div>
       </section>
 
-      <div className="trade-grid">
-        <aside className="trade-panel market-list-panel">
-          <div className="market-browser-heading">
-            <div><strong>Markets</strong><span>{perpetualMarkets.length} demo pairs</span></div>
-            <label className="market-search">
-              <Search size={15} />
-              <input
-                aria-label="Search market pairs"
-                placeholder="Search pair"
-                value={marketQuery}
-                onChange={(event) => setMarketQuery(event.target.value)}
-              />
-              {marketQuery && <button aria-label="Clear market search" onClick={() => setMarketQuery("")}><X size={13} /></button>}
-            </label>
-            <div className="market-group-tabs">
-              {(["All", "Major", "Alt"] as const).map((group) => (
-                <button key={group} className={marketGroup === group ? "active" : ""} onClick={() => setMarketGroup(group)}>{group}</button>
-              ))}
+      {marketPickerOpen && (
+        <div className="market-picker-backdrop" role="presentation" onMouseDown={() => setMarketPickerOpen(false)}>
+          <section className="market-picker-drawer" role="dialog" aria-modal="true" aria-label="Perpetual markets" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="market-picker-header">
+              <div><strong>Perpetual markets</strong><span>{perpetualMarkets.length} demo pairs</span></div>
+              <button className="icon-button" aria-label="Close markets" onClick={() => setMarketPickerOpen(false)}><X size={18} /></button>
             </div>
-          </div>
-          <div className="market-list-scroll">
-            {filteredMarkets.map((item) => {
-              const itemPair = marketPair(item);
-              const itemPrecision = item.price > 10_000 ? 0 : item.price < 1 ? 3 : 2;
-              return (
-                <button
-                  className={itemPair === pair ? "market-row active" : "market-row"}
-                  key={itemPair}
-                  onClick={() => selectMarket(item)}
-                  aria-pressed={itemPair === pair}
-                >
-                  <AssetIcon symbol={item.base} size={27} />
-                  <span><strong>{itemPair}</strong><small>{item.group} perpetual</small></span>
-                  <span>
-                    <strong>{item.price.toLocaleString(undefined, { maximumFractionDigits: itemPrecision })}</strong>
-                    <small className={item.change >= 0 ? "positive" : "warning-text"}>{item.change >= 0 ? "+" : ""}{item.change}%</small>
-                  </span>
-                </button>
-              );
-            })}
-            {!filteredMarkets.length && (
-              <div className="market-empty"><Search size={20} /><strong>No matching pair</strong><span>Try BTC, ETH, USDC, or USDT.</span></div>
-            )}
-          </div>
-        </aside>
+            <div className="market-picker-tools">
+              <label className="market-search">
+                <Search size={15} />
+                <input aria-label="Search market pairs" placeholder="Search token or pair" value={marketQuery} onChange={(event) => setMarketQuery(event.target.value)} autoFocus />
+                {marketQuery && <button aria-label="Clear market search" onClick={() => setMarketQuery("")}><X size={13} /></button>}
+              </label>
+              <div className="market-group-tabs">
+                {(["All", "Major", "Alt"] as const).map((group) => <button key={group} className={marketGroup === group ? "active" : ""} onClick={() => setMarketGroup(group)}>{group}</button>)}
+              </div>
+            </div>
+            <div className="market-picker-table-wrap">
+              <table className="market-picker-table">
+                <thead><tr><th>Token</th><th>Price</th><th>24h change</th><th>24h volume</th></tr></thead>
+                <tbody>
+                  {filteredMarkets.map((item) => {
+                    const itemPair = marketPair(item);
+                    const itemPrecision = item.price > 10_000 ? 0 : item.price < 1 ? 3 : 2;
+                    return <tr key={itemPair} className={itemPair === pair ? "active" : ""} onClick={() => selectMarket(item)}>
+                      <td><AssetIcon symbol={item.base} size={28} /><span><strong>{itemPair}</strong><small>{perpetualTokenNames[item.base] || item.base}</small></span></td>
+                      <td>{item.price.toLocaleString(undefined, { maximumFractionDigits: itemPrecision })}</td>
+                      <td className={item.change >= 0 ? "positive" : "warning-text"}>{item.change >= 0 ? "+" : ""}{item.change}%</td>
+                      <td>{item.volume}</td>
+                    </tr>;
+                  })}
+                </tbody>
+              </table>
+              {!filteredMarkets.length && <div className="market-empty"><Search size={20} /><strong>No matching pair</strong><span>Try BTC, ETH, USDC, or USDT.</span></div>}
+            </div>
+          </section>
+        </div>
+      )}
 
+      <div className="trade-grid">
         <main className="trade-center-column">
           <section className="trade-panel trade-chart-panel">
             <PerpTradingChart points={chartPoints} pair={pair} timeframe={timeframe} precision={precision} onTimeframeChange={setTimeframe} />

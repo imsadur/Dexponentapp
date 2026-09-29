@@ -220,7 +220,16 @@ test("landing, dashboard, every strategy, draft recovery and honest deployment",
     if (family === "Perpetual") {
       await expect(page.getByRole("heading", { name: "ETH/USDC" })).toBeVisible();
       await page.getByRole("link", { name: "Trade", exact: true }).first().click();
+      await expect(page.getByRole("link", { name: "Back to Farm" })).toBeVisible();
+      await expect(page.locator(".trade-shell .breadcrumb")).toContainText("Test Perpetual");
+      await expect(page.locator(".trade-pair-title")).toContainText(/Bitcoin|Ethereum/);
+      await expect(page.getByText("Simulated mark")).toHaveCount(0);
+      await page.getByRole("button", { name: "Open markets" }).click();
       await expect(page.getByRole("textbox", { name: "Search market pairs" })).toBeVisible();
+      await expect(page.getByRole("columnheader", { name: "24h volume" })).toBeVisible();
+      await page.getByRole("textbox", { name: "Search market pairs" }).fill("SOL");
+      await expect(page.locator(".market-picker-table tbody tr")).toHaveCount(1);
+      await page.getByRole("button", { name: "Close markets" }).click();
       await expect(page.getByLabel(/TradingView candlestick chart/)).toBeVisible();
       await expect(page.getByText("Funding / countdown")).toBeVisible();
       await page.getByRole("button", { name: "Recent trades" }).click();

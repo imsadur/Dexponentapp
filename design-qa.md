@@ -56,6 +56,17 @@ State: dark theme, public landing page with all Farms visible, logged-in dashboa
 
 final result: passed
 
+## Trading header refinement — 2026-09-29
+
+- Replaced the persistent market column with a focused market picker opened from the pair header.
+- The picker presents Token, Price, 24h change, and 24h volume in a searchable, filterable table and keeps all columns visible at compact widths.
+- Pair metadata now uses the asset’s full name, such as Ethereum or Solana.
+- Removed secondary helper labels and vertical separators from the market metrics strip.
+- Replaced “Back to Farm” text with an accessible back icon and changed the adjacent title to the active Farm name.
+- Verified the picker, search results, close action, responsive header, chart, order book, and order-entry flow in the browser with no console errors.
+
+final result: passed
+
 ---
 
 # Perpetual Trading Workspace Design QA — 2026-09-29

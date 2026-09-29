@@ -6544,3 +6544,107 @@ textarea:focus-visible {
   .perp-chart-tools span { display: none; }
   .perp-chart-canvas { height: 420px; }
 }
+
+/* Perpetual market header and picker */
+.trade-shell .breadcrumb { gap: 10px; }
+.trade-shell .breadcrumb > strong { overflow: hidden; color: var(--text-primary); text-overflow: ellipsis; white-space: nowrap; }
+.trade-shell .trade-top-back {
+  width: 32px;
+  height: 32px;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.trade-shell .trade-top-back:hover { border-color: var(--border); background: var(--surface-elevated); }
+.trading-workspace .trade-pair-title { gap: 10px; }
+.trading-workspace .market-picker-trigger {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  color: var(--text-secondary);
+  background: transparent;
+  cursor: pointer;
+}
+.trading-workspace .market-picker-trigger:hover,
+.trading-workspace .market-picker-trigger:focus-visible { color: var(--text-primary); background: var(--surface-elevated); }
+.trading-workspace .trade-market-stat { border-left: 0; }
+.trading-workspace .trade-market-stat > strong { margin-bottom: 0; }
+.trading-workspace .trade-center-column { grid-column: span 9; }
+
+.market-picker-backdrop {
+  position: fixed;
+  z-index: 160;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 82px 24px 24px;
+  background: rgb(4 5 9 / 72%);
+  backdrop-filter: blur(7px);
+}
+.market-picker-drawer {
+  width: min(820px,100%);
+  max-height: min(720px,calc(100vh - 106px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 30px 90px rgb(0 0 0 / 58%);
+}
+.market-picker-header {
+  min-height: 66px;
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-soft);
+}
+.market-picker-header > div { display: grid; gap: 4px; }
+.market-picker-header strong { font-size: 18px; }
+.market-picker-header span { color: var(--text-muted); font-size: 11px; }
+.market-picker-tools { padding: 14px 18px 12px; display: grid; grid-template-columns: minmax(0,1fr) 230px; gap: 12px; }
+.market-picker-tools .market-search { margin: 0; }
+.market-picker-tools .market-group-tabs { margin: 0; }
+.market-picker-table-wrap { overflow: auto; }
+.market-picker-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.market-picker-table th,
+.market-picker-table td { height: 56px; padding: 0 18px; border-top: 1px solid var(--border-soft); text-align: right; white-space: nowrap; }
+.market-picker-table th { height: 38px; color: var(--text-muted); font-size: 10px; font-weight: 550; text-transform: uppercase; letter-spacing: .05em; }
+.market-picker-table th:first-child,
+.market-picker-table td:first-child { text-align: left; }
+.market-picker-table tbody tr { cursor: pointer; transition: background-color 140ms ease; }
+.market-picker-table tbody tr:hover { background: var(--surface-elevated); }
+.market-picker-table tbody tr.active { background: var(--accent-dim); }
+.market-picker-table td { color: var(--text-secondary); font-size: 12px; }
+.market-picker-table td:first-child { display: flex; align-items: center; gap: 10px; }
+.market-picker-table td:first-child > span { display: grid; gap: 3px; }
+.market-picker-table td:first-child strong { color: var(--text-primary); font-size: 13px; }
+.market-picker-table td:first-child small { color: var(--text-muted); font-size: 10px; }
+.market-picker-table-wrap > .market-empty { min-height: 180px; }
+
+@media (max-width: 1050px) {
+  .trading-workspace .trade-center-column { grid-column: 1 / -1; }
+}
+@media (max-width: 760px) {
+  .trading-workspace .trade-pair-title { min-width: 300px; }
+  .trading-workspace .trade-pair-title .pair-icons { display: flex; }
+  .market-picker-backdrop { align-items: flex-end; padding: 0; }
+  .market-picker-drawer { width: 100%; max-height: 82vh; border-radius: 14px 14px 0 0; }
+  .market-picker-tools { grid-template-columns: 1fr; }
+  .market-picker-table { min-width: 0; table-layout: fixed; }
+  .market-picker-table th:first-child { width: 38%; }
+  .market-picker-table th,
+  .market-picker-table td { padding-inline: 9px; overflow: hidden; font-size: 10px; text-overflow: ellipsis; }
+  .market-picker-table th { font-size: 8px; letter-spacing: .02em; }
+  .market-picker-table td:first-child { gap: 7px; }
+  .market-picker-table td:first-child strong { font-size: 11px; }
+}
