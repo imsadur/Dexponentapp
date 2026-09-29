@@ -2201,6 +2201,7 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
   const [orderBookView, setOrderBookView] = useState<"both" | "bids" | "asks">("both");
   const [orderBookMenuOpen, setOrderBookMenuOpen] = useState(false);
   const [marketPickerOpen, setMarketPickerOpen] = useState(false);
+  const [activityTab, setActivityTab] = useState<"positions" | "open" | "trades" | "orders">("positions");
   const [fundingCountdown, setFundingCountdown] = useState("08:00:00");
 
   useEffect(() => {
@@ -2291,6 +2292,24 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
   }));
   const positionSize = Number(farm.values.demoTradeSize || 0);
   const orderHistory = filledOrders(farm).toReversed();
+  const activityOrders = orderHistory.length ? orderHistory : recentTrades.slice(0, 5).map((trade, index) => ({
+    id: `sample-${index}`,
+    pair,
+    side: (index % 2 ? "Short" : "Long") as "Long" | "Short",
+    type: (index === 1 ? "Limit" : "Market") as "Market" | "Limit",
+    size: trade.size * trade.price,
+    leverage,
+    price: trade.price,
+    quote,
+    fee: trade.size * trade.price * 0.00035,
+    filledAt: new Date(Date.UTC(2026, 8, 29, 15, 40 - index * 2, 29 - index * 7)).toISOString(),
+    base,
+    quantity: trade.size,
+  }));
+  const openOrders = [
+    { id: "open-buy", pair, side: "Buy", price: market.price * 0.992, size: Math.max(market.minQuantity, 2 * 10 ** -market.quantityPrecision), status: "Open", updated: "29/09/2026, 15:40:29" },
+    { id: "open-sell", pair, side: "Sell", price: market.price * 1.008, size: Math.max(market.minQuantity, 4 * 10 ** -market.quantityPrecision), status: "Open", updated: "29/09/2026, 15:39:31" },
+  ];
   const positionSide = String(farm.values.demoTradeSide || "—");
   const positionPair = String(farm.values.demoTradePair || configuredPair);
   const positionMarket = findPerpetualMarket(positionPair) || market;
@@ -2434,7 +2453,6 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
           </button>
           <span className="pair-icons">
             <AssetIcon symbol={base} size={38} />
-            <AssetIcon symbol={quote} size={28} />
           </span>
           <div>
             <h1>{pair}</h1>
@@ -2443,7 +2461,7 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
         </div>
         <div className="trade-market-stat trade-price-stat">
           <span>Market price</span>
-          <strong>{formattedPrice}</strong>
+          <strong className={market.change > 0 ? "positive" : market.change < 0 ? "warning-text" : ""}>{formattedPrice}</strong>
         </div>
         <div className="trade-market-stat"><span>24h change</span><strong className={market.change >= 0 ? "positive" : "warning-text"}>{market.change >= 0 ? "+" : ""}{market.change}%</strong></div>
         <div className="trade-market-stat"><span>24h volume</span><strong>{market.volume}</strong></div>
@@ -2515,10 +2533,10 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
               <>
                 <div className="orderbook-view-caption"><span>{orderBookView === "both" ? "Buy & sell" : orderBookView === "bids" ? "Buy orders" : "Sell orders"}</span><strong>0.01</strong></div>
                 <div className="orderbook-columns"><span>Price ({quote})</span><span>Qty ({base})</span><span>Total ({base})</span></div>
-                {orderBookView !== "bids" && asks.slice(0, orderBookView === "both" ? 4 : 8).map((row) => <OrderBookRow key={`ask-${row.price}`} row={row} side="ask" precision={precision} />)}
+                {orderBookView !== "bids" && asks.slice(0, 8).map((row) => <OrderBookRow key={`ask-${row.price}`} row={row} side="ask" precision={precision} />)}
                 {orderBookView === "both" && <div className="orderbook-mid"><strong>{formattedPrice}</strong><span><TrendUp size={13} /> mark</span></div>}
-                {orderBookView !== "asks" && bids.slice(0, orderBookView === "both" ? 4 : 8).map((row) => <OrderBookRow key={`bid-${row.price}`} row={row} side="bid" precision={precision} />)}
-                <div className="orderbook-ratio"><span>Buy 56%</span><i /><span>44% Sell</span></div>
+                {orderBookView !== "asks" && bids.slice(0, 8).map((row) => <OrderBookRow key={`bid-${row.price}`} row={row} side="bid" precision={precision} />)}
+                <div className="orderbook-ratio"><span><b>B</b> 56%</span><i /><span>44% <b>S</b></span></div>
               </>
             ) : (
               <div className="recent-trades-list">
@@ -2590,51 +2608,42 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
         </aside>
       </div>
 
-      <section className="trade-panel trade-positions-panel">
-        <div className="trade-panel-heading"><div><strong>Positions</strong><span>Demo Farm account</span></div><Link className="text-link" href={farmDetailHref(farm.id)}>View Farm details</Link></div>
-        {positionSize ? (
-          <div className="trade-position-row">
-            <div><span>Market</span><strong>{positionPair}</strong></div>
-            <div><span>Side</span><strong className={positionSide === "Long" ? "positive" : "warning-text"}>{positionSide}</strong></div>
-            <div><span>Size</span><strong>{positionQuantity.toLocaleString(undefined, { maximumFractionDigits: positionMarket.quantityPrecision })} {positionMarket.base}<small>{positionSize.toLocaleString(undefined, { maximumFractionDigits: 2 })} {positionQuote}</small></strong></div>
-            <div><span>Entry</span><strong>{entryPrice.toLocaleString()}</strong></div>
-            <div><span>Mark</span><strong>{positionMarket.price.toLocaleString()}</strong></div>
-            <div><span>Unrealized PnL</span><strong className={pnl >= 0 ? "positive" : "warning-text"}>{pnl >= 0 ? "+" : ""}{pnl.toFixed(2)} {positionQuote}</strong></div>
-          </div>
-        ) : (
-          <EmptyState title="No open demo position" description="Place a Long or Short demo order to populate this Farm’s position." />
-        )}
-      </section>
-
-      <section className="trade-panel filled-orders-panel" id="filled-orders">
-        <div className="trade-panel-heading">
-          <div><strong>Filled orders</strong><span>Complete demo execution history</span></div>
-          <span className="orders-count">{orderHistory.length} filled</span>
+      <section className="trade-panel trading-activity-panel" id="trading-activity">
+        <div className="trading-activity-tabs" role="tablist" aria-label="Trading activity">
+          {([
+            ["positions", `Positions (${positionSize ? 1 : 0})`],
+            ["open", `Open orders (${openOrders.length})`],
+            ["trades", `Trade history (${activityOrders.length})`],
+            ["orders", `Order history (${activityOrders.length})`],
+          ] as const).map(([value, label]) => <button key={value} role="tab" aria-selected={activityTab === value} className={activityTab === value ? "active" : ""} onClick={() => setActivityTab(value)}>{label}</button>)}
+          <Link className="text-link" href={farmDetailHref(farm.id)}>View Farm details</Link>
         </div>
-        {orderHistory.length ? (
-          <div className="filled-orders-table-wrap">
-            <table className="filled-orders-table">
-              <thead><tr><th>Time</th><th>Market</th><th>Side</th><th>Type</th><th>Size</th><th>Fill price</th><th>Leverage</th><th>Fee</th><th>Status</th></tr></thead>
-              <tbody>
-                {orderHistory.map((order) => (
-                  <tr key={order.id}>
-                    <td>{new Date(order.filledAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</td>
-                    <td><span className="order-pair"><AssetIcon symbol={order.pair.split("/")[0]} size={20} /><strong>{order.pair}</strong></span></td>
-                    <td><span className={`order-side ${order.side.toLowerCase()}`}>{order.side}</span></td>
-                    <td>{order.type}</td>
-                    <td>{order.quantity ? `${order.quantity.toLocaleString()} ${order.base}` : `${order.size.toLocaleString()} ${order.quote}`}<small>{order.quantity ? `${order.size.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${order.quote}` : ""}</small></td>
-                    <td>{order.price.toLocaleString()}</td>
-                    <td>{order.leverage}×</td>
-                    <td>{order.fee.toFixed(2)} {order.quote}</td>
-                    <td><span className="filled-status"><Check size={12} weight="bold" /> Filled</span></td>
-                  </tr>
-                ))}
-              </tbody>
+        <div className="trading-activity-table-wrap">
+          {activityTab === "positions" && (
+            <table className="trading-activity-table positions-activity-table">
+              <thead><tr><th>Market</th><th>Side</th><th>Size</th><th>Entry price</th><th>Mark price</th><th>Leverage</th><th>Unrealized PnL</th></tr></thead>
+              <tbody>{positionSize ? <tr><td><strong>{positionPair}</strong></td><td className={positionSide === "Long" ? "positive" : "warning-text"}>{positionSide}</td><td>{positionQuantity.toLocaleString(undefined, { maximumFractionDigits: positionMarket.quantityPrecision })} {positionMarket.base}<small>{positionSize.toLocaleString(undefined, { maximumFractionDigits: 2 })} {positionQuote}</small></td><td>{entryPrice.toLocaleString()}</td><td>{positionMarket.price.toLocaleString()}</td><td>{positionLeverage}×</td><td className={pnl >= 0 ? "positive" : "warning-text"}>{pnl >= 0 ? "+" : ""}{pnl.toFixed(2)} {positionQuote}</td></tr> : <tr className="activity-empty-row"><td colSpan={7}>No open demo position. Place a Long or Short order to populate this table.</td></tr>}</tbody>
             </table>
-          </div>
-        ) : (
-          <div className="orders-empty"><Clock3 size={19} /><span>Confirmed demo orders will appear here with their fill details.</span></div>
-        )}
+          )}
+          {activityTab === "open" && (
+            <table className="trading-activity-table">
+              <thead><tr><th>Market</th><th>Side</th><th>Price</th><th>Original size</th><th>Status</th><th>Updated</th></tr></thead>
+              <tbody>{openOrders.map((order) => <tr key={order.id}><td><strong>{order.pair}</strong></td><td>{order.side}</td><td>{order.price.toLocaleString(undefined, { maximumFractionDigits: precision })}</td><td>{order.size.toLocaleString()} {base}</td><td><span className="order-status open">Open</span></td><td>{order.updated}</td></tr>)}</tbody>
+            </table>
+          )}
+          {activityTab === "trades" && (
+            <table className="trading-activity-table">
+              <thead><tr><th>Market</th><th>Direction</th><th>Fill price</th><th>Size</th><th>Fee</th><th>Closed PnL</th><th>Time</th></tr></thead>
+              <tbody>{activityOrders.map((order, index) => <tr key={order.id}><td><strong>{order.pair}</strong></td><td>{order.side === "Long" ? "Open Long" : "Open Short"}</td><td>{order.price.toLocaleString(undefined, { maximumFractionDigits: precision })}</td><td>{Number(order.quantity || 0).toLocaleString()} {order.base}</td><td>{order.fee.toFixed(4)} {order.quote}</td><td className={index === 0 ? "warning-text" : "positive"}>{index === 0 ? "-0.0076" : "0.00"} {order.quote}</td><td>{new Date(order.filledAt).toLocaleString()}</td></tr>)}</tbody>
+            </table>
+          )}
+          {activityTab === "orders" && (
+            <table className="trading-activity-table">
+              <thead><tr><th>Market</th><th>Side</th><th>Price</th><th>Original size</th><th>Status</th><th>Updated</th></tr></thead>
+              <tbody>{activityOrders.map((order) => <tr key={order.id}><td><strong>{order.pair}</strong></td><td>{order.side === "Long" ? "Buy" : "Sell"}</td><td>{order.price.toLocaleString(undefined, { maximumFractionDigits: precision })}</td><td>{Number(order.quantity || 0).toLocaleString()} {order.base}</td><td><span className="order-status filled">Filled</span></td><td>{new Date(order.filledAt).toLocaleString()}</td></tr>)}</tbody>
+            </table>
+          )}
+        </div>
       </section>
 
       {tradeSettingsPanel && (

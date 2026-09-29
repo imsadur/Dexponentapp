@@ -6648,3 +6648,76 @@ textarea:focus-visible {
   .market-picker-table td:first-child { gap: 7px; }
   .market-picker-table td:first-child strong { font-size: 11px; }
 }
+
+/* Trading density refinements */
+.trading-workspace { position: relative; }
+.trading-workspace .trade-price-stat > strong { font-size: 14px; font-weight: 700; }
+.trading-workspace .pair-icons { width: 38px; min-width: 38px; }
+.trading-workspace .pair-icons > * { position: static !important; width: 38px !important; height: 38px !important; }
+
+.trading-workspace .market-picker-backdrop {
+  position: absolute;
+  z-index: 160;
+  inset: 0;
+  display: block;
+  padding: 0;
+  background: transparent;
+  backdrop-filter: none;
+}
+.trading-workspace .market-picker-drawer {
+  position: absolute;
+  top: 102px;
+  left: 0;
+  width: min(820px,calc(100vw - 112px));
+  max-height: min(640px,calc(100vh - 190px));
+  border-radius: 12px;
+  box-shadow: 0 20px 55px rgb(0 0 0 / 62%);
+}
+
+.trading-workspace .trade-chart-panel,
+.trading-workspace .orderbook-panel { min-height: 670px; }
+.trading-workspace .perp-chart-canvas { height: 550px; }
+.orderbook-tabs > div:first-child button { font-size: 12px; }
+.orderbook-view-caption { font-size: 10px; }
+.orderbook-view-caption strong { font-size: 11px; }
+.orderbook-panel .orderbook-columns,
+.orderbook-panel .orderbook-row { min-height: 28px; font-size: 11px; }
+.orderbook-panel .orderbook-columns { font-size: 10px; }
+.orderbook-panel .orderbook-mid { min-height: 38px; }
+.orderbook-panel .orderbook-mid strong { font-size: 17px; }
+.orderbook-ratio { margin-top: 8px; font-size: 12px; }
+.orderbook-ratio span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.orderbook-ratio b { width: 22px; height: 22px; display: grid; place-items: center; border: 1px solid currentColor; border-radius: 4px; font-size: 11px; }
+
+.trading-workspace > .trading-activity-panel { grid-column: 1 / -1; margin-top: 2px; overflow: hidden; }
+.trading-activity-tabs { min-height: 54px; padding: 0 16px; display: flex; align-items: stretch; gap: 26px; border-bottom: 1px solid var(--border-soft); }
+.trading-activity-tabs button { position: relative; padding: 0; border: 0; color: var(--text-muted); background: transparent; font: inherit; font-size: 12px; font-weight: 520; cursor: pointer; }
+.trading-activity-tabs button:hover { color: var(--text-secondary); }
+.trading-activity-tabs button.active { color: var(--text-primary); font-weight: 650; }
+.trading-activity-tabs button.active::after { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; content: ""; background: var(--accent); }
+.trading-activity-tabs > .text-link { margin-left: auto; align-self: center; white-space: nowrap; }
+.trading-activity-table-wrap { overflow-x: auto; }
+.trading-activity-table { width: 100%; min-width: 920px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.trading-activity-table th,
+.trading-activity-table td { height: 58px; padding: 0 18px; border-bottom: 1px solid var(--border-soft); text-align: left; white-space: nowrap; }
+.trading-activity-table th { height: 42px; color: var(--text-muted); background: color-mix(in srgb,var(--surface-elevated) 48%,transparent); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .045em; }
+.trading-activity-table td { color: var(--text-secondary); font-size: 12px; }
+.trading-activity-table td strong { color: var(--text-primary); font-weight: 650; }
+.trading-activity-table td small { display: block; margin-top: 3px; color: var(--text-muted); font-size: 9px; }
+.trading-activity-table tbody tr:last-child td { border-bottom: 0; }
+.trading-activity-table tbody tr:hover:not(.activity-empty-row) { background: color-mix(in srgb,var(--accent) 4%,transparent); }
+.order-status { display: inline-flex; min-height: 25px; padding: 0 10px; align-items: center; border-radius: 999px; font-size: 10px; font-weight: 650; text-transform: capitalize; }
+.order-status.open { color: var(--info); background: color-mix(in srgb,var(--info) 12%,transparent); }
+.order-status.filled { color: var(--success); background: color-mix(in srgb,var(--success) 12%,transparent); }
+.activity-empty-row td { height: 108px; color: var(--text-muted); text-align: center; }
+
+@media (max-width: 760px) {
+  .trading-workspace .market-picker-backdrop { position: absolute; display: block; padding: 0; }
+  .trading-workspace .market-picker-drawer { top: 118px; left: 0; width: 100%; max-height: min(590px,calc(100vh - 170px)); border-radius: 12px; }
+  .trading-workspace .trade-chart-panel,
+  .trading-workspace .orderbook-panel { min-height: 0; }
+  .trading-workspace .perp-chart-canvas { height: 470px; }
+  .trading-activity-tabs { gap: 18px; overflow-x: auto; }
+  .trading-activity-tabs button { flex: 0 0 auto; font-size: 11px; }
+  .trading-activity-tabs > .text-link { display: none; }
+}

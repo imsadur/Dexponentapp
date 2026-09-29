@@ -240,6 +240,8 @@ test("landing, dashboard, every strategy, draft recovery and honest deployment",
       await expect(page.getByText("Buy orders", { exact: true })).toBeVisible();
       await page.getByRole("button", { name: "Order book display options" }).click();
       await page.getByRole("menuitem", { name: "Buy & sell" }).click();
+      await expect(page.locator(".orderbook-row.ask")).toHaveCount(8);
+      await expect(page.locator(".orderbook-row.bid")).toHaveCount(8);
       await page.getByRole("button", { name: "Margin mode, Cross" }).click();
       await expect(page.getByRole("dialog", { name: /margin mode/ })).toBeVisible();
       await page.getByRole("radio", { name: /Isolated/ }).click();
@@ -275,6 +277,14 @@ test("landing, dashboard, every strategy, draft recovery and honest deployment",
       await sizeInput.fill(reducedSize);
       await page.getByRole("button", { name: /^Short [A-Z]+$/ }).click();
       await expect(orderUpdates.getByText("Position reduced", { exact: true })).toBeVisible();
+      await page.getByRole("tab", { name: /Positions/ }).click();
+      await expect(page.getByRole("columnheader", { name: "Unrealized PnL" })).toBeVisible();
+      await page.getByRole("tab", { name: /Open orders/ }).click();
+      await expect(page.getByRole("columnheader", { name: "Original size" })).toBeVisible();
+      await page.getByRole("tab", { name: /Trade history/ }).click();
+      await expect(page.getByRole("columnheader", { name: "Closed PnL" })).toBeVisible();
+      await page.getByRole("tab", { name: /Order history/ }).click();
+      await expect(page.getByRole("columnheader", { name: "Updated" })).toBeVisible();
     }
   }
   expect(errors).toEqual([]);

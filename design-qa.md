@@ -56,6 +56,17 @@ State: dark theme, public landing page with all Farms visible, logged-in dashboa
 
 final result: passed
 
+## Trading depth and activity refinement — 2026-09-29
+
+- Pair identity now uses a single base-token logo and the asset’s full name.
+- The market selector behaves as a large anchored dropdown beneath the pair header while preserving workspace context.
+- Market price matches the other metric values in size and uses green, red, or neutral white according to the 24-hour direction.
+- The order book displays eight asks and eight bids simultaneously with larger labels, prices, quantities, totals, and boxed B/S ratio markers.
+- Positions, Open orders, Trade history, and Order history now share one compact tabbed workspace with a purpose-built table schema for each tab.
+- Verified all four tabs, market dropdown, 16 order-book levels, order placement, reduce-only flow, responsive layout, and browser console.
+
+final result: passed
+
 ## Trading header refinement — 2026-09-29
 
 - Replaced the persistent market column with a focused market picker opened from the pair header.
