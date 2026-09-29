@@ -221,6 +221,16 @@ test("landing, dashboard, every strategy, draft recovery and honest deployment",
       await expect(page.getByRole("heading", { name: "ETH/USDC" })).toBeVisible();
       await page.getByRole("link", { name: "Trade", exact: true }).first().click();
       await expect(page.getByRole("textbox", { name: "Search market pairs" })).toBeVisible();
+      await expect(page.getByLabel(/TradingView candlestick chart/)).toBeVisible();
+      await expect(page.getByText("Funding / countdown")).toBeVisible();
+      await page.getByRole("button", { name: "Recent trades" }).click();
+      await expect(page.locator(".recent-trade")).toHaveCount(8);
+      await page.getByRole("button", { name: "Order book", exact: true }).click();
+      await page.getByRole("button", { name: "Order book display options" }).click();
+      await page.getByRole("menuitem", { name: "Buy only" }).click();
+      await expect(page.getByText("Buy orders", { exact: true })).toBeVisible();
+      await page.getByRole("button", { name: "Order book display options" }).click();
+      await page.getByRole("menuitem", { name: "Buy & sell" }).click();
       await page.getByRole("button", { name: "Margin mode, Cross" }).click();
       await expect(page.getByRole("dialog", { name: /margin mode/ })).toBeVisible();
       await page.getByRole("radio", { name: /Isolated/ }).click();

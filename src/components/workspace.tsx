@@ -23,6 +23,7 @@ import {
   Compass,
   Copy,
   DiscordLogo,
+  DotsThreeVertical,
   Drop as Droplets,
   ArrowSquareOut as ExternalLink,
   FileText,
@@ -53,6 +54,7 @@ import {
   RedditLogo,
   Scales,
 } from "@phosphor-icons/react";
+import { PerpTradingChart } from "@/components/perp-trading-chart";
 import {
   families,
   makeFarm,
@@ -2184,6 +2186,10 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
   const [pendingMarginMode, setPendingMarginMode] = useState<"Cross" | "Isolated">("Cross");
   const [accountType, setAccountType] = useState<"Unified" | "Portfolio Margin" | "Manual">("Unified");
   const [pendingAccountType, setPendingAccountType] = useState<"Unified" | "Portfolio Margin" | "Manual">("Unified");
+  const [orderBookTab, setOrderBookTab] = useState<"book" | "trades">("book");
+  const [orderBookView, setOrderBookView] = useState<"both" | "bids" | "asks">("both");
+  const [orderBookMenuOpen, setOrderBookMenuOpen] = useState(false);
+  const [fundingCountdown, setFundingCountdown] = useState("08:00:00");
 
   useEffect(() => {
     if (initialPair && findPerpetualMarket(initialPair)) {
@@ -2201,6 +2207,20 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [tradeSettingsPanel]);
+
+  useEffect(() => {
+    const updateCountdown = () => {
+      const now = Math.floor(Date.now() / 1000);
+      const remaining = 28_800 - (now % 28_800);
+      const hours = Math.floor(remaining / 3_600);
+      const minutes = Math.floor((remaining % 3_600) / 60);
+      const seconds = remaining % 60;
+      setFundingCountdown([hours, minutes, seconds].map((value) => String(value).padStart(2, "0")).join(":"));
+    };
+    updateCountdown();
+    const timer = window.setInterval(updateCountdown, 1_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   if (!app.ready)
     return <div className="loading-shell"><div className="skeleton" /></div>;
@@ -2232,15 +2252,21 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
     const wave = Math.sin(index * 0.42) * 0.72 + Math.cos(index * 0.18) * 0.34;
     return market.price * (1 + (trend + wave) / 100);
   });
-  const asks = Array.from({ length: 7 }, (_, index) => ({
-    price: market.price * (1 + (7 - index) * 0.00042),
+  const asks = Array.from({ length: 8 }, (_, index) => ({
+    price: market.price * (1 + (8 - index) * 0.00042),
     size: 18.4 + index * 7.9,
-    total: 22 + index * 11,
+    total: 16 + index * 12,
   }));
-  const bids = Array.from({ length: 7 }, (_, index) => ({
+  const bids = Array.from({ length: 8 }, (_, index) => ({
     price: market.price * (1 - (index + 1) * 0.00038),
     size: 23.8 + index * 6.1,
-    total: 26 + index * 10,
+    total: 21 + index * 11,
+  }));
+  const recentTrades = Array.from({ length: 8 }, (_, index) => ({
+    time: new Date(Date.UTC(2026, 8, 29, 10, 9, 14 - index * 3)).toLocaleTimeString("en", { hour12: false }),
+    price: market.price * (1 + (index % 2 ? -1 : 1) * (index + 1) * 0.00008),
+    size: 2.4 + ((index * 17) % 31) / 10,
+    side: (index % 3 === 0 ? "sell" : "buy") as "buy" | "sell",
   }));
   const positionSize = Number(farm.values.demoTradeSize || 0);
   const orderHistory = filledOrders(farm).toReversed();
@@ -2387,19 +2413,18 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
           </span>
           <div>
             <h1>{pair}</h1>
-            <span>Perpetual market · Demo execution</span>
+            <span>{market.group} perpetual · Demo market</span>
           </div>
         </div>
         <div className="trade-market-stat trade-price-stat">
-          <span>Simulated mark</span>
+          <span>Market price</span>
           <strong>{formattedPrice}</strong>
-          <small className={market.change >= 0 ? "positive" : "warning-text"}>
-            {market.change >= 0 ? "+" : ""}{market.change}% · 24h
-          </small>
+          <small>Simulated mark</small>
         </div>
-        <div className="trade-market-stat"><span>Funding / 8h</span><strong>{market.funding}%</strong><small>Simulated</small></div>
-        <div className="trade-market-stat"><span>Open interest</span><strong>{market.openInterest}</strong><small>Demo market</small></div>
-        <div className="trade-market-stat"><span>24h volume</span><strong>{market.volume}</strong><small>Demo market</small></div>
+        <div className="trade-market-stat"><span>24h change</span><strong className={market.change >= 0 ? "positive" : "warning-text"}>{market.change >= 0 ? "+" : ""}{market.change}%</strong><small>Demo change</small></div>
+        <div className="trade-market-stat"><span>24h volume</span><strong>{market.volume}</strong><small>Simulated</small></div>
+        <div className="trade-market-stat"><span>Open interest</span><strong>{market.openInterest}</strong><small>Simulated</small></div>
+        <div className="trade-market-stat funding-countdown"><span>Funding / countdown</span><strong>{market.funding}% <em>/ {fundingCountdown}</em></strong><small>8h interval · simulated</small></div>
       </section>
 
       <div className="trade-grid">
@@ -2450,23 +2475,39 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
 
         <main className="trade-center-column">
           <section className="trade-panel trade-chart-panel">
-            <div className="trade-panel-heading">
-              <div><strong>{pair}</strong><span>Simulated market chart</span></div>
-              <div className="segmented trade-timeframes">
-                {["5M", "15M", "1H", "4H", "1D"].map((item) => (
-                  <button key={item} className={timeframe === item ? "active" : ""} onClick={() => setTimeframe(item)}>{item}</button>
-                ))}
-              </div>
-            </div>
-            <TradingChart points={chartPoints} pair={pair} timeframe={timeframe} precision={precision} />
+            <PerpTradingChart points={chartPoints} pair={pair} timeframe={timeframe} precision={precision} onTimeframeChange={setTimeframe} />
           </section>
 
           <section className="trade-panel orderbook-panel">
-            <div className="trade-panel-heading"><strong>Order book</strong><span>Price ({quote}) · Size ({base})</span></div>
-            <div className="orderbook-columns"><span>Price</span><span>Size</span><span>Total</span></div>
-            {asks.map((row) => <OrderBookRow key={`ask-${row.price}`} row={row} side="ask" precision={precision} />)}
-            <div className="orderbook-mid"><strong>{formattedPrice}</strong><span><TrendUp size={13} /> Simulated mark</span></div>
-            {bids.map((row) => <OrderBookRow key={`bid-${row.price}`} row={row} side="bid" precision={precision} />)}
+            <div className="orderbook-tabs">
+              <div>
+                <button className={orderBookTab === "book" ? "active" : ""} onClick={() => setOrderBookTab("book")}>Order book</button>
+                <button className={orderBookTab === "trades" ? "active" : ""} onClick={() => setOrderBookTab("trades")}>Recent trades</button>
+              </div>
+              <button className="orderbook-menu-trigger" aria-label="Order book display options" aria-expanded={orderBookMenuOpen} onClick={() => setOrderBookMenuOpen((value) => !value)}><DotsThreeVertical size={18} weight="bold" /></button>
+              {orderBookMenuOpen && (
+                <div className="orderbook-menu" role="menu">
+                  {([['both', 'Buy & sell'], ['bids', 'Buy only'], ['asks', 'Sell only']] as const).map(([value, label]) => (
+                    <button role="menuitem" key={value} onClick={() => { setOrderBookView(value); setOrderBookMenuOpen(false); }}><span>{label}</span>{orderBookView === value && <Check size={13} weight="bold" />}</button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {orderBookTab === "book" ? (
+              <>
+                <div className="orderbook-view-caption"><span>{orderBookView === "both" ? "Buy & sell" : orderBookView === "bids" ? "Buy orders" : "Sell orders"}</span><strong>0.01</strong></div>
+                <div className="orderbook-columns"><span>Price ({quote})</span><span>Qty ({base})</span><span>Total ({base})</span></div>
+                {orderBookView !== "bids" && asks.slice(0, orderBookView === "both" ? 4 : 8).map((row) => <OrderBookRow key={`ask-${row.price}`} row={row} side="ask" precision={precision} />)}
+                {orderBookView === "both" && <div className="orderbook-mid"><strong>{formattedPrice}</strong><span><TrendUp size={13} /> mark</span></div>}
+                {orderBookView !== "asks" && bids.slice(0, orderBookView === "both" ? 4 : 8).map((row) => <OrderBookRow key={`bid-${row.price}`} row={row} side="bid" precision={precision} />)}
+                <div className="orderbook-ratio"><span>Buy 56%</span><i /><span>44% Sell</span></div>
+              </>
+            ) : (
+              <div className="recent-trades-list">
+                <div className="recent-trades-head"><span>Price ({quote})</span><span>Size ({base})</span><span>Time</span></div>
+                {recentTrades.map((trade, index) => <div className={`recent-trade ${trade.side}`} key={`${trade.time}-${index}`}><strong>{trade.price.toLocaleString(undefined, { minimumFractionDigits: precision, maximumFractionDigits: precision })}</strong><span>{trade.size.toFixed(2)}</span><time>{trade.time}</time></div>)}
+              </div>
+            )}
           </section>
         </main>
 
@@ -2689,96 +2730,6 @@ function PositionSizeSlider({ value, onChange, disabled }: { value: number; onCh
         <span className="position-slider-value">{Math.round(safeValue)}%</span>
         {marks.map((mark) => <i key={mark} style={{ left: `${mark}%` }} />)}
       </div>
-    </div>
-  );
-}
-
-function TradingChart({
-  points,
-  pair,
-  timeframe,
-  precision,
-}: {
-  points: number[];
-  pair: string;
-  timeframe: string;
-  precision: number;
-}) {
-  const [hovered, setHovered] = useState<number | null>(null);
-  const candles = points.slice(-52).map((close, index, values) => {
-    const open = index ? values[index - 1] : close * 0.998;
-    const spread = close * (0.0018 + (index % 5) * 0.0003);
-    return {
-      open,
-      close,
-      high: Math.max(open, close) + spread,
-      low: Math.min(open, close) - spread * 0.82,
-      volume: 28 + ((index * 37) % 68),
-    };
-  });
-  const min = Math.min(...candles.map((candle) => candle.low));
-  const max = Math.max(...candles.map((candle) => candle.high));
-  const range = max - min || 1;
-  const y = (value: number) => ((max - value) / range) * 78 + 4;
-  const active = hovered === null ? candles.at(-1)! : candles[hovered];
-  const activeIndex = hovered === null ? candles.length - 1 : hovered;
-  const up = active.close >= active.open;
-  const price = (value: number) => value.toLocaleString(undefined, {
-    minimumFractionDigits: precision,
-    maximumFractionDigits: precision,
-  });
-
-  return (
-    <div className="dex-trading-chart" onMouseLeave={() => setHovered(null)}>
-      <div className="chart-market-toolbar">
-        <div className="chart-ohlc">
-          <span>O <strong>{price(active.open)}</strong></span>
-          <span>H <strong>{price(active.high)}</strong></span>
-          <span>L <strong>{price(active.low)}</strong></span>
-          <span>C <strong className={up ? "positive" : "warning-text"}>{price(active.close)}</strong></span>
-        </div>
-        <div className="chart-feed"><i /> Simulated feed · {timeframe}</div>
-      </div>
-      <div className="chart-plot" role="img" aria-label={`${pair} interactive simulated candlestick chart`}>
-        <div className="chart-grid-lines">{[0, 1, 2, 3, 4].map((line) => <i key={line} style={{ top: `${line * 20}%` }} />)}</div>
-        <div className="chart-candles">
-          {candles.map((candle, index) => {
-            const left = (index / candles.length) * 100;
-            const bodyTop = y(Math.max(candle.open, candle.close));
-            const bodyHeight = Math.max(1.1, Math.abs(y(candle.open) - y(candle.close)));
-            const rising = candle.close >= candle.open;
-            return (
-              <button
-                type="button"
-                key={index}
-                className={`chart-candle ${rising ? "rising" : "falling"} ${activeIndex === index ? "active" : ""}`}
-                style={{ left: `${left}%`, width: `${100 / candles.length}%` } as CSSProperties}
-                onMouseEnter={() => setHovered(index)}
-                onFocus={() => setHovered(index)}
-                aria-label={`Candle ${index + 1}: open ${price(candle.open)}, close ${price(candle.close)}`}
-              >
-                <i className="candle-wick" style={{ top: `${y(candle.high)}%`, height: `${y(candle.low) - y(candle.high)}%` }} />
-                <i className="candle-body" style={{ top: `${bodyTop}%`, height: `${bodyHeight}%` }} />
-                <i className="candle-volume" style={{ height: `${candle.volume * 0.15}%` }} />
-              </button>
-            );
-          })}
-        </div>
-        <div className="chart-crosshair-x" style={{ left: `${((activeIndex + 0.5) / candles.length) * 100}%` }} />
-        <div className="chart-crosshair-y" style={{ top: `${y(active.close)}%` }} />
-        <div className={`chart-price-marker ${up ? "up" : "down"}`} style={{ top: `${y(active.close)}%` }}>{price(active.close)}</div>
-        {hovered !== null && (
-          <div className="chart-hover-card" style={{ left: hovered > candles.length * 0.7 ? "18px" : "auto", right: hovered > candles.length * 0.7 ? "auto" : "72px" }}>
-            <span>{pair} · {timeframe}</span>
-            <strong>{price(active.close)} {pair.split("/")[1]}</strong>
-            <small className={up ? "positive" : "warning-text"}>{up ? "+" : ""}{((active.close - active.open) / active.open * 100).toFixed(2)}%</small>
-          </div>
-        )}
-        <div className="chart-price-axis">
-          {[0, .25, .5, .75, 1].map((step) => <span key={step} style={{ top: `${step * 96}%` }}>{price(max - range * step)}</span>)}
-        </div>
-      </div>
-      <div className="chart-time-axis"><span>06:00</span><span>10:00</span><span>14:00</span><span>18:00</span><span>Now</span></div>
     </div>
   );
 }

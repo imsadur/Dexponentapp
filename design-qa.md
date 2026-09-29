@@ -55,3 +55,41 @@ State: dark theme, public landing page with all Farms visible, logged-in dashboa
 - No blocking polish remains. A future iteration can connect the explicitly labeled demo metrics to production data APIs.
 
 final result: passed
+
+---
+
+# Perpetual Trading Workspace Design QA — 2026-09-29
+
+Source references:
+
+- `/Users/saadrahman/Desktop/Screenshot 2026-09-29 at 3.33.36 PM.png` — compact order book hierarchy and market-depth treatment.
+- `/Users/saadrahman/Desktop/Screenshot 2026-09-29 at 3.39.15 PM.png` — dense TradingView chart controls, candle history, moving average, and volume.
+- `/Users/saadrahman/Desktop/Screenshot 2026-09-29 at 4.13.57 PM.png` — token identity and top-line market metrics.
+- `/Users/saadrahman/Downloads/Screenshot 2026-09-29 at 3.56.01 PM.png` — mark price, funding, open interest, and volume information architecture.
+
+Viewport: 1440 x 1000 CSS px, device scale factor 1. Route: `/app/trade/?farm=demo-0`. State: ETH/USDC selected, chart and Order book active, simulated market feed.
+
+## Findings and resolved differences
+
+- No remaining P0, P1, or P2 issues.
+- Header hierarchy: the pair identity leads a single dense strip followed by Market price, 24h change, 24h volume, Open interest, and Funding / countdown. The order ticket begins on the same top edge.
+- Chart density: the implementation uses the TradingView Lightweight Charts library with 72 candles, crosshair inspection, volume, MA9, seven timeframes, price and time scales, plus functional Chart, Overview, and Data views.
+- Order book: the default view shows eight price levels around the mark price. Order Book and Recent Trades are functional tabs; the kebab menu switches among Buy & sell, Buy only, and Sell only.
+- Visual language: the source information density is retained while controls, positive states, borders, and chart accents use Dexponent's restrained indigo and mint system.
+- Copy: all generated data remains visibly labeled Demo or Simulated. Funding interval and countdown are explicit.
+- Responsive layout: desktop uses a 2/7/3 market-chart-ticket grid. Narrow layouts stack the modules and preserve chart, order book, and order entry access.
+- Intentional product differences: Bybit's drawing toolbar and in-chart buy/sell overlay are excluded because this workspace already has a dedicated order ticket and does not expose drawing persistence. These omissions reduce duplication without removing requested market data.
+
+## Interaction and runtime verification
+
+- Chart, Overview, and Data tabs render their respective views.
+- Timeframe controls update the chart interval label and time scale.
+- Recent Trades shows eight entries.
+- Order book display mode changes through the kebab menu.
+- Margin, leverage, account type, size unit, Reduce only, Long/Short, and order-toast behavior remain operational.
+- Playwright workspace flow: passed.
+- Type check: passed.
+- Unit tests: 28 passed.
+- Browser visual review: passed at 1440 x 1000 and responsive widths.
+
+final result: passed
