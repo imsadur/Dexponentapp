@@ -235,11 +235,11 @@ test("landing, dashboard, every strategy, draft recovery and honest deployment",
       await page.getByRole("button", { name: "Recent trades" }).click();
       await expect(page.locator(".recent-trade")).toHaveCount(8);
       await page.getByRole("button", { name: "Order book", exact: true }).click();
-      await page.getByRole("button", { name: "Order book display options" }).click();
-      await page.getByRole("menuitem", { name: "Buy only" }).click();
-      await expect(page.getByText("Buy orders", { exact: true })).toBeVisible();
-      await page.getByRole("button", { name: "Order book display options" }).click();
-      await page.getByRole("menuitem", { name: "Buy & sell" }).click();
+      await page.getByRole("button", { name: "Show buy orders only" }).click();
+      await expect(page.locator(".orderbook-row.ask")).toHaveCount(0);
+      await page.getByRole("button", { name: "Show sell orders only" }).click();
+      await expect(page.locator(".orderbook-row.bid")).toHaveCount(0);
+      await page.getByRole("button", { name: "Show buy and sell orders" }).click();
       await expect(page.locator(".orderbook-row.ask")).toHaveCount(8);
       await expect(page.locator(".orderbook-row.bid")).toHaveCount(8);
       await page.getByRole("button", { name: "Margin mode, Cross" }).click();
@@ -256,8 +256,8 @@ test("landing, dashboard, every strategy, draft recovery and honest deployment",
       await page.getByRole("radio", { name: /Portfolio Margin/ }).click();
       await page.getByRole("button", { name: "Save account type" }).click();
       await expect(page.getByRole("button", { name: "Account type, Portfolio Margin" })).toBeVisible();
-      const pairTitle = await page.locator(".order-context-bar h2").textContent();
-      const tradeToken = pairTitle?.split("-")[0] || "ETH";
+      const pairTitle = await page.locator(".trade-pair-title h1").textContent();
+      const tradeToken = pairTitle?.split("/")[0] || "ETH";
       const initialSize = tradeToken === "BTC" ? "0.01" : tradeToken === "ETH" ? "0.1" : tradeToken === "SOL" ? "1" : "10";
       const reducedSize = tradeToken === "BTC" ? "0.005" : tradeToken === "ETH" ? "0.05" : tradeToken === "SOL" ? "0.5" : "5";
       const sizeInput = page.getByRole("spinbutton", { name: "Size" });

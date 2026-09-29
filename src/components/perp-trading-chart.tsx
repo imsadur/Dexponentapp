@@ -12,7 +12,7 @@ import {
   type ISeriesApi,
   type UTCTimestamp,
 } from "lightweight-charts";
-import { ChartLineUp, Crosshair, SlidersHorizontal } from "@phosphor-icons/react";
+import { Crosshair, SlidersHorizontal } from "@phosphor-icons/react";
 
 type Candle = {
   time: UTCTimestamp;
@@ -87,12 +87,12 @@ export function PerpTradingChart({
 
     chart = createChart(container.current, {
       autoSize: true,
-      height: 470,
+      height: 415,
       layout: {
         background: { type: ColorType.Solid, color: surface },
         textColor: text,
         fontFamily: "Inter, sans-serif",
-        fontSize: 10,
+        fontSize: 11,
         attributionLogo: true,
       },
       grid: {
@@ -181,7 +181,6 @@ export function PerpTradingChart({
           <button className={view === "overview" ? "active" : ""} onClick={() => setView("overview")}>Overview</button>
           <button className={view === "data" ? "active" : ""} onClick={() => setView("data")}>Data</button>
         </div>
-        <span><ChartLineUp size={14} /> TradingView</span>
       </div>
       <div className="perp-chart-controls">
         <div className="perp-chart-timeframes">

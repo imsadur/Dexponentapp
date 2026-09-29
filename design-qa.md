@@ -56,6 +56,19 @@ State: dark theme, public landing page with all Farms visible, logged-in dashboa
 
 final result: passed
 
+## Compact chart and direct execution controls — 2026-09-29
+
+- Removed the TradingView text label while retaining the chart experience and controls.
+- Increased the chart tabs, timeframes, OHLC legend, moving-average legend, order-book tabs, and depth-row typography.
+- Set the chart and order-book panels to the same compact 600px desktop height while retaining eight asks and eight bids.
+- Replaced the order-book kebab menu with visible Buy & sell, Buy only, and Sell only depth controls plus the price-increment selector.
+- Removed the repeated pair title and Long/Short selector from the order ticket.
+- Added persistent Long and Short actions with strong green and red treatments; each action submits its explicit side and respects Reduce only constraints.
+- Increased spacing and type size in the pre-submit order metrics.
+- Verified depth filtering, 16 visible order-book levels, direct long/short placement, Reduce only behavior, responsive layout, and an error-free browser console.
+
+final result: passed
+
 ## Trading depth and activity refinement — 2026-09-29
 
 - Pair identity now uses a single base-token logo and the asset’s full name.

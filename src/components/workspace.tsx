@@ -23,7 +23,6 @@ import {
   Compass,
   Copy,
   DiscordLogo,
-  DotsThreeVertical,
   Drop as Droplets,
   ArrowSquareOut as ExternalLink,
   FileText,
@@ -2199,7 +2198,6 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
   const [pendingAccountType, setPendingAccountType] = useState<"Unified" | "Portfolio Margin" | "Manual">("Unified");
   const [orderBookTab, setOrderBookTab] = useState<"book" | "trades">("book");
   const [orderBookView, setOrderBookView] = useState<"both" | "bids" | "asks">("both");
-  const [orderBookMenuOpen, setOrderBookMenuOpen] = useState(false);
   const [marketPickerOpen, setMarketPickerOpen] = useState(false);
   const [activityTab, setActivityTab] = useState<"positions" | "open" | "trades" | "orders">("positions");
   const [fundingCountdown, setFundingCountdown] = useState("08:00:00");
@@ -2385,7 +2383,7 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
     setMarketPickerOpen(false);
   }
 
-  function placeOrder() {
+  function placeOrder(requestedSide: "Long" | "Short" = side) {
     if (isSubmittingOrder) return;
     if (!Number.isFinite(numericSize) || numericSize <= 0) {
       setOrderError("Enter a position size greater than zero.");
@@ -2407,7 +2405,7 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
     setIsSubmittingOrder(true);
     const order = {
       orderType,
-      side,
+      side: requestedSide,
       asset: base,
       quote,
       size: numericSize,
@@ -2419,7 +2417,7 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
     window.setTimeout(() => {
       try {
         const updated = placeDemoOrder(farm!, {
-        side,
+        side: requestedSide,
         type: orderType,
         size: orderNotional,
         leverage,
@@ -2520,18 +2518,17 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
                 <button className={orderBookTab === "book" ? "active" : ""} onClick={() => setOrderBookTab("book")}>Order book</button>
                 <button className={orderBookTab === "trades" ? "active" : ""} onClick={() => setOrderBookTab("trades")}>Recent trades</button>
               </div>
-              <button className="orderbook-menu-trigger" aria-label="Order book display options" aria-expanded={orderBookMenuOpen} onClick={() => setOrderBookMenuOpen((value) => !value)}><DotsThreeVertical size={18} weight="bold" /></button>
-              {orderBookMenuOpen && (
-                <div className="orderbook-menu" role="menu">
-                  {([['both', 'Buy & sell'], ['bids', 'Buy only'], ['asks', 'Sell only']] as const).map(([value, label]) => (
-                    <button role="menuitem" key={value} onClick={() => { setOrderBookView(value); setOrderBookMenuOpen(false); }}><span>{label}</span>{orderBookView === value && <Check size={13} weight="bold" />}</button>
-                  ))}
-                </div>
-              )}
             </div>
             {orderBookTab === "book" ? (
               <>
-                <div className="orderbook-view-caption"><span>{orderBookView === "both" ? "Buy & sell" : orderBookView === "bids" ? "Buy orders" : "Sell orders"}</span><strong>0.01</strong></div>
+                <div className="orderbook-view-caption">
+                  <div className="orderbook-view-controls" aria-label="Order book side filter">
+                    <button className={orderBookView === "both" ? "active" : ""} aria-label="Show buy and sell orders" onClick={() => setOrderBookView("both")}><i className="depth-icon both"><b /><b /><b /></i></button>
+                    <button className={orderBookView === "bids" ? "active" : ""} aria-label="Show buy orders only" onClick={() => setOrderBookView("bids")}><i className="depth-icon bids"><b /><b /><b /></i></button>
+                    <button className={orderBookView === "asks" ? "active" : ""} aria-label="Show sell orders only" onClick={() => setOrderBookView("asks")}><i className="depth-icon asks"><b /><b /><b /></i></button>
+                  </div>
+                  <label className="orderbook-tick-select"><select aria-label="Order book price increment" defaultValue="0.01"><option>0.01</option><option>0.1</option><option>1</option></select><ChevronDown size={12} /></label>
+                </div>
                 <div className="orderbook-columns"><span>Price ({quote})</span><span>Qty ({base})</span><span>Total ({base})</span></div>
                 {orderBookView !== "bids" && asks.slice(0, 8).map((row) => <OrderBookRow key={`ask-${row.price}`} row={row} side="ask" precision={precision} />)}
                 {orderBookView === "both" && <div className="orderbook-mid"><strong>{formattedPrice}</strong><span><TrendUp size={13} /> mark</span></div>}
@@ -2549,7 +2546,6 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
 
         <aside className="trade-panel order-ticket">
           <div className="order-context-bar">
-            <h2>{pair.replace("/", "-")}</h2>
             <div className="order-context-actions" aria-label="Order account settings">
               <button type="button" aria-label={`Margin mode, ${marginMode}`} onClick={() => { setPendingMarginMode(marginMode); setTradeSettingsPanel("margin"); }}>{marginMode} <ChevronDown size={11} weight="bold" /></button>
               <button type="button" aria-label={`Adjust leverage, currently ${leverage}×`} onClick={() => setTradeSettingsPanel("leverage")}>{leverage}× <ChevronDown size={11} weight="bold" /></button>
@@ -2558,14 +2554,6 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
           </div>
 
           <div className="order-step-body">
-              <div className="trade-intent-grid">
-                <button className={side === "Long" ? "active long" : ""} disabled={reduceOnly} onClick={() => setSide("Long")}>
-                  Long
-                </button>
-                <button className={side === "Short" ? "active short" : ""} disabled={reduceOnly} onClick={() => setSide("Short")}>
-                  Short
-                </button>
-              </div>
               <div className="tabs order-type-tabs">
                 {(["Market", "Limit"] as const).map((item) => <button key={item} className={orderType === item ? "active" : ""} onClick={() => {
                   setOrderType(item);
@@ -2601,9 +2589,14 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
                 <TradeMetricRow label="Gas (Arbitrum)" value="0.00 ETH" help="Demo orders do not submit a wallet transaction, so no network gas is charged." />
               </div>
               {orderError && <p className="field-error" role="alert">{orderError}</p>}
-              <button className={`button full trade-submit ${side.toLowerCase()}`} disabled={isSubmittingOrder} onClick={placeOrder}>
-                {isSubmittingOrder ? "Placing order…" : `${side} ${base}`} {!isSubmittingOrder && <ArrowRight size={15} />}
-              </button>
+              <div className="trade-submit-grid">
+                <button className="button trade-submit long" disabled={isSubmittingOrder || (reduceOnly && positionSide !== "Short")} onClick={() => { setSide("Long"); placeOrder("Long"); }}>
+                  {isSubmittingOrder && side === "Long" ? "Placing…" : `Long ${base}`}
+                </button>
+                <button className="button trade-submit short" disabled={isSubmittingOrder || (reduceOnly && positionSide !== "Long")} onClick={() => { setSide("Short"); placeOrder("Short"); }}>
+                  {isSubmittingOrder && side === "Short" ? "Placing…" : `Short ${base}`}
+                </button>
+              </div>
           </div>
         </aside>
       </div>

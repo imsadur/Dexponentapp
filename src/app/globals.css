@@ -6721,3 +6721,66 @@ textarea:focus-visible {
   .trading-activity-tabs button { flex: 0 0 auto; font-size: 11px; }
   .trading-activity-tabs > .text-link { display: none; }
 }
+
+/* Compact chart, visible depth controls, and direct order actions */
+.trading-workspace .trade-chart-panel,
+.trading-workspace .orderbook-panel { height: 600px; min-height: 600px; }
+.trading-workspace .perp-chart-canvas { height: 415px; }
+.perp-chart-tabs { min-height: 45px; justify-content: flex-start; }
+.perp-chart-tabs > div { gap: 22px; }
+.perp-chart-tabs button { font-size: 13px; }
+.perp-chart-controls { min-height: 42px; }
+.perp-chart-timeframes { gap: 5px; }
+.perp-chart-timeframes button { min-width: 34px; min-height: 31px; font-size: 11px; }
+.perp-chart-tools svg { width: 17px; height: 17px; }
+.perp-chart-legend { min-height: 68px; gap: 6px; padding-top: 12px; }
+.perp-chart-legend > span { font-size: 13px; }
+.perp-chart-legend > div { gap: 13px; font-size: 11px; }
+.perp-chart-legend > small { font-size: 10px; }
+
+.orderbook-tabs > div:first-child { gap: 20px; }
+.orderbook-tabs > div:first-child button { font-size: 13px; }
+.orderbook-view-caption { min-height: 43px; padding-inline: 12px; }
+.orderbook-view-controls { display: flex; align-items: center; gap: 6px; }
+.orderbook-view-controls button { width: 34px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 6px; background: transparent; cursor: pointer; }
+.orderbook-view-controls button:hover,
+.orderbook-view-controls button.active { background: var(--surface-elevated); }
+.depth-icon { width: 20px; height: 18px; display: grid; align-content: center; gap: 2px; }
+.depth-icon b { height: 4px; display: block; border-radius: 1px; background: var(--text-muted); }
+.depth-icon.both b:first-child { background: #f6465d; }
+.depth-icon.both b:nth-child(2),
+.depth-icon.bids b { background: #00c076; }
+.depth-icon.both b:last-child,
+.depth-icon.asks b { background: #f6465d; }
+.depth-icon.bids b:nth-child(2) { width: 75%; }
+.depth-icon.bids b:last-child { width: 50%; }
+.depth-icon.asks b:first-child { width: 50%; margin-left: auto; }
+.depth-icon.asks b:nth-child(2) { width: 75%; margin-left: auto; }
+.orderbook-tick-select { position: relative; min-width: 74px; height: 32px; display: flex; align-items: center; border-radius: 7px; background: var(--surface-elevated); }
+.orderbook-tick-select select { width: 100%; height: 100%; padding: 0 28px 0 11px; border: 0; color: var(--text-primary); background: transparent; font: inherit; font-size: 12px; font-weight: 600; appearance: none; cursor: pointer; }
+.orderbook-tick-select svg { position: absolute; right: 9px; color: var(--text-muted); pointer-events: none; }
+.orderbook-panel .orderbook-columns,
+.orderbook-panel .orderbook-row { min-height: 25px; font-size: 12px; }
+.orderbook-panel .orderbook-columns { min-height: 31px; font-size: 11px; }
+.orderbook-panel .orderbook-mid { min-height: 38px; }
+.orderbook-ratio { font-size: 12px; }
+
+.order-context-bar { display: block; min-height: 48px; padding: 10px 14px 6px; }
+.order-context-actions { max-width: none; }
+.order-context-actions button { min-height: 32px; font-size: 9px; }
+.pre-submit-metrics { padding-block: 9px; }
+.pre-submit-metrics > div { min-height: 27px; }
+.pre-submit-metrics strong { font-size: 11px; }
+.trade-metric-help { font-size: 10px; }
+.trade-submit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.trade-submit-grid .trade-submit { min-width: 0; min-height: 46px; border: 0; font-size: 12px; font-weight: 700; }
+.trade-submit-grid .trade-submit.long { color: #061d14; background: #00c076; }
+.trade-submit-grid .trade-submit.short { color: #fff; background: #f6465d; }
+.trade-submit-grid .trade-submit.long:hover:not(:disabled) { background: #00d084; box-shadow: 0 8px 22px rgb(0 192 118 / 24%); }
+.trade-submit-grid .trade-submit.short:hover:not(:disabled) { background: #ff5369; box-shadow: 0 8px 22px rgb(246 70 93 / 24%); }
+
+@media (max-width: 760px) {
+  .trading-workspace .trade-chart-panel,
+  .trading-workspace .orderbook-panel { height: 590px; min-height: 590px; }
+  .trading-workspace .perp-chart-canvas { height: 405px; }
+}
