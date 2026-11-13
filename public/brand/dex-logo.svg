@@ -1,0 +1,46 @@
+<svg width="96" height="96" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Dexponent">
+<style>
+  /* 45° wave sweep in #07704D, eased in and out, then a short pause */
+  .shine{animation:shine 3.6s cubic-bezier(.45,0,.55,1) infinite}
+  @keyframes shine{0%{transform:translateX(14px)}58%,100%{transform:translateX(160px)}}
+  /* the wave edges flow slowly along the band */
+  .ripple{animation:ripple 1.8s linear infinite}
+  @keyframes ripple{from{transform:translateY(0)}to{transform:translateY(50px)}}
+  @media (prefers-reduced-motion: reduce){.shine,.ripple{animation:none}.shine{opacity:0}}
+</style>
+<defs>
+  <path id="dexMark" d="M38.7999 10C51.2882 10 60.922 13.3185 67.7013 19.9551C74.4806 26.5203 77.8702 35.9046 77.8702 48.1074C77.8702 60.2386 74.5166 69.5872 67.8087 76.1523C61.1722 82.7175 51.7165 85.9999 39.4425 86H19.5675C18.7796 85.9997 18.141 85.3611 18.1407 84.5732V23.1123L40.382 46.8691L24.5636 63.5215H32.7072L44.2189 50.4521H44.4532L55.338 63.5215H68.8077L52.1281 45.0771L67.006 29.2676H59.3322L48.4474 41.5469H48.212L18.8673 10.1836C19.0742 10.0668 19.313 10.0001 19.5675 10H38.7999Z"/>
+  <mask id="dexShape" maskUnits="userSpaceOnUse" x="0" y="0" width="96" height="96">
+    <use href="#dexMark" fill="#fff"/>
+  </mask>
+  <linearGradient id="paint0_linear_26_15" x1="38.1462" y1="21.9731" x2="58.3383" y2="55.711" gradientUnits="userSpaceOnUse">
+    <stop stop-color="#098C60"/>
+    <stop offset="1" stop-color="#42FBA6"/>
+  </linearGradient>
+  <linearGradient id="shineBand" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0"   stop-color="#07704D" stop-opacity="0"/>
+    <stop offset=".25" stop-color="#07704D" stop-opacity=".35"/>
+    <stop offset=".5"  stop-color="#07704D" stop-opacity=".8"/>
+    <stop offset=".75" stop-color="#07704D" stop-opacity=".35"/>
+    <stop offset="1"   stop-color="#07704D" stop-opacity="0"/>
+  </linearGradient>
+  <filter id="soft" x="-50%" y="-10%" width="200%" height="120%">
+    <feGaussianBlur stdDeviation="2.4"/>
+  </filter>
+</defs>
+
+<!-- original green logo -->
+<use href="#dexMark" fill="#3DC486"/>
+<g mask="url(#dexShape)">
+  <path d="M16.3568 7.85937L79.8685 75.296L78.7981 9.28661L16.3568 7.85937Z" fill="url(#paint0_linear_26_15)"/>
+</g>
+
+<!-- shimmer, clipped to the logo -->
+<g mask="url(#dexShape)">
+  <g transform="rotate(45 48 48)">
+    <g class="shine"><g class="ripple">
+      <path d="M-66 -100 Q-58 -87.5 -66 -75 T-66 -50 T-66 -25 T-66 0 T-66 25 T-66 50 T-66 75 T-66 100 T-66 125 T-66 150 L-30 150 Q-38 137.5 -30 125 T-30 100 T-30 75 T-30 50 T-30 25 T-30 0 T-30 -25 T-30 -50 T-30 -75 T-30 -100 Z" fill="url(#shineBand)" filter="url(#soft)"/>
+    </g></g>
+  </g>
+</g>
+</svg>

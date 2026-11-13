@@ -56,7 +56,7 @@ const TOKEN_LOGOS: Partial<Record<string, typeof TokenAAVE>> = {
 export function Brand() {
   return (
     <Link href="/" className="brand" aria-label="Dexponent home">
-      <img src="/brand/dexponent-mark.svg" alt="" width="34" height="34" />
+      <img src="/brand/dex-logo.svg" alt="" width="32" height="32" />
       <span>Dexponent</span>
     </Link>
   );

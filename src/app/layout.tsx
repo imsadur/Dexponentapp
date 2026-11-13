@@ -5,6 +5,10 @@ import "@fontsource/inter/600.css";
 import "@fontsource/inter/700.css";
 import "./globals.css";
 import { AppProvider } from "@/components/provider";
+import { Anuphan } from "next/font/google";
+
+// Same wordmark face as dexponent.com's navbar logo.
+const brandFont = Anuphan({ subsets: ["latin"], weight: ["500"], display: "swap", variable: "--font-brand" });
 export const metadata: Metadata = {
   title: "Dexponent — Launch, raise and run onchain funds",
   description:
@@ -16,7 +20,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" data-scroll-behavior="smooth">
+    <html lang="en" data-scroll-behavior="smooth" className={brandFont.variable}>
       <body>
         <AppProvider>{children}</AppProvider>
       </body>

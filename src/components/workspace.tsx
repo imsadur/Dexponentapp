@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type CSSProperties } from "react";
 import {
   ChartLineUp as Activity,
@@ -131,6 +131,7 @@ const nav = [
 export function Workspace({ previewVersion, routeSegments }: { previewVersion?: string; routeSegments?: string[] } = {}) {
   const path = usePathname();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const app = useApp();
   const [menu, setMenu] = useState(false);
   const [modal, setModal] = useState("");
@@ -264,9 +265,17 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
                     <Wallet size={17} />
                     {app.wallet ? "Connected wallet" : "Connect wallet"}
                   </button>
-                  <Link href="/login" role="menuitem" onClick={() => setProfileMenu(false)}>
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      setProfileMenu(false);
+                      app.signOut();
+                      app.toast("You have been logged out");
+                      router.push("/login/");
+                    }}
+                  >
                     <SignOut size={17} /> Log out
-                  </Link>
+                  </button>
                 </div>
               )}
               <button
@@ -944,7 +953,7 @@ function Dashboard({ network, enhanced }: { network: string; enhanced: boolean }
             className="allocation-donut"
             style={{
               background: tvl
-                ? `conic-gradient(var(--accent) 0 ${indexAllocation}%, #f472b6 ${indexAllocation}% ${indexAllocation + spotAllocation}%, #94dcb5 ${indexAllocation + spotAllocation}% 100%)`
+                ? `conic-gradient(#818cf8 0 ${indexAllocation}%, #f472b6 ${indexAllocation}% ${indexAllocation + spotAllocation}%, #3dc486 ${indexAllocation + spotAllocation}% 100%)`
                 : "var(--border)",
             }}
           >

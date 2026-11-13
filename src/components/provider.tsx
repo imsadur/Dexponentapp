@@ -18,6 +18,7 @@ import {
 } from "react";
 import { type Farm, type User } from "@/domain/strategy";
 import { localDataAdapter, seedFarms } from "@/adapters/data";
+import { SESSION_KEY, type Session } from "@/adapters/auth";
 import {
   mapOrderEvent,
   type OrderToastAction,
@@ -52,6 +53,9 @@ type Context = {
   connecting: boolean;
   connect: () => Promise<void>;
   disconnect: () => void;
+  session: Session | null;
+  signIn: (session: Session) => void;
+  signOut: () => void;
   toast: (text: string) => void;
   orderToast: {
     start: (order: OrderToastOrder, initialStatus?: OrderToastEvent["status"]) => string;
@@ -75,6 +79,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     name: "Alex Morgan",
     workspace: "Personal workspace",
   });
+  const [session, setSession] = useState<Session | null>(null);
   const [wallet, setWallet] = useState("");
   const [walletChain, setWalletChain] = useState("");
   const [walletError, setWalletError] = useState("");
@@ -91,6 +96,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const p = JSON.parse(raw);
         if (typeof p.name === "string" && typeof p.workspace === "string")
           setProfile(p);
+      }
+      const rawSession = localStorage.getItem(SESSION_KEY);
+      if (rawSession) {
+        const s = JSON.parse(rawSession);
+        if (typeof s.name === "string" && typeof s.identifier === "string")
+          setSession(s);
       }
     } catch (e) {
       setStorageError(
@@ -169,6 +180,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setConnecting(false);
     }
   }
+  function signIn(next: Session) {
+    setSession(next);
+    setProfile((p) => ({ ...p, name: next.name }));
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify(next));
+      const raw = localStorage.getItem("fm:profile");
+      const p = raw ? JSON.parse(raw) : { workspace: "Personal workspace" };
+      localStorage.setItem("fm:profile", JSON.stringify({ ...p, name: next.name }));
+    } catch {
+      /* session stays in memory for this visit */
+    }
+  }
+  function signOut() {
+    setSession(null);
+    setWallet("");
+    setWalletChain("");
+    try {
+      localStorage.removeItem(SESSION_KEY);
+    } catch {
+      /* nothing persisted */
+    }
+  }
   function toggleTheme() {
     const next = theme === "dark" ? "light" : "dark";
     setTheme(next);
@@ -224,6 +257,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setWallet("");
           setWalletChain("");
         },
+        session,
+        signIn,
+        signOut,
         toast: setMessage,
         orderToast: {
           start: startOrderToast,

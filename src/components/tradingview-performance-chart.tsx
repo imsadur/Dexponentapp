@@ -73,16 +73,16 @@ export function TradingViewPerformanceChart({
       handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: true },
     });
     series = chart.addSeries(AreaSeries, {
-      lineColor: "#8b8dff",
-      topColor: "rgba(139, 141, 255, .28)",
-      bottomColor: "rgba(139, 141, 255, .015)",
+      lineColor: "#3dc486",
+      topColor: "rgba(61, 196, 134, .28)",
+      bottomColor: "rgba(61, 196, 134, .015)",
       lineWidth: 2,
       priceLineVisible: true,
       lastValueVisible: true,
       crosshairMarkerVisible: true,
       crosshairMarkerRadius: 5,
       crosshairMarkerBorderColor: "#111116",
-      crosshairMarkerBackgroundColor: "#a5a7ff",
+      crosshairMarkerBackgroundColor: "#6fd8a7",
       priceFormat: { type: "price", precision: 2, minMove: 0.01 },
     });
     series.setData(chartData(points, days));
