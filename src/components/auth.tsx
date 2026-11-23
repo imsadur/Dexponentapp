@@ -31,6 +31,7 @@ import {
 } from "@phosphor-icons/react";
 import { useApp } from "./provider";
 import { AnimatedValue, money } from "./ui";
+import { safeReturnPath } from "@/domain/access";
 import {
   createAccount,
   findByEmail,
@@ -90,6 +91,13 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
   const [method, setMethod] = useState<AuthMethod>("email");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  // Where to go after auth. Read on the client so the static page needs no Suspense.
+  const [returnTo, setReturnTo] = useState<string | null>(null);
+  useEffect(() => {
+    setReturnTo(safeReturnPath(new URLSearchParams(window.location.search).get("next")));
+  }, []);
+  const destination = returnTo || DASHBOARD;
+  const withNext = (path: string) => (returnTo ? `${path}?next=${encodeURIComponent(returnTo)}` : path);
 
   // Shared form state
   const [name, setName] = useState("");
@@ -118,7 +126,7 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
   };
   const finish = (welcome: string) => {
     app.toast(welcome);
-    router.push(DASHBOARD);
+    router.push(destination);
   };
   const run = async (fn: () => Promise<void> | void) => {
     setError("");
@@ -232,7 +240,7 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
   const step = view === "ready" || view === "creating" ? 1 : view === "activate" ? 3 : 2;
   let topRight: ReactNode = null;
   if (view === "signup")
-    topRight = <>Already have an account? <Link href="/login/">Sign in</Link></>;
+    topRight = <>Already have an account? <Link href={withNext("/login/")}>Sign in</Link></>;
   if (view === "activate")
     topRight = <button type="button" onClick={() => finish(`Welcome to Dexponent, ${firstName(name)}`)}>Skip</button>;
 
@@ -244,7 +252,7 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
         <span className="auth-badge"><SealCheck size={26} weight="duotone" /></span>
         <h1>You&apos;re already signed in</h1>
         <p className="auth-sub">Signed in as {app.session.identifier}.</p>
-        <Link href={DASHBOARD} className="auth-primary">Open workspace <ArrowRight size={16} /></Link>
+        <Link href={destination} className="auth-primary">{returnTo ? "Continue" : "Open workspace"} <ArrowRight size={16} /></Link>
         <button type="button" className="auth-outline" onClick={app.signOut}>Use a different account</button>
       </section>
     );
@@ -273,7 +281,7 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
         <SubmitButton busy={busy}>{method === "email" ? "Sign in" : "Send OTP"}</SubmitButton>
         <Divider>or continue with</Divider>
         <WalletButton />
-        <p className="auth-switch">New to Dexponent? <Link href="/signup/">Create an account</Link></p>
+        <p className="auth-switch">New to Dexponent? <Link href={withNext("/signup/")}>Create an account</Link></p>
         <Link href={DASHBOARD} className="auth-demo">Explore the demo workspace <ArrowRight size={13} /></Link>
       </form>
     );

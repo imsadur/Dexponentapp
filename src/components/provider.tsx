@@ -1,4 +1,5 @@
 "use client";
+export type ThemePreference = "light" | "dark" | "system";
 import {
   CheckCircle,
   Info,
@@ -44,6 +45,8 @@ type Context = {
   deleteFarm: (id: string) => void;
   reset: () => void;
   theme: string;
+  themePreference: ThemePreference;
+  setThemePreference: (preference: ThemePreference) => void;
   toggleTheme: () => void;
   profile: User;
   saveProfile: (user: User) => void;
@@ -74,7 +77,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [farms, setFarms] = useState<Farm[]>([]);
   const [ready, setReady] = useState(false);
   const [storageError, setStorageError] = useState("");
-  const [theme, setTheme] = useState("dark");
+  const [themePreference, setThemePreferenceState] = useState<ThemePreference>("dark");
+  const [systemTheme, setSystemTheme] = useState<"light" | "dark">("dark");
+  const theme = themePreference === "system" ? systemTheme : themePreference;
   const [profile, setProfile] = useState<User>({
     name: "Alex Morgan",
     workspace: "Personal workspace",
@@ -89,8 +94,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       setFarms(localDataAdapter.read());
-      const theme = localStorage.getItem("fm:theme");
-      if (theme === "light") setTheme("light");
+      const storedTheme = localStorage.getItem("fm:theme");
+      if (storedTheme === "light" || storedTheme === "system")
+        setThemePreferenceState(storedTheme);
       const raw = localStorage.getItem("fm:profile");
       if (raw) {
         const p = JSON.parse(raw);
@@ -114,6 +120,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-color-scheme: light)");
+    const sync = () => setSystemTheme(query.matches ? "light" : "dark");
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
   useEffect(() => {
     if (!message) return;
     const timer = setTimeout(() => setMessage(""), 4500);
@@ -203,8 +216,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
   function toggleTheme() {
-    const next = theme === "dark" ? "light" : "dark";
-    setTheme(next);
+    setThemePreference(theme === "dark" ? "light" : "dark");
+  }
+  function setThemePreference(next: ThemePreference) {
+    setThemePreferenceState(next);
     try {
       localStorage.setItem("fm:theme", next);
     } catch {
@@ -245,6 +260,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         deleteFarm: (id) => persist(farms.filter((f) => f.id !== id)),
         reset: () => persist(seedFarms()),
         theme,
+        themePreference,
+        setThemePreference,
         toggleTheme,
         profile,
         saveProfile,

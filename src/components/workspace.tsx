@@ -32,12 +32,14 @@ import {
   ChartDonut as LayoutDashboard,
   Leaf,
   List as Menu,
+  Monitor,
   Moon,
   Graph as Network,
   Plus,
   MagnifyingGlass as Search,
   GearSix as Settings,
   Shield,
+  ShieldCheck,
   SignOut,
   SlidersHorizontal,
   Sun,
@@ -111,6 +113,9 @@ import {
 } from "./ui";
 import { useApp } from "./provider";
 import { Wizard } from "./wizard";
+import { SupportCenter } from "./support-center";
+import { DtfStrategies } from "./dtf-strategies";
+import { DtfAccess } from "./dtf-access";
 import { TradingViewPerformanceChart } from "./tradingview-performance-chart";
 
 const legacyNav = [
@@ -125,6 +130,8 @@ const nav = [
   { label: "Dashboard", section: "dashboard", href: "/app/dashboard", icon: LayoutDashboard },
   { label: "Managed Farms", section: "farms", href: "/app/farms", icon: Leaf },
   { label: "Positions", section: "positions", href: "/app/positions", icon: Briefcase },
+  { label: "Strategies", section: "strategies", href: "/app/strategies", icon: Compass },
+  { label: "DTF Access", section: "access", href: "/app/access", icon: ShieldCheck },
   { label: "Templates", section: "templates", href: "/app/templates", icon: Grid2X2 },
   { label: "Metrics", section: "analytics", href: "/app/analytics", icon: Activity },
 ];
@@ -135,6 +142,7 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
   const app = useApp();
   const [menu, setMenu] = useState(false);
   const [modal, setModal] = useState("");
+  const [supportOpen, setSupportOpen] = useState(false);
   const [network, setNetwork] = useState("All Chains");
   const [profileMenu, setProfileMenu] = useState(false);
   const [utilityMenu, setUtilityMenu] = useState(false);
@@ -187,6 +195,8 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
     );
   else if (section === "trade")
     content = <TradingDashboard farmId={queryFarmId} initialPair={queryMarket} />;
+  else if (section === "strategies" && isV2) content = <DtfStrategies network={network} />;
+  else if (section === "access") content = <DtfAccess />;
   else if (section === "templates" || section === "strategies")
     content = (
       <TemplateLibrary strategies={section === "strategies"} id={segments[2]} />
@@ -248,7 +258,7 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
             Documentation
             <ArrowUpRight size={13} />
           </Link>
-          <button onClick={() => setModal("support")}>
+          <button onClick={() => setSupportOpen(true)}>
             <CircleHelp size={17} />
             Support
           </button>
@@ -474,12 +484,11 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
                 </button>
                 {utilityMenu && (
                   <div className="utility-menu" role="menu">
-                    <span>Dexponent</span>
                     <a href="https://dexponent.com/aboutus" target="_blank" rel="noreferrer" role="menuitem"><Buildings size={17} /> Company</a>
                     <a href="https://docs.dexponent.com/" target="_blank" rel="noreferrer" role="menuitem"><BookOpen size={17} /> Resources</a>
                     <a href="https://docs.dexponent.com/" target="_blank" rel="noreferrer" role="menuitem"><FileText size={17} /> Documentation</a>
-                    <button className="utility-support" role="menuitem" onClick={() => { setUtilityMenu(false); setModal("support"); }}><Lifebuoy size={17} /> Help &amp; support</button>
-                    <div className="utility-legal"><a href="https://dexponent.com/privacy" target="_blank" rel="noreferrer">Privacy Policy</a><span>|</span><a href="https://dexponent.com/terms" target="_blank" rel="noreferrer">Terms of Use</a></div>
+                    <button className="utility-support" role="menuitem" onClick={() => { setUtilityMenu(false); setSupportOpen(true); }}><Lifebuoy size={17} /> Help &amp; support</button>
+                    <hr className="utility-divider" />
                     <span>Join Dexponent</span>
                     <div className="utility-socials">
                       <a href="https://discord.com/invite/yermEKz6rc" target="_blank" rel="noreferrer" aria-label="Dexponent on Discord"><DiscordLogo size={20} /></a>
@@ -487,6 +496,25 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
                       <a href="https://x.com/Dexponentx" target="_blank" rel="noreferrer" aria-label="Dexponent on X"><XLogo size={20} /></a>
                       <a href="https://www.linkedin.com/company/dexponent/" target="_blank" rel="noreferrer" aria-label="Dexponent on LinkedIn"><LinkedinLogo size={20} /></a>
                       <a href="https://www.reddit.com/r/Dexponent_Official/" target="_blank" rel="noreferrer" aria-label="Dexponent on Reddit"><RedditLogo size={20} /></a>
+                    </div>
+                    <hr className="utility-divider" />
+                    <span id="utility-theme-label">Theme</span>
+                    <div className="utility-theme" role="radiogroup" aria-labelledby="utility-theme-label">
+                      {([
+                        ["light", "Light", Sun],
+                        ["dark", "Dark", Moon],
+                        ["system", "System", Monitor],
+                      ] as const).map(([value, label, Icon]) => (
+                        <button
+                          key={value}
+                          role="radio"
+                          aria-checked={app.themePreference === value}
+                          className={app.themePreference === value ? "active" : ""}
+                          onClick={() => app.setThemePreference(value)}
+                        >
+                          <Icon size={14} weight={app.themePreference === value ? "fill" : "regular"} /> {label}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -538,11 +566,9 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
           title={
             modal === "wallet"
               ? "Connect your wallet"
-              : modal === "notifications"
-                ? "Notifications"
-                : modal === "add-user"
-                  ? "Add a workspace user"
-                : "Workspace support"
+              : modal === "add-user"
+                ? "Add a workspace user"
+                : "Notifications"
           }
           onClose={() => setModal("")}
         >
@@ -611,31 +637,15 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
                 are disabled in this prototype.
               </Notice>
             </>
-          ) : modal === "notifications" ? (
+          ) : (
             <EmptyState
               title="You’re all caught up"
               description="Saved drafts and preview results appear in your farms. Live monitoring notifications will arrive after integration."
             />
-          ) : (
-            <>
-              <p>
-                Everything you need to explore this prototype is in the
-                workspace guide.
-              </p>
-              <Link
-                className="button primary full"
-                href="/app/resources"
-                onClick={() => setModal("")}
-              >
-                Open workspace guide <ArrowRight size={16} />
-              </Link>
-              <Notice>
-                This local prototype has no support messaging service connected.
-              </Notice>
-            </>
           )}
         </Modal>
       )}
+      <SupportCenter open={supportOpen} onOpenChange={setSupportOpen} />
     </div>
   );
 }

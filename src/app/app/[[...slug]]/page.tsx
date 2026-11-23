@@ -23,6 +23,7 @@ const staticRoutes = [
   ["settings", "team"],
   ["settings", "security"],
   ["resources"],
+  ["access"],
   ...templates.map((template) => ["templates", template.id]),
 ];
 
