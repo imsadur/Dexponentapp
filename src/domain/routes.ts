@@ -20,3 +20,7 @@ export function farmTradeHref(id: string, market?: string) {
   const pair = market ? `&market=${encodeURIComponent(market)}` : "";
   return `/app/trade/?farm=${encodeURIComponent(id)}${pair}`;
 }
+
+export function strategyHref(id: string) {
+  return `/app/strategies/view/?dtf=${encodeURIComponent(id)}`;
+}

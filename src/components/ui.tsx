@@ -103,6 +103,7 @@ export function NetworkIcon({ network, size = 24 }: { network: string; size?: nu
     Arbitrum: "/brand/chains/arbitrum.png",
     Base: "/brand/chains/base.svg",
     Ethereum: "/brand/chains/ethereum.png",
+    Solana: "/brand/chains/solana.svg",
   };
   return (
     <span

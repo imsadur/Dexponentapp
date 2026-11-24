@@ -55,17 +55,24 @@ type Context = {
   walletError: string;
   connecting: boolean;
   connect: () => Promise<void>;
+  /** Connects a clearly labelled demo address when no browser wallet is available. Nothing is signed. */
+  connectDemo: () => void;
   disconnect: () => void;
   session: Session | null;
   signIn: (session: Session) => void;
   signOut: () => void;
   toast: (text: string) => void;
+  /** Top-right notification with a title and optional detail line. */
+  notify: (notice: Omit<Notice, "id">) => void;
   orderToast: {
     start: (order: OrderToastOrder, initialStatus?: OrderToastEvent["status"]) => string;
     update: (id: string, event: OrderToastEvent) => void;
     dismiss: (id: string) => void;
   };
 };
+export type Notice = { id: string; kind: "success" | "error"; title: string; body?: string; meta?: string };
+const DEMO_WALLET = "0xDe30000000000000000000000000000000d3m0";
+const DEMO_WALLET_KEY = "fm:demo-wallet";
 type OrderToastRecord = { id: string; order: OrderToastOrder; event: OrderToastEvent; view: OrderToastView };
 const AppContext = createContext<Context | null>(null);
 export function useApp() {
@@ -91,6 +98,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [connecting, setConnecting] = useState(false);
   const [message, setMessage] = useState("");
   const [orderToasts, setOrderToasts] = useState<OrderToastRecord[]>([]);
+  const [notices, setNotices] = useState<Notice[]>([]);
+  const dismissNotice = useCallback((id: string) => setNotices((list) => list.filter((n) => n.id !== id)), []);
+  const notify = useCallback((notice: Omit<Notice, "id">) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    setNotices((list) => [...list.slice(-2), { ...notice, id }]);
+  }, []);
   useEffect(() => {
     try {
       setFarms(localDataAdapter.read());
@@ -102,6 +115,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const p = JSON.parse(raw);
         if (typeof p.name === "string" && typeof p.workspace === "string")
           setProfile(p);
+      }
+      if (localStorage.getItem(DEMO_WALLET_KEY) === "1") {
+        setWallet(DEMO_WALLET);
+        setWalletChain("Demo");
       }
       const rawSession = localStorage.getItem(SESSION_KEY);
       if (rawSession) {
@@ -270,14 +287,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
         walletError,
         connecting,
         connect,
+        connectDemo: () => {
+          setWalletError("");
+          setWallet(DEMO_WALLET);
+          setWalletChain("Demo");
+          try {
+            localStorage.setItem(DEMO_WALLET_KEY, "1");
+          } catch {
+            /* demo wallet lasts for this visit only */
+          }
+        },
         disconnect: () => {
           setWallet("");
           setWalletChain("");
+          try {
+            localStorage.removeItem(DEMO_WALLET_KEY);
+          } catch {
+            /* nothing stored */
+          }
         },
         session,
         signIn,
         signOut,
         toast: setMessage,
+        notify,
         orderToast: {
           start: startOrderToast,
           update: updateOrderToast,
@@ -291,10 +324,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
           {message}
         </div>
       )}
+      <div className="notice-stack" aria-label="Notifications">
+        {notices.map((notice) => <NoticeItem key={notice.id} notice={notice} dismiss={dismissNotice} />)}
+      </div>
       <div className="order-toast-stack" aria-label="Order updates">
         {orderToasts.map((toast) => <OrderToastItem key={toast.id} toast={toast} dismiss={dismissOrderToast} />)}
       </div>
     </AppContext.Provider>
+  );
+}
+
+function NoticeItem({ notice, dismiss }: { notice: Notice; dismiss: (id: string) => void }) {
+  useEffect(() => {
+    const timer = window.setTimeout(() => dismiss(notice.id), 6000);
+    return () => window.clearTimeout(timer);
+  }, [dismiss, notice.id]);
+  return (
+    <section className={`notice ${notice.kind}`} role={notice.kind === "error" ? "alert" : "status"}>
+      {notice.kind === "success" ? <CheckCircle size={20} weight="fill" /> : <XCircle size={20} weight="fill" />}
+      <div>
+        <strong>{notice.title}</strong>
+        {notice.body && <p>{notice.body}</p>}
+        {notice.meta && <code>{notice.meta}</code>}
+      </div>
+      <button type="button" aria-label="Dismiss notification" onClick={() => dismiss(notice.id)}><X size={15} /></button>
+    </section>
   );
 }
 

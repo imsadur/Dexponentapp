@@ -1,59 +1,63 @@
 "use client";
-import {
-  ArrowRight,
-  CaretRight,
-  Info,
-  ListBullets,
-  MagnifyingGlass,
-  ShieldWarning,
-  SquaresFour,
-  X,
-} from "@phosphor-icons/react";
+import { ArrowRight, CaretRight, ListBullets, MagnifyingGlass, SquaresFour, Wallet } from "@phosphor-icons/react";
 import Link from "next/link";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DTF_PAGE_SIZE,
-  demoDtfCatalogue,
-  dtfFromFarm,
+  dtfDirectory,
+  dtfReturn24h,
   dtfTotals,
+  dtfUtilization,
   filterDtfs,
   sortDtfs,
   type DtfSort,
   type PublicDtf,
 } from "@/domain/dtf";
-import { farmDetailHref } from "@/domain/routes";
-import type { RiskLevel, StrategyType } from "@/domain/strategy";
+import { portfolioSummary, positionValue, type DtfPortfolio } from "@/domain/dtf-portfolio";
+import { strategyHref } from "@/domain/routes";
+import type { StrategyType } from "@/domain/strategy";
+import {
+  AssetStack,
+  DtfLogo,
+  DtfAge,
+  Return24h,
+  TargetPace,
+  signedPct,
+  signedUsd,
+  typeLabel,
+  usd,
+  UtilizationBar,
+} from "./dtf-shared";
 import { useApp } from "./provider";
-import { AssetIcon, EmptyState, NetworkIcon, PageHeading, Risk, StrategyIcon, money } from "./ui";
+import { useDtfPortfolio } from "./use-dtf-portfolio";
+import { EmptyState, NetworkIcon, PageHeading, money } from "./ui";
 
-const typeLabel: Record<StrategyType, string> = { INDEX: "Index", SPOT: "Spot", PERPETUAL: "Perpetual" };
 const typeFilters: (StrategyType | "ALL")[] = ["ALL", "INDEX", "SPOT", "PERPETUAL"];
-
-const riskReason: Record<RiskLevel, string> = {
-  LOW: "Mostly stablecoin exposure. Main risks are stablecoin de-pegs and smart contract or protocol failures.",
-  MEDIUM: "Exposure to volatile assets or moderate leverage. Expect meaningful drawdowns in weak markets.",
-  HIGH: "Concentrated or leveraged exposure. Value can fall quickly, and liquidity may be limited during stress.",
-  CRITICAL: "Highly leveraged or directional. Losses can be large and fast, and a full loss of capital is possible.",
-};
-
-function flowFor(dtf: PublicDtf) {
-  const held = dtf.assets.filter((a) => a !== dtf.baseAsset).slice(0, 3).join(" / ") || dtf.baseAsset;
-  if (dtf.type === "INDEX") return [dtf.baseAsset, "Allocation", held, "Rebalance"];
-  if (dtf.type === "SPOT") return [dtf.baseAsset, "Protocol", "Yield", "Compound"];
-  return [dtf.baseAsset, "Margin", `${held} PERP`, "Hedge", "Funding"];
-}
-
 const VIEW_KEY = "fm:strategies-view";
 
-const pct = (value: number) => `${value > 0 ? "+" : ""}${value.toFixed(2)}%`;
+type Holding = { value: number; earned: number };
+
+function holdingsFor(dtfs: PublicDtf[], portfolio: DtfPortfolio) {
+  const now = Date.now();
+  const map = new Map<string, Holding>();
+  for (const dtf of dtfs) {
+    const position = portfolio.positions[dtf.id];
+    if (!position) continue;
+    const value = positionValue(position, dtf.apy7d, now);
+    map.set(dtf.id, { value, earned: value - position.costBasis });
+  }
+  return map;
+}
 
 export function DtfStrategies({ network }: { network: string }) {
   const app = useApp();
+  const { portfolio, signedIn } = useDtfPortfolio();
   const [sort, setSort] = useState<DtfSort>("trending");
   const [type, setType] = useState<StrategyType | "ALL">("ALL");
   const [query, setQuery] = useState("");
+  const [mine, setMine] = useState(false);
   const [visible, setVisible] = useState(DTF_PAGE_SIZE);
-  const [selected, setSelected] = useState<PublicDtf | null>(null);
   const [view, setView] = useState<"grid" | "list">("grid");
 
   useEffect(() => {
@@ -72,46 +76,62 @@ export function DtfStrategies({ network }: { network: string }) {
     }
   }
 
-  const all = useMemo(
-    () => [
-      ...app.farms
-        .filter((farm) => farm.status === "ACTIVE")
-        .map((farm) => dtfFromFarm(farm, app.profile.name)),
-      ...demoDtfCatalogue,
-    ],
-    [app.farms, app.profile.name],
-  );
+  const all = useMemo(() => dtfDirectory(app.farms, app.profile.name), [app.farms, app.profile.name]);
+  const holdings = useMemo(() => holdingsFor(all, portfolio), [all, portfolio]);
+  const [now] = useState(() => Date.now());
+  const returns = useMemo(() => new Map(all.map((d) => [d.id, dtfReturn24h(d, now)])), [all, now]);
   const onNetwork = filterDtfs(all, { network });
-  const results = sortDtfs(filterDtfs(onNetwork, { query, type }), sort);
-  const totals = dtfTotals(onNetwork);
+  const results = sortDtfs(filterDtfs(onNetwork, { query, type }), sort, now).filter((d) => !mine || holdings.has(d.id));
+  const totals = dtfTotals(onNetwork, now);
+  const summary = useMemo(() => portfolioSummary(portfolio, all, now), [portfolio, all, now]);
   const shown = results.slice(0, visible);
 
-  useEffect(() => setVisible(DTF_PAGE_SIZE), [query, type, sort, network]);
+  useEffect(() => setVisible(DTF_PAGE_SIZE), [query, type, sort, network, mine]);
 
   return (
     <>
-      <PageHeading
-        eyebrow="LIQUIDITY PROVIDER"
-        title="Strategies"
-        description="Explore public DTFs on Dexponent and find a strategy that fits your capital."
-      />
-      <section className="dtf-hero" aria-label="Strategy directory summary">
-        <div>
-          <h2>Onchain funds, run in the open</h2>
-          <p>Compare each DTF&apos;s strategy, holdings, risk, and performance before you deposit.</p>
-        </div>
-        <dl>
-          <div><dt>Demo TVL</dt><dd>{money(totals.tvl, true)}</dd></div>
-          <div><dt>Public DTFs</dt><dd>{totals.count}</dd></div>
-          <div><dt>Managers</dt><dd>{totals.managers}</dd></div>
-        </dl>
-      </section>
+      <PageHeading title="Dexponent DTFs" description="Yield strategies managed by DTF Asset Managers." />
+      <div className={`dtf-overview ${summary.rows.length ? "with-yours" : ""}`}>
+        <section className="dtf-stats" aria-labelledby="dtf-stats-title">
+          <header>
+            <h2 id="dtf-stats-title">Stats</h2>
+          </header>
+          <dl>
+            <div><dt>Total deposits</dt><dd>{money(totals.tvl, true)}</dd></div>
+            <div><dt>Total volume</dt><dd>{money(totals.volume, true)}</dd></div>
+            <div><dt>Active DTFs</dt><dd>{totals.count}</dd></div>
+            <div><dt>Asset Managers</dt><dd>{totals.managers}</dd></div>
+          </dl>
+          <p>Demo data{network === "All Chains" ? "" : ` · ${network}`} · not live on-chain</p>
+        </section>
+        {summary.rows.length > 0 && (
+          <section className="dtf-yours" aria-labelledby="dtf-yours-title">
+            <header>
+              <h2 id="dtf-yours-title">Your positions <span>{summary.rows.length}</span></h2>
+              <Link className="dtf-yours-link" href="/app/positions/#dtf-positions" aria-label="View your positions">
+                <ArrowRight size={16} />
+              </Link>
+            </header>
+            <dl>
+              <div><dt>Value</dt><dd>{usd(summary.value)}</dd></div>
+              <div><dt>Total yield</dt><dd className={summary.totalYield < 0 ? "negative" : "positive"}>{signedUsd(summary.totalYield)}</dd></div>
+              <div>
+                <dt>P&amp;L</dt>
+                <dd className={summary.pnl < 0 ? "negative" : "positive"}>
+                  {signedUsd(summary.pnl)} <small>{signedPct(summary.pnlPct)}</small>
+                </dd>
+              </div>
+            </dl>
+            <p>Simulated</p>
+          </section>
+        )}
+      </div>
       <div className="dtf-toolbar">
         <div className="dtf-filters">
           <div className="dtf-segment" role="group" aria-label="Sort strategies">
             {(["trending", "top"] as DtfSort[]).map((value) => (
               <button key={value} aria-pressed={sort === value} onClick={() => setSort(value)}>
-                {value === "trending" ? "Trending" : "Top performing"}
+                {value === "trending" ? "Trending" : "Top 24H return"}
               </button>
             ))}
           </div>
@@ -122,36 +142,43 @@ export function DtfStrategies({ network }: { network: string }) {
               </button>
             ))}
           </div>
+          {signedIn && (
+            <button className="dtf-mine" aria-pressed={mine} onClick={() => setMine((on) => !on)}>
+              <Wallet size={15} /> My positions{holdings.size > 0 && <span>{holdings.size}</span>}
+            </button>
+          )}
         </div>
         <div className="dtf-toolbar-end">
-        <div className="dtf-segment dtf-view" role="group" aria-label="Layout">
-          <button aria-pressed={view === "grid"} aria-label="Grid view" title="Grid view" onClick={() => changeView("grid")}>
-            <SquaresFour size={16} weight={view === "grid" ? "fill" : "regular"} />
-          </button>
-          <button aria-pressed={view === "list"} aria-label="List view" title="List view" onClick={() => changeView("list")}>
-            <ListBullets size={16} weight={view === "list" ? "bold" : "regular"} />
-          </button>
-        </div>
-        <label className="dtf-search">
-          <MagnifyingGlass size={16} />
-          <span className="sr-only">Search strategies</span>
-          <input
-            type="search"
-            placeholder="Search tokens, asset, chain, manager"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </label>
+          <div className="dtf-segment dtf-view" role="group" aria-label="Layout">
+            <button aria-pressed={view === "grid"} aria-label="Grid view" title="Grid view" onClick={() => changeView("grid")}>
+              <SquaresFour size={16} weight={view === "grid" ? "fill" : "regular"} />
+            </button>
+            <button aria-pressed={view === "list"} aria-label="List view" title="List view" onClick={() => changeView("list")}>
+              <ListBullets size={16} weight={view === "list" ? "bold" : "regular"} />
+            </button>
+          </div>
+          <label className="dtf-search">
+            <MagnifyingGlass size={16} />
+            <span className="sr-only">Search strategies</span>
+            <input
+              type="search"
+              placeholder="Search name, $ticker, asset, chain"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </label>
         </div>
       </div>
       {shown.length ? (
         view === "grid" ? (
           <div className="dtf-grid">
-            {shown.map((dtf) => <DtfCard key={dtf.id} dtf={dtf} onOpen={() => setSelected(dtf)} />)}
+            {shown.map((dtf) => <DtfCard key={dtf.id} dtf={dtf} ret={returns.get(dtf.id)!} now={now} holding={holdings.get(dtf.id)} />)}
           </div>
         ) : (
-          <DtfTable dtfs={shown} onOpen={setSelected} />
+          <DtfTable dtfs={shown} returns={returns} now={now} holdings={holdings} />
         )
+      ) : mine ? (
+        <EmptyState title="No positions yet" description="Open a strategy and make a demo deposit to track it here." />
       ) : (
         <EmptyState
           title="No strategies match"
@@ -167,68 +194,64 @@ export function DtfStrategies({ network }: { network: string }) {
         </div>
       )}
       <p className="dtf-footnote">
-        <span className="dtf-dot" /> Demo data · not live on-chain. Figures are illustrative and are not performance claims.
+        <span className="dtf-dot" /> Demo data · not live on-chain. 24H return is simulated after fees. Target APR is the manager&apos;s goal, not a forecast or guarantee. Positions are simulated.
       </p>
-      {selected && <DtfQuickView dtf={selected} onClose={() => setSelected(null)} />}
     </>
   );
 }
 
-function DtfLogo({ dtf, size = "md" }: { dtf: PublicDtf; size?: "md" | "lg" }) {
-  const app = useApp();
-  const icon = dtf.farmId ? app.farms.find((farm) => farm.id === dtf.farmId)?.icon : undefined;
+function PositionValue({ holding }: { holding?: Holding }) {
+  if (!holding) return <span className="muted">—</span>;
   return (
-    <span className={`dtf-logo ${dtf.type.toLowerCase()} ${size}`}>
-      {icon ? <img src={icon} alt="" /> : <StrategyIcon type={dtf.type} size={size === "lg" ? 22 : 18} />}
+    <span className="dtf-position-value">
+      {usd(holding.value)}
+      {Math.abs(holding.earned) >= 0.01 && (
+        <small className={holding.earned < 0 ? "negative" : "positive"}>
+          {holding.earned < 0 ? "−" : "+"}{usd(Math.abs(holding.earned))}
+        </small>
+      )}
     </span>
   );
 }
 
-function AssetStack({ assets, max = 5 }: { assets: string[]; max?: number }) {
-  const extra = assets.length - max;
+function DtfCard({ dtf, ret, now, holding }: { dtf: PublicDtf; ret: number; now: number; holding?: Holding }) {
   return (
-    <span className="dtf-assets" aria-label={`Holdings: ${assets.join(", ")}`}>
-      {assets.slice(0, max).map((asset) => <AssetIcon key={asset} symbol={asset} size={22} />)}
-      {extra > 0 && <span className="dtf-assets-more">+{extra}</span>}
-    </span>
-  );
-}
-
-function DtfCard({ dtf, onOpen }: { dtf: PublicDtf; onOpen: () => void }) {
-  return (
-    <article className="dtf-card">
-      <div className="dtf-card-top">
+    <article className={`dtf-card ${holding ? "held" : ""}`}>
+      <header className="dtf-card-head">
         <DtfLogo dtf={dtf} />
-        <span className={`dtf-type ${dtf.type.toLowerCase()}`}>{typeLabel[dtf.type]}</span>
-      </div>
-      <h2>
-        <button className="dtf-card-link" onClick={onOpen}>{dtf.name}</button>
-      </h2>
-      <p className="dtf-card-desc">{dtf.description}</p>
-      <dl className="dtf-card-metrics">
-        <div><dt>TVL</dt><dd>{money(dtf.tvl, true)}</dd></div>
-        <div>
-          <dt>APY</dt>
-          <dd className={dtf.apy === null ? "" : dtf.apy < 0 ? "negative" : "positive"}>
-            {dtf.apy === null ? <span title="Not enough history to report APY">—</span> : `${dtf.apy.toFixed(2)}%`}
-          </dd>
+        <div className="dtf-card-title">
+          <h2><Link className="dtf-card-link" href={strategyHref(dtf.id)}>{dtf.name}</Link></h2>
+          <p>
+            <span className="dtf-ticker">${dtf.symbol}</span>
+            <span className={`dtf-type ${dtf.type.toLowerCase()}`}>{typeLabel[dtf.type]}</span>
+          </p>
         </div>
-        <div><dt>Base</dt><dd>{dtf.baseAsset}</dd></div>
-      </dl>
-      <div className="dtf-card-foot">
-        <AssetStack assets={dtf.assets} />
-        <span className="dtf-network"><NetworkIcon network={dtf.network} size={14} /> {dtf.network}</span>
+      </header>
+      <div className="dtf-card-apy">
+        <div>
+          <span>24H return</span>
+          <Return24h value={ret} />
+        </div>
+        <div className="dtf-card-target">
+          <span>Target APR</span>
+          <strong>{dtf.targetApr.toFixed(2)}%</strong>
+        </div>
       </div>
+      <TargetPace ret={ret} targetApr={dtf.targetApr} />
+      <UtilizationBar dtf={dtf} />
+      <dl className="dtf-card-rows">
+        <div><dt>Deposits</dt><dd>{money(dtf.tvl, true)}</dd></div>
+        <div><dt>Holds</dt><dd className="dtf-card-holds"><AssetStack assets={dtf.assets} max={4} size={18} /></dd></div>
+        <div><dt>Network</dt><dd className="dtf-network"><NetworkIcon network={dtf.network} size={14} /> {dtf.network}</dd></div>
+        <div><dt>Age</dt><dd><DtfAge launchedAt={dtf.launchedAt} now={now} /></dd></div>
+        <div className="dtf-card-position"><dt>Your position</dt><dd><PositionValue holding={holding} /></dd></div>
+      </dl>
     </article>
   );
 }
 
-function ApyValue({ apy }: { apy: number | null }) {
-  if (apy === null) return <span title="Not enough history to report APY">—</span>;
-  return <span className={apy < 0 ? "negative" : ""}>{apy.toFixed(2)}%</span>;
-}
-
-function DtfTable({ dtfs, onOpen }: { dtfs: PublicDtf[]; onOpen: (dtf: PublicDtf) => void }) {
+function DtfTable({ dtfs, returns, now, holdings }: { dtfs: PublicDtf[]; returns: Map<string, number>; now: number; holdings: Map<string, Holding> }) {
+  const router = useRouter();
   return (
     <div className="dtf-table-wrap">
       <table className="dtf-table">
@@ -236,34 +259,39 @@ function DtfTable({ dtfs, onOpen }: { dtfs: PublicDtf[]; onOpen: (dtf: PublicDtf
           <tr>
             <th scope="col">Strategy</th>
             <th scope="col">Type</th>
-            <th scope="col" className="numeric">TVL</th>
-            <th scope="col" className="numeric">APY</th>
-            <th scope="col" className="numeric">30D</th>
-            <th scope="col">Risk</th>
-            <th scope="col">Holdings</th>
-            <th scope="col">Network</th>
-            <th scope="col"><span className="sr-only">Details</span></th>
+            <th scope="col" className="numeric">24H return</th>
+            <th scope="col" className="numeric">Target APR</th>
+            <th scope="col" className="numeric">Deposits</th>
+            <th scope="col">Utilization</th>
+            <th scope="col">Age</th>
+            <th scope="col" className="numeric">Your position</th>
+            <th scope="col"><span className="sr-only">Open</span></th>
           </tr>
         </thead>
         <tbody>
           {dtfs.map((dtf) => (
-            <tr key={dtf.id} onClick={() => onOpen(dtf)}>
+            <tr key={dtf.id} onClick={() => router.push(strategyHref(dtf.id))}>
               <td>
                 <span className="dtf-row-name">
                   <DtfLogo dtf={dtf} />
                   <span>
-                    <button className="dtf-row-link" onClick={(event) => { event.stopPropagation(); onOpen(dtf); }}>{dtf.name}</button>
-                    <small>{dtf.manager} · {dtf.baseAsset}</small>
+                    <Link className="dtf-row-link" href={strategyHref(dtf.id)} onClick={(event) => event.stopPropagation()}>{dtf.name}</Link>
+                    <small><span className="dtf-ticker">${dtf.symbol}</span> · <NetworkIcon network={dtf.network} size={11} /> {dtf.network}</small>
                   </span>
                 </span>
               </td>
               <td><span className={`dtf-type ${dtf.type.toLowerCase()}`}>{typeLabel[dtf.type]}</span></td>
+              <td className="numeric"><Return24h value={returns.get(dtf.id)!} /></td>
+              <td className="numeric">{dtf.targetApr.toFixed(2)}%</td>
               <td className="numeric">{money(dtf.tvl, true)}</td>
-              <td className="numeric"><ApyValue apy={dtf.apy} /></td>
-              <td className={`numeric ${dtf.change30d < 0 ? "negative" : "positive"}`}>{pct(dtf.change30d)}</td>
-              <td><Risk level={dtf.risk} /></td>
-              <td><AssetStack assets={dtf.assets} max={4} /></td>
-              <td><span className="dtf-network"><NetworkIcon network={dtf.network} size={14} /> {dtf.network}</span></td>
+              <td>
+                <span className="dtf-row-util">
+                  <UtilizationBar dtf={dtf} compact />
+                  <span>{Math.round(dtfUtilization(dtf))}%</span>
+                </span>
+              </td>
+              <td><DtfAge launchedAt={dtf.launchedAt} now={now} /></td>
+              <td className="numeric"><PositionValue holding={holdings.get(dtf.id)} /></td>
               <td className="dtf-row-caret"><CaretRight size={14} aria-hidden="true" /></td>
             </tr>
           ))}
@@ -273,89 +301,82 @@ function DtfTable({ dtfs, onOpen }: { dtfs: PublicDtf[]; onOpen: (dtf: PublicDtf
   );
 }
 
-function DtfQuickView({ dtf, onClose }: { dtf: PublicDtf; onClose: () => void }) {
-  const titleId = useId();
-  const closeRef = useRef<HTMLButtonElement>(null);
+/** The LP's simulated DTF positions, shown on the Positions page. */
+export function DtfPositions({ network }: { network: string }) {
+  const app = useApp();
+  const router = useRouter();
+  const { portfolio, signedIn, loaded } = useDtfPortfolio();
+  const [now] = useState(() => Date.now());
+  const ref = useRef<HTMLElement>(null);
+  const all = useMemo(() => dtfDirectory(app.farms, app.profile.name), [app.farms, app.profile.name]);
+  const onNetwork = useMemo(() => filterDtfs(all, { network }), [all, network]);
+  const summary = useMemo(() => portfolioSummary(portfolio, onNetwork, now), [portfolio, onNetwork, now]);
 
   useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    closeRef.current?.focus();
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      previous?.focus();
-    };
-  }, [onClose]);
+    if (loaded && window.location.hash === "#dtf-positions") ref.current?.scrollIntoView({ block: "start" });
+  }, [loaded]);
 
   return (
-    <div className="side-layer">
-      <button className="side-backdrop" aria-label="Close strategy details" tabIndex={-1} onClick={onClose} />
-      <aside className="side-panel dtf-panel" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-        <header className="side-panel-head">
-          <div className="dtf-panel-title">
-            <DtfLogo dtf={dtf} size="lg" />
-            <div>
-              <span className={`dtf-type ${dtf.type.toLowerCase()}`}>{typeLabel[dtf.type]}</span>
-              <h2 id={titleId}>{dtf.name}</h2>
-              <p>by {dtf.manager} · {dtf.network}</p>
-            </div>
-          </div>
-          <button ref={closeRef} className="icon-button" aria-label="Close strategy details" onClick={onClose}>
-            <X size={18} />
-          </button>
-        </header>
-        <div className="side-panel-body">
-          <dl className="dtf-panel-metrics">
-            <div><dt>TVL</dt><dd>{money(dtf.tvl, true)}</dd></div>
-            <div><dt>APY</dt><dd className={dtf.apy !== null && dtf.apy < 0 ? "negative" : ""}>{dtf.apy === null ? "—" : `${dtf.apy.toFixed(2)}%`}</dd></div>
-            <div><dt>30D change</dt><dd className={dtf.change30d < 0 ? "negative" : "positive"}>{pct(dtf.change30d)}</dd></div>
-            <div><dt>LPs</dt><dd>{dtf.lps.toLocaleString()}</dd></div>
-          </dl>
-          <p className="dtf-panel-note"><Info size={14} /> Historical demo figures. Past performance does not predict future returns.</p>
-
-          <h3>How it works</h3>
-          <ol className="dtf-flow" aria-label="Strategy flow">
-            {flowFor(dtf).map((step, index) => (
-              <li key={`${step}-${index}`}>{index > 0 && <CaretRight size={12} aria-hidden="true" />}<span>{step}</span></li>
-            ))}
-          </ol>
-          <p className="dtf-panel-text">{dtf.description}</p>
-
-          <h3>Risk</h3>
-          <div className="dtf-risk">
-            <Risk level={dtf.risk} />
-            <p>{riskReason[dtf.risk]}</p>
-          </div>
-
-          <h3>Holdings</h3>
-          <ul className="dtf-holdings">
-            {dtf.assets.map((asset) => <li key={asset}><AssetIcon symbol={asset} size={20} /> {asset}</li>)}
-          </ul>
-
-          <h3>Details</h3>
-          <dl className="dtf-details">
-            <div><dt>Manager</dt><dd>{dtf.manager}</dd></div>
-            <div><dt>Network</dt><dd><NetworkIcon network={dtf.network} size={14} /> {dtf.network}</dd></div>
-            <div><dt>Settled in</dt><dd>{dtf.baseAsset}</dd></div>
-            <div><dt>Launched</dt><dd>{new Date(`${dtf.launchedAt}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}</dd></div>
-          </dl>
+    <section className="dtf-positions" id="dtf-positions" ref={ref} aria-labelledby="dtf-positions-title">
+      <div className="section-heading">
+        <div>
+          <h2 id="dtf-positions-title">DTF positions</h2>
+          <p>Your simulated deposits in Dexponent DTFs. Value accrues at each DTF&apos;s 7D APY.</p>
         </div>
-        <footer className="dtf-panel-foot">
-          {dtf.farmId ? (
-            <Link className="button primary full" href={farmDetailHref(dtf.farmId)}>
-              Open Farm profile <ArrowRight size={15} />
-            </Link>
-          ) : (
-            <>
-              <button className="button primary full" disabled>Deposit</button>
-              <p><ShieldWarning size={14} /> Demo listing. Deposits open once this DTF is live on-chain.</p>
-            </>
-          )}
-        </footer>
-      </aside>
-    </div>
+      </div>
+      {!signedIn || !summary.rows.length ? (
+        <EmptyState
+          title={signedIn ? "No DTF positions yet" : "Sign in to see DTF positions"}
+          description={signedIn ? "Open a DTF and make a demo deposit to track it here." : "Demo DTF positions are saved to your account in this browser."}
+          href={signedIn ? "/app/strategies/" : "/login/?next=%2Fapp%2Fpositions%2F"}
+          label={signedIn ? "Explore DTFs" : "Sign in"}
+        />
+      ) : (
+        <>
+          <dl className="dtf-positions-totals">
+            <div><dt>Value</dt><dd>{usd(summary.value)}</dd></div>
+            <div><dt>Deposited</dt><dd>{usd(summary.costBasis)}</dd></div>
+            <div><dt>Total yield</dt><dd className={summary.totalYield < 0 ? "negative" : "positive"}>{signedUsd(summary.totalYield)}</dd></div>
+            <div><dt>P&amp;L</dt><dd className={summary.pnl < 0 ? "negative" : "positive"}>{signedUsd(summary.pnl)} <small>{signedPct(summary.pnlPct)}</small></dd></div>
+          </dl>
+          <div className="dtf-table-wrap">
+            <table className="dtf-table">
+              <thead>
+                <tr>
+                  <th scope="col">DTF</th>
+                  <th scope="col" className="numeric">Deposited</th>
+                  <th scope="col" className="numeric">Value</th>
+                  <th scope="col" className="numeric">P&amp;L</th>
+                  <th scope="col" className="numeric">7D APY</th>
+                  <th scope="col"><span className="sr-only">Open</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.rows.map(({ dtf, value, costBasis, pnl, pnlPct }) => (
+                  <tr key={dtf.id} onClick={() => router.push(strategyHref(dtf.id))}>
+                    <td>
+                      <span className="dtf-row-name">
+                        <DtfLogo dtf={dtf} />
+                        <span>
+                          <Link className="dtf-row-link" href={strategyHref(dtf.id)} onClick={(event) => event.stopPropagation()}>{dtf.name}</Link>
+                          <small><span className="dtf-ticker">${dtf.symbol}</span> · <NetworkIcon network={dtf.network} size={11} /> {dtf.network}</small>
+                        </span>
+                      </span>
+                    </td>
+                    <td className="numeric">{usd(costBasis)}</td>
+                    <td className="numeric">{usd(value)}</td>
+                    <td className="numeric">
+                      <span className={`dtf-position-value ${pnl < 0 ? "negative" : "positive"}`}>{signedUsd(pnl)} <small>{signedPct(pnlPct)}</small></span>
+                    </td>
+                    <td className="numeric">{dtf.apy7d === null ? <span className="muted">New</span> : `${dtf.apy7d.toFixed(2)}%`}</td>
+                    <td className="dtf-row-caret"><CaretRight size={14} aria-hidden="true" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </section>
   );
 }

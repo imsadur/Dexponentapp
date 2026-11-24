@@ -114,7 +114,8 @@ import {
 import { useApp } from "./provider";
 import { Wizard } from "./wizard";
 import { SupportCenter } from "./support-center";
-import { DtfStrategies } from "./dtf-strategies";
+import { DtfPositions, DtfStrategies } from "./dtf-strategies";
+import { DtfDetail } from "./dtf-detail";
 import { DtfAccess } from "./dtf-access";
 import { TradingViewPerformanceChart } from "./tradingview-performance-chart";
 
@@ -195,6 +196,8 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
     );
   else if (section === "trade")
     content = <TradingDashboard farmId={queryFarmId} initialPair={queryMarket} />;
+  else if (section === "strategies" && isV2 && segments[2] === "view")
+    content = <DtfDetail id={searchParams.get("dtf") || ""} />;
   else if (section === "strategies" && isV2) content = <DtfStrategies network={network} />;
   else if (section === "access") content = <DtfAccess />;
   else if (section === "templates" || section === "strategies")
@@ -434,7 +437,7 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
                 </button>
                 {chainMenu && (
                   <div className="chain-menu" role="listbox" aria-label="Available chains">
-                    {["All Chains", "Arbitrum", "Base", "Ethereum"].map((chain) => (
+                    {["All Chains", "Base", "Solana"].map((chain) => (
                       <button
                         key={chain}
                         className={network === chain ? "selected" : ""}
@@ -458,7 +461,7 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
                   value={network}
                   onChange={(event) => setNetwork(event.target.value)}
                 >
-                  {["All Chains", "Arbitrum", "Base", "Ethereum"].map((chain) => (
+                  {["All Chains", "Base", "Solana"].map((chain) => (
                     <option key={chain}>{chain}</option>
                   ))}
                 </select>
@@ -632,6 +635,11 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
                   {app.walletError}
                 </p>
               )}
+              {!app.wallet && (
+                <button className="button full" onClick={() => { app.connectDemo(); setModal(""); }}>
+                  Use demo wallet · no signatures
+                </button>
+              )}
               <Notice>
                 Demo exploration does not require a wallet. Live transactions
                 are disabled in this prototype.
@@ -691,9 +699,10 @@ function Positions({ network }: { network: string }) {
         <Metric label="Blended APY" value={`${weightedApy.toFixed(2)}%`} caption="position-weighted · demo" />
         <Metric label="30D performance" value={`${weightedPerformance >= 0 ? "+" : ""}${weightedPerformance.toFixed(2)}%`} caption="position-weighted · demo" />
       </div>
+      <DtfPositions network={network} />
       <div className="section-heading">
         <div>
-          <h2>Portfolio positions</h2>
+          <h2>Farm positions</h2>
           <p>Farms where you hold a demo balance, including paused Farms that remain withdrawable.</p>
         </div>
       </div>
