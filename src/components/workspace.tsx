@@ -165,6 +165,7 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
   const queryMarket = searchParams.get("market") || "";
   const tradeFarmName = app.farms.find((farm) => farm.id === queryFarmId)?.name || "Perpetual Farm";
   const isFarmDetail = section === "farms" && !isWizard && segments.length > 2 && segments[2] !== "drafts";
+  const isStrategyView = section === "strategies" && segments[2] === "view";
   let content;
   if (isWizard)
     content = (
@@ -417,6 +418,8 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
               </>
             ) : isFarmDetail ? (
               <Link className="farm-top-back" href="/app/farms"><ArrowRight className="rotate-180" size={14} /> All farms</Link>
+            ) : isStrategyView ? (
+              <Link className="farm-top-back" href="/app/strategies/"><ArrowRight className="rotate-180" size={14} /> All strategies</Link>
             ) : (
               <strong>{isWizard ? "Create farm" : activeNav.find((item) => item.section === section)?.label || section.charAt(0).toUpperCase() + section.slice(1)}</strong>
             )}

@@ -1,5 +1,5 @@
 "use client";
-import { ArrowRight, CaretRight, ListBullets, MagnifyingGlass, SquaresFour, Wallet } from "@phosphor-icons/react";
+import { ArrowRight, CaretRight, ListBullets, MagnifyingGlass, SquaresFour } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -90,11 +90,11 @@ export function DtfStrategies({ network }: { network: string }) {
 
   return (
     <>
-      <PageHeading title="Dexponent DTFs" description="Yield strategies managed by DTF Asset Managers." />
+      <PageHeading eyebrow="LIQUIDITY PROVIDER" title="Dexponent DTFs" description="Yield strategies managed by DTF Asset Managers." />
       <div className={`dtf-overview ${summary.rows.length ? "with-yours" : ""}`}>
         <section className="dtf-stats" aria-labelledby="dtf-stats-title">
           <header>
-            <h2 id="dtf-stats-title">Stats</h2>
+            <h2 id="dtf-stats-title" className="panel-kicker">Stats</h2>
           </header>
           <dl>
             <div><dt>Total deposits</dt><dd>{money(totals.tvl, true)}</dd></div>
@@ -107,7 +107,7 @@ export function DtfStrategies({ network }: { network: string }) {
         {summary.rows.length > 0 && (
           <section className="dtf-yours" aria-labelledby="dtf-yours-title">
             <header>
-              <h2 id="dtf-yours-title">Your positions <span>{summary.rows.length}</span></h2>
+              <h2 id="dtf-yours-title" className="panel-kicker">Your positions <span>{summary.rows.length}</span></h2>
               <Link className="dtf-yours-link" href="/app/positions/#dtf-positions" aria-label="View your positions">
                 <ArrowRight size={16} />
               </Link>
@@ -126,47 +126,44 @@ export function DtfStrategies({ network }: { network: string }) {
           </section>
         )}
       </div>
-      <div className="dtf-toolbar">
-        <div className="dtf-filters">
-          <div className="dtf-segment" role="group" aria-label="Sort strategies">
-            {(["trending", "top"] as DtfSort[]).map((value) => (
-              <button key={value} aria-pressed={sort === value} onClick={() => setSort(value)}>
-                {value === "trending" ? "Trending" : "Top 24H return"}
-              </button>
-            ))}
-          </div>
-          <div className="dtf-segment" role="group" aria-label="Filter by strategy type">
-            {typeFilters.map((value) => (
-              <button key={value} aria-pressed={type === value} onClick={() => setType(value)}>
-                {value === "ALL" ? "All" : typeLabel[value]}
-              </button>
-            ))}
-          </div>
-          {signedIn && (
-            <button className="dtf-mine" aria-pressed={mine} onClick={() => setMine((on) => !on)}>
-              <Wallet size={15} /> My positions{holdings.size > 0 && <span>{holdings.size}</span>}
-            </button>
-          )}
-        </div>
-        <div className="dtf-toolbar-end">
-          <div className="dtf-segment dtf-view" role="group" aria-label="Layout">
-            <button aria-pressed={view === "grid"} aria-label="Grid view" title="Grid view" onClick={() => changeView("grid")}>
-              <SquaresFour size={16} weight={view === "grid" ? "fill" : "regular"} />
-            </button>
-            <button aria-pressed={view === "list"} aria-label="List view" title="List view" onClick={() => changeView("list")}>
-              <ListBullets size={16} weight={view === "list" ? "bold" : "regular"} />
-            </button>
-          </div>
-          <label className="dtf-search">
-            <MagnifyingGlass size={16} />
-            <span className="sr-only">Search strategies</span>
-            <input
-              type="search"
-              placeholder="Search name, $ticker, asset, chain"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </label>
+      <div className="tabs dtf-tabs">
+        <button className={!mine ? "active" : ""} aria-pressed={!mine} onClick={() => setMine(false)}>
+          All DTFs <span>{onNetwork.length}</span>
+        </button>
+        {signedIn && (
+          <button className={mine ? "active" : ""} aria-pressed={mine} onClick={() => setMine(true)}>
+            My positions <span>{holdings.size}</span>
+          </button>
+        )}
+      </div>
+      <div className="list-toolbar dtf-list-toolbar">
+        <label className="search-input">
+          <MagnifyingGlass size={16} />
+          <input
+            type="search"
+            aria-label="Search DTFs"
+            placeholder="Search name, $ticker, asset…"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+        <select aria-label="Filter strategy" value={type} onChange={(event) => setType(event.target.value as StrategyType | "ALL")}>
+          {typeFilters.map((value) => (
+            <option key={value} value={value}>{value === "ALL" ? "All strategies" : typeLabel[value]}</option>
+          ))}
+        </select>
+        <select aria-label="Sort DTFs" value={sort} onChange={(event) => setSort(event.target.value as DtfSort)}>
+          <option value="trending">Trending</option>
+          <option value="top">Top 24H return</option>
+        </select>
+        <span className="muted small">{results.length} DTF{results.length === 1 ? "" : "s"}</span>
+        <div className="segmented dtf-view" role="group" aria-label="Layout">
+          <button className={view === "grid" ? "active" : ""} aria-pressed={view === "grid"} aria-label="Grid view" title="Grid view" onClick={() => changeView("grid")}>
+            <SquaresFour size={15} weight={view === "grid" ? "fill" : "regular"} />
+          </button>
+          <button className={view === "list" ? "active" : ""} aria-pressed={view === "list"} aria-label="List view" title="List view" onClick={() => changeView("list")}>
+            <ListBullets size={15} weight={view === "list" ? "bold" : "regular"} />
+          </button>
         </div>
       </div>
       {shown.length ? (

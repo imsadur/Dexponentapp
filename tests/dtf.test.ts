@@ -11,6 +11,8 @@ import {
   dtfDocuments,
   dtfHistory,
   explorerUrl,
+  maskAddress,
+  txExplorerUrl,
   tickerFromName,
   dtfReturn24h,
   dtfUtilization,
@@ -169,4 +171,19 @@ test("documents: audited demo DTFs include the audit report; Farms use their upl
   const farm = dtfFromFarm(seedFarms()[1], "A");
   assert.deepEqual(dtfDocuments(farm, [{ name: "Deck.pptx", size: 2048, type: "" }]), [{ name: "Deck.pptx", type: "PPTX", size: 2048, demo: false }]);
   assert.deepEqual(dtfDocuments(farm), []);
+});
+
+test("LP activity uses network-format ids, links transactions, and masks wallets", () => {
+  const now = Date.UTC(2026, 10, 23, 12);
+  const base = demoDtfCatalogue.find((d) => d.network === "Base")!;
+  const sol = demoDtfCatalogue.find((d) => d.network === "Solana")!;
+  const [b] = dtfActivity(base, now);
+  const [s] = dtfActivity(sol, now);
+  assert.match(b.hash, /^0x[0-9a-f]{64}$/);
+  assert.match(b.wallet, /^0x[0-9a-f]{40}$/);
+  assert.match(s.hash, /^[1-9A-HJ-NP-Za-km-z]{88}$/);
+  assert.match(s.wallet, /^[1-9A-HJ-NP-Za-km-z]{44}$/);
+  assert.equal(txExplorerUrl("Base", b.hash), `https://basescan.org/tx/${b.hash}`);
+  assert.equal(txExplorerUrl("Solana", s.hash), `https://solscan.io/tx/${s.hash}`);
+  assert.equal(maskAddress("0x1234567890abcdef"), "0x12…cdef");
 });

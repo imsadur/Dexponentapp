@@ -3,7 +3,6 @@ import {
   ArrowDown,
   ArrowSquareOut,
   ArrowUp,
-  CaretLeft,
   CaretRight,
   Copy,
   Info,
@@ -33,6 +32,8 @@ import {
   dtfSeries,
   dtfUtilization,
   explorerUrl,
+  maskAddress,
+  txExplorerUrl,
   managerSummary,
   similarDtfs,
   type DtfMetric,
@@ -174,12 +175,6 @@ function DtfProfile({ dtf, dtfs }: { dtf: PublicDtf; dtfs: PublicDtf[] }) {
 
   return (
     <div className="dtfd">
-      <nav className="dtfd-crumbs" aria-label="Breadcrumb">
-        <Link href="/app/strategies/"><CaretLeft size={14} /> Strategies</Link>
-        <CaretRight size={12} aria-hidden="true" />
-        <span aria-current="page">{dtf.name}</span>
-        <ShareMenu title={dtf.name} />
-      </nav>
 
       <div className="dtfd-layout">
         <div className="dtfd-primary">
@@ -197,6 +192,7 @@ function DtfProfile({ dtf, dtfs }: { dtf: PublicDtf; dtfs: PublicDtf[] }) {
                   <span className="subtle-label">DEMO</span>
                 </div>
               </div>
+              <ShareMenu title={dtf.name} />
             </div>
             <dl className="dtfd-meta">
               <div>
@@ -280,6 +276,17 @@ function PerformanceSection({ dtf, history }: { dtf: PublicDtf; history: ReturnT
   const points = useMemo(() => dtfSeries(history, metric, range), [history, metric, range]);
   const last = points.at(-1);
   const first = points[0];
+  const target = useMemo(() => {
+    if (points.length < 2 || metric === "tvl") return undefined;
+    const start = points[0];
+    const end = points[points.length - 1];
+    if (metric === "apy")
+      return { points: [{ time: start.time, value: dtf.targetApr }, { time: end.time, value: dtf.targetApr }], label: `Target APR ${dtf.targetApr.toFixed(2)}%` };
+    // Return the DTF would have earned growing exactly at its target APR over this range.
+    const pace = (time: number) => (dtf.targetApr / 365) * ((time - start.time) / 86_400_000);
+    const line = points.map((p) => ({ time: p.time, value: pace(p.time) }));
+    return { points: line, label: `Target pace ${signedPct(pace(end.time))}` };
+  }, [points, metric, dtf.targetApr]);
   const shown = hover ?? last;
   const format = (value: number) =>
     metric === "tvl" ? money(value, true) : metric === "return" ? signedPct(value) : `${value.toFixed(2)}%`;
@@ -297,14 +304,14 @@ function PerformanceSection({ dtf, history }: { dtf: PublicDtf; history: ReturnT
       </div>
       <div className="dtfd-chart-card">
         <div className="dtfd-chart-top">
-          <div className="dtfd-chart-tabs" role="group" aria-label="Chart metric">
+          <div className="segmented" role="group" aria-label="Chart metric">
             {metricTabs.map((tab) => (
-              <button key={tab.id} aria-pressed={metric === tab.id} onClick={() => setMetric(tab.id)}>{tab.label}</button>
+              <button key={tab.id} className={metric === tab.id ? "active" : ""} aria-pressed={metric === tab.id} onClick={() => setMetric(tab.id)}>{tab.label}</button>
             ))}
           </div>
-          <div className="dtfd-chart-tabs ranges" role="group" aria-label="Time range">
+          <div className="segmented" role="group" aria-label="Time range">
             {DTF_RANGES.map((value) => (
-              <button key={value} aria-pressed={range === value} onClick={() => setRange(value)}>{value}</button>
+              <button key={value} className={range === value ? "active" : ""} aria-pressed={range === value} onClick={() => setRange(value)}>{value}</button>
             ))}
           </div>
         </div>
@@ -323,8 +330,8 @@ function PerformanceSection({ dtf, history }: { dtf: PublicDtf; history: ReturnT
               tone={tone}
               format={format}
               intraday={range === "24H" || range === "7D"}
-              zeroLine={metric === "return"}
               label={`${metricTabs.find((t) => t.id === metric)?.label} over the ${rangeText[range]}`}
+              target={target}
               onHover={setHover}
             />
           </>
@@ -444,7 +451,7 @@ function DetailsSection({ dtf, contract, now }: { dtf: PublicDtf; contract: stri
           </dd>
         </div>
         <div><dt>Contract</dt><dd><ContractLink network={dtf.network} address={contract} start={8} end={6} /><small>Demo address · not deployed</small></dd></div>
-        <div><dt>Management fee</dt><dd>{dtf.managementFee}% / year</dd></div>
+        <div id="dtf-fees"><dt>Management fee</dt><dd>{dtf.managementFee}% / year</dd></div>
         <div><dt>Performance fee</dt><dd>{dtf.performanceFee}% of gains</dd></div>
         <div><dt>Minimum deposit</dt><dd>{MIN_DEPOSIT} {dtf.baseAsset}</dd></div>
         <div><dt>Deposits</dt><dd>Always open<small>No deposit cap or target.</small></dd></div>
@@ -457,7 +464,7 @@ function DetailsSection({ dtf, contract, now }: { dtf: PublicDtf; contract: stri
         </div>
         <div><dt>Liquidity buffer</dt><dd>{dtf.bufferPct}% minimum<small>Share of deposits always kept idle for withdrawals.</small></dd></div>
       </dl>
-      <div className="dtfd-docs-block">
+      <div className="dtfd-docs-block" id="dtf-risks">
         <h3>Documents</h3>
         {docs.length ? (
           <ul className="dtfd-docs">
@@ -486,6 +493,19 @@ function activityTime(time: number, now: number) {
   return date.toLocaleString("en-US", recent
     ? { weekday: "short", hour: "numeric", minute: "2-digit" }
     : { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function TxLink({ network, hash }: { network: string; hash: string }) {
+  const href = txExplorerUrl(network, hash);
+  const text = shortHash(hash);
+  if (!href) return <code>{text}</code>;
+  return (
+    <a className="dtfd-ca dtfd-tx" href={href} target="_blank" rel="noreferrer" title={`View on ${network} explorer · demo transaction, not on-chain`}>
+      <code>{text}</code>
+      <ArrowSquareOut size={12} aria-hidden="true" />
+      <span className="sr-only"> (opens {network} explorer in a new tab)</span>
+    </a>
+  );
 }
 
 function ActivitySection({ dtf, now }: { dtf: PublicDtf; now: number }) {
@@ -522,13 +542,13 @@ function ActivitySection({ dtf, now }: { dtf: PublicDtf; now: number }) {
                         {item.type}
                       </span>
                     </td>
-                    <td><code>{shortHash(item.wallet)}</code></td>
+                    <td><code aria-label="LP wallet, masked">{maskAddress(item.wallet)}</code></td>
                     <td className="numeric">
                       <span className={item.type === "Deposit" ? "positive" : "negative"}>
                         {item.type === "Deposit" ? "+" : "−"}{tokenAmount(item.amount, dtf.baseAsset)}
                       </span>
                     </td>
-                    <td className="numeric"><code title="Demo hash · not on-chain">{shortHash(item.hash)}</code></td>
+                    <td className="numeric"><TxLink network={dtf.network} hash={item.hash} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -556,7 +576,7 @@ function PositionCard({ dtf, position }: { dtf: PublicDtf; position: DtfPosition
   return (
     <section className="dtfd-card dtfd-position" aria-labelledby="dtf-position">
       <div className="dtfd-card-head">
-        <h2 id="dtf-position">Your position</h2>
+        <h2 id="dtf-position" className="eyebrow">YOUR POSITION</h2>
         <span className="subtle-label">SIMULATED</span>
       </div>
       <strong className="dtfd-position-value">{usd(value)}</strong>
@@ -665,18 +685,20 @@ function TradeCard({
   } else if (!app.wallet) {
     cta = (
       <button className="button primary full large" onClick={app.connect} disabled={app.connecting}>
-        {app.connecting ? <><SpinnerGap size={16} className="spin" /> Waiting for wallet…</> : <><Wallet size={16} /> Connect wallet</>}
+        {app.connecting ? "Connecting…" : "Connect"}
       </button>
     );
   } else {
+    // No amount yet: keep the action's own label and show it as inactive, not as an error.
+    const empty = error === "Enter an amount";
     cta = (
       <button
-        className="button primary full large"
+        className={`button primary full large ${empty ? "idle" : ""}`}
         onClick={submit}
         disabled={!loaded || pending || Boolean(error)}
         aria-describedby={invalid ? errorId : undefined}
       >
-        {pending ? <><SpinnerGap size={16} className="spin" /> {mode === "deposit" ? "Depositing…" : "Withdrawing…"}</> : error ?? verb}
+        {pending ? <><SpinnerGap size={16} className="spin" /> {mode === "deposit" ? "Depositing…" : "Withdrawing…"}</> : empty ? verb : error ?? verb}
       </button>
     );
   }
@@ -745,7 +767,7 @@ function TradeCard({
 
         {cta}
         <p className="dtfd-hint center">
-          {mode === "deposit" ? <>You can lose some or all of your deposit. <a href="#dtf-terms">Details</a></> : "Demo mode · no funds move"}
+          By continuing, I confirm I&apos;ve read the <a href="#dtf-terms">Terms</a>, <a href="#dtf-risks">Risks</a>, and <a href="#dtf-fees">Fees</a>.
         </p>
       </div>
     </section>

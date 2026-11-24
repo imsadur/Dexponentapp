@@ -276,12 +276,17 @@ export function demoHash(seed: string, length = 64) {
 
 const BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
-/** Demo contract address in the network's format: base58 on Solana, 0x hex on EVM chains. */
-export function dtfContract(dtf: Pick<PublicDtf, "id" | "network">) {
-  if (dtf.network !== "Solana") return demoHash(`${dtf.id}:contract`, 40);
-  const next = rng(`${dtf.id}:contract`);
-  return Array.from({ length: 44 }, () => BASE58[Math.floor(next() * BASE58.length)]).join("");
+function demoBase58(seed: string, length: number) {
+  const next = rng(seed);
+  return Array.from({ length }, () => BASE58[Math.floor(next() * BASE58.length)]).join("");
 }
+
+/** Demo address in the network's format: base58 on Solana, 0x hex on EVM chains. */
+const demoAddress = (network: string, seed: string) => (network === "Solana" ? demoBase58(seed, 44) : demoHash(seed, 40));
+/** Demo transaction id in the network's format: an 88-character signature on Solana, a 0x hash on EVM chains. */
+const demoTxId = (network: string, seed: string) => (network === "Solana" ? demoBase58(seed, 88) : demoHash(seed));
+
+export const dtfContract = (dtf: Pick<PublicDtf, "id" | "network">) => demoAddress(dtf.network, `${dtf.id}:contract`);
 
 const explorers: Record<string, (address: string) => string> = {
   Base: (a) => `https://basescan.org/address/${a}`,
@@ -291,6 +296,18 @@ const explorers: Record<string, (address: string) => string> = {
 };
 
 export const explorerUrl = (network: string, address: string) => explorers[network]?.(address) ?? null;
+
+const txExplorers: Record<string, (hash: string) => string> = {
+  Base: (h) => `https://basescan.org/tx/${h}`,
+  Solana: (h) => `https://solscan.io/tx/${h}`,
+  Ethereum: (h) => `https://etherscan.io/tx/${h}`,
+  Arbitrum: (h) => `https://arbiscan.io/tx/${h}`,
+};
+
+export const txExplorerUrl = (network: string, hash: string) => txExplorers[network]?.(hash) ?? null;
+
+/** Shows only the ends of a wallet address, e.g. 0x85…e90b. */
+export const maskAddress = (address: string) => `${address.slice(0, 4)}…${address.slice(-4)}`;
 
 export type DtfDocument = { name: string; type: string; size: number; demo: boolean };
 
@@ -470,7 +487,7 @@ export type DtfActivity = {
 export function dtfActivity(dtf: PublicDtf, now = Date.now(), count = 30): DtfActivity[] {
   const next = rng(`${dtf.id}:lp-activity`);
   const wallets = Array.from({ length: Math.max(4, Math.min(14, Math.round(dtf.lps / 25))) }, (_, i) =>
-    demoHash(`${dtf.id}:lp:${i}`, 40),
+    demoAddress(dtf.network, `${dtf.id}:lp:${i}`),
   );
   const ticket = Math.max(250, dtf.tvl / 400);
   let time = now - next() * 3 * HOUR;
@@ -485,7 +502,7 @@ export function dtfActivity(dtf: PublicDtf, now = Date.now(), count = 30): DtfAc
       type: next() < 0.68 ? "Deposit" : "Withdraw",
       wallet: wallets[Math.floor(next() * wallets.length)],
       amount,
-      hash: demoHash(`${dtf.id}:tx:${i}`),
+      hash: demoTxId(dtf.network, `${dtf.id}:tx:${i}`),
     });
     time -= (1.5 + next() * 12) * HOUR;
   }

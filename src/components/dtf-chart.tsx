@@ -4,8 +4,10 @@ import {
   AreaSeries,
   ColorType,
   CrosshairMode,
+  LineSeries,
   LineStyle,
   createChart,
+  createSeriesMarkers,
   type UTCTimestamp,
 } from "lightweight-charts";
 import type { SeriesPoint } from "@/domain/dtf";
@@ -24,19 +26,21 @@ export function DtfChart({
   tone,
   format,
   intraday,
-  zeroLine,
   label,
+  target,
   onHover,
 }: {
   points: SeriesPoint[];
   tone: "up" | "down";
   format: (value: number) => string;
   intraday: boolean;
-  zeroLine?: boolean;
   label: string;
+  /** Dashed reference line (e.g. target pace), labelled at its right end. */
+  target?: { points: SeriesPoint[]; label: string };
   onHover: (point: SeriesPoint | null) => void;
 }) {
   const container = useRef<HTMLDivElement>(null);
+  const tag = useRef<HTMLSpanElement>(null);
   const { theme } = useApp();
   const hover = useRef(onHover);
   const formatter = useRef(format);
@@ -52,6 +56,7 @@ export function DtfChart({
     const token = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
     const line = tone === "up" ? token("--success", "#3dc486") : token("--danger", "#e8a293");
     const muted = token("--text-muted", "#71717a");
+    const secondary = token("--text-secondary", "#a1a1aa");
     const border = token("--border", "#27272a");
     const chart = createChart(el, {
       autoSize: true,
@@ -62,14 +67,14 @@ export function DtfChart({
         fontSize: 11,
         attributionLogo: false,
       },
-      grid: { vertLines: { visible: false }, horzLines: { color: border, style: LineStyle.Dotted } },
+      grid: { vertLines: { visible: false }, horzLines: { visible: false } },
       crosshair: {
         mode: CrosshairMode.Magnet,
         vertLine: { color: muted, labelVisible: false, style: LineStyle.Dashed },
         horzLine: { visible: false, labelVisible: false },
       },
-      rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.12, bottom: 0.08 } },
-      timeScale: { borderVisible: false, timeVisible: intraday, secondsVisible: false, fixLeftEdge: true, fixRightEdge: true },
+      rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.14, bottom: 0.1 } },
+      timeScale: { borderVisible: true, borderColor: border, timeVisible: intraday, secondsVisible: false, fixLeftEdge: true, fixRightEdge: true },
       localization: { priceFormatter: (value: number) => formatter.current(value) },
       handleScroll: false,
       handleScale: false,
@@ -85,15 +90,58 @@ export function DtfChart({
       crosshairMarkerBorderColor: line,
       crosshairMarkerBackgroundColor: line,
     });
-    series.setData(points.map((p) => ({ time: Math.floor(p.time / 1000) as UTCTimestamp, value: p.value })));
-    if (zeroLine) series.createPriceLine({ price: 0, color: muted, lineStyle: LineStyle.Dashed, lineWidth: 1, axisLabelVisible: false, title: "" });
+    const toData = (list: SeriesPoint[]) => list.map((p) => ({ time: Math.floor(p.time / 1000) as UTCTimestamp, value: p.value }));
+    const data = toData(points);
+    series.setData(data);
+    const last = data[data.length - 1];
+    createSeriesMarkers(series, [{ time: last.time, position: "atPriceMiddle", price: last.value, shape: "circle", color: line, size: 1 }]);
+
+    // The solid baseline is the time axis border; the only other line is the dashed target.
+    let reference: ReturnType<typeof chart.addSeries> | null = null;
+    if (target?.points.length) {
+      reference = chart.addSeries(LineSeries, {
+        color: alpha(secondary, 0.75),
+        lineWidth: 2,
+        lineStyle: LineStyle.Dashed,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      });
+      reference.setData(toData(target.points));
+    }
     chart.timeScale().fitContent();
+
+    const placeTag = () => {
+      const node = tag.current;
+      if (!node) return;
+      const end = target?.points.at(-1);
+      const y = end && reference ? reference.priceToCoordinate(end.value) : null;
+      if (y === null || y === undefined) {
+        node.style.display = "none";
+        return;
+      }
+      node.style.display = "";
+      node.style.top = `${y}px`;
+      node.style.right = `${chart.priceScale("right").width() + 6}px`;
+    };
+    const frame = requestAnimationFrame(placeTag);
+    const resize = new ResizeObserver(() => requestAnimationFrame(placeTag));
+    resize.observe(el);
     chart.subscribeCrosshairMove((param) => {
       const data = param.seriesData.get(series);
       hover.current(data && "value" in data && param.time ? { time: Number(param.time) * 1000, value: data.value } : null);
     });
-    return () => chart.remove();
-  }, [points, tone, intraday, zeroLine, theme]);
+    return () => {
+      cancelAnimationFrame(frame);
+      resize.disconnect();
+      chart.remove();
+    };
+  }, [points, tone, intraday, theme, target]);
 
-  return <div ref={container} className="dtfd-chart-canvas" role="img" aria-label={label} />;
+  return (
+    <div className="dtfd-chart-wrap">
+      <div ref={container} className="dtfd-chart-canvas" role="img" aria-label={target ? `${label}. ${target.label}` : label} />
+      {target && <span ref={tag} className="dtfd-chart-tag" aria-hidden="true">{target.label}</span>}
+    </div>
+  );
 }

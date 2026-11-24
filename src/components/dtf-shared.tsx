@@ -1,4 +1,5 @@
 "use client";
+import { useId } from "react";
 import { ArrowDownRight, ArrowUpRight } from "@phosphor-icons/react";
 import { ageInDays, dtfUtilization, targetPace24h, type PublicDtf } from "@/domain/dtf";
 import type { StrategyType } from "@/domain/strategy";
@@ -83,21 +84,27 @@ export function TargetPace({ ret, targetApr }: { ret: number; targetApr: number 
 export function UtilizationBar({ dtf, compact = false }: { dtf: Pick<PublicDtf, "id" | "bufferPct">; compact?: boolean }) {
   const used = dtfUtilization(dtf);
   const max = 100 - dtf.bufferPct;
+  const tipId = useId();
   return (
     <div className={`dtf-util ${compact ? "compact" : ""}`}>
-      <div
-        className="dtf-util-track"
-        role="meter"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={Math.round(used)}
-        aria-label={`${Math.round(used)}% of deposits utilized, ${dtf.bufferPct}% minimum buffer`}
-      >
-        <i style={{ width: `${Math.max(2, used)}%` }} />
-        <b style={{ left: `${max}%` }} aria-hidden="true" />
-      </div>
+      <span className="dtf-util-hit" tabIndex={0} aria-describedby={tipId}>
+        <span
+          className="dtf-util-track"
+          role="meter"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(used)}
+          aria-label={`${Math.round(used)}% of deposits utilized`}
+        >
+          <i style={{ width: `${Math.max(2, used)}%` }} />
+          <b style={{ left: `${max}%` }} aria-hidden="true" />
+        </span>
+        <span className="dtf-util-tip" role="tooltip" id={tipId}>
+          Share of deposits the manager has put to work. At least {dtf.bufferPct}% stays idle for withdrawals.
+        </span>
+      </span>
       {!compact && (
-        <span>
+        <span className="dtf-util-legend">
           <strong>{Math.round(used)}% utilized</strong>
           <span>Buffer {dtf.bufferPct}%</span>
         </span>
