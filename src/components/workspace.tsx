@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   ChartLineUp as Activity,
   ArrowDown,
@@ -10,7 +10,6 @@ import {
   ArrowUpRight,
   ArrowsClockwise,
   ArrowsDownUp,
-  ArrowsLeftRight,
   Bell,
   BookOpen,
   Briefcase,
@@ -18,9 +17,16 @@ import {
   CalendarBlank,
   Check,
   CaretDown as ChevronDown,
+  CaretRight,
+  DotsThree,
+  PauseCircle,
+  PencilSimple,
+  PlayCircle,
+  Archive,
   Question as CircleHelp,
   Clock as Clock3,
   Compass,
+  Pulse,
   Copy,
   DiscordLogo,
   Drop as Droplets,
@@ -41,19 +47,15 @@ import {
   Shield,
   ShieldCheck,
   SignOut,
-  SlidersHorizontal,
   Sun,
   TelegramLogo,
-  TrendDown,
   TrendUp,
   UserCircle,
   UserPlus,
-  Users,
   Wallet,
   X,
   XLogo,
   RedditLogo,
-  Scales,
 } from "@phosphor-icons/react";
 import { PerpTradingChart } from "@/components/perp-trading-chart";
 import {
@@ -88,9 +90,7 @@ import {
 import {
   farmFinancialMetrics,
   indexWeights,
-  performanceForRange,
   perpetualHealth,
-  portfolioMetrics,
   spotComposition,
 } from "@/domain/metrics";
 import {
@@ -100,6 +100,7 @@ import {
   AssetList,
   Badge,
   EmptyState,
+  LabelTip,
   Metric,
   Modal,
   money,
@@ -113,29 +114,88 @@ import {
 } from "./ui";
 import { useApp } from "./provider";
 import { Wizard } from "./wizard";
-import { SupportCenter } from "./support-center";
-import { DtfPositions, DtfStrategies } from "./dtf-strategies";
+import { SupportCenter, type SupportTarget } from "./support-center";
+import { NotificationsPanel, useNotifications } from "./notifications-panel";
+import { articleById, articlesIn, helpCategories, popularIssues, supportMailto } from "@/domain/help";
+import { DtfStrategies } from "./dtf-strategies";
+import { Positions } from "./positions";
 import { DtfDetail } from "./dtf-detail";
 import { DtfAccess } from "./dtf-access";
+import { PriceTicker } from "./price-ticker";
+import { DtfMarket } from "./dtf-market";
 import { TradingViewPerformanceChart } from "./tradingview-performance-chart";
+import { ACCESS_CHANGE_EVENT, accessKey, parseAccessStatus } from "@/domain/access";
+import {
+  formatCount,
+  formatDate,
+  formatPct,
+  formatSignedPct,
+  formatSignedUsd,
+  formatUsdCompact,
+  MISSING,
+  toneOf,
+} from "@/domain/format";
+import { dtfFromFarm, dtfHistory, dtfStats } from "@/domain/dtf";
+import { managerRows, type ManagerRow } from "@/domain/positions";
+import { managerSummary } from "@/domain/position-metrics";
+import { canPauseFarm, recordFarmEvent, setFarmPaused } from "@/domain/farm-actions";
+import { farmEditHref } from "@/domain/routes";
+import { useDtfPortfolio } from "./use-dtf-portfolio";
 
 const legacyNav = [
   { label: "Capital", section: "dashboard", href: "/app/dashboard", icon: LayoutDashboard },
-  { label: "Explore Farms", section: "explore", href: "/app/explore", icon: Compass },
-  { label: "Managed Farms", section: "farms", href: "/app/farms", icon: Leaf },
+  { label: "Explore DTFs", section: "explore", href: "/app/explore", icon: Compass },
+  { label: "Managed DTFs", section: "farms", href: "/app/farms", icon: Leaf },
   { label: "Strategies", section: "strategies", href: "/app/strategies", icon: Network },
   { label: "Templates", section: "templates", href: "/app/templates", icon: Grid2X2 },
   { label: "Metrics", section: "analytics", href: "/app/analytics", icon: Activity },
 ];
-const nav = [
-  { label: "Dashboard", section: "dashboard", href: "/app/dashboard", icon: LayoutDashboard },
-  { label: "Managed Farms", section: "farms", href: "/app/farms", icon: Leaf },
+type NavItem = { label: string; section: string; href: string; icon: typeof Compass };
+const investNav: NavItem[] = [
+  { label: "Explore DTFs", section: "strategies", href: "/app/strategies", icon: Compass },
   { label: "Positions", section: "positions", href: "/app/positions", icon: Briefcase },
-  { label: "Strategies", section: "strategies", href: "/app/strategies", icon: Compass },
-  { label: "DTF Access", section: "access", href: "/app/access", icon: ShieldCheck },
-  { label: "Templates", section: "templates", href: "/app/templates", icon: Grid2X2 },
-  { label: "Metrics", section: "analytics", href: "/app/analytics", icon: Activity },
+  { label: "Market", section: "market", href: "/app/market", icon: Pulse },
 ];
+const manageNav: NavItem[] = [
+  { label: "Overview", section: "dashboard", href: "/app/dashboard", icon: LayoutDashboard },
+  { label: "Managed DTFs", section: "farms", href: "/app/farms", icon: Leaf },
+  { label: "Templates", section: "templates", href: "/app/templates", icon: Grid2X2 },
+  { label: "Analytics", section: "analytics", href: "/app/analytics", icon: Activity },
+];
+const accessNav: NavItem = { label: "DTF Access", section: "access", href: "/app/access", icon: ShieldCheck };
+const nav: NavItem[] = [...investNav, ...manageNav, accessNav];
+/** The four destinations on the mobile bottom bar. */
+const mobileNav: NavItem[] = [manageNav[0], investNav[0], investNav[1], manageNav[1]];
+const pageTitles: Record<string, string> = { settings: "Settings", resources: "Help", trade: "Trade" };
+
+/** Deployment access status for the signed-in user; updates when DTF Access saves. */
+function useAccessStatus() {
+  const { session, ready } = useApp();
+  const [status, setStatus] = useState<"none" | "requested" | "granted">("none");
+  useEffect(() => {
+    if (!ready || !session) {
+      setStatus("none");
+      return;
+    }
+    const key = accessKey(session.identifier);
+    const read = () => {
+      try {
+        setStatus(parseAccessStatus(localStorage.getItem(key)));
+      } catch {
+        setStatus("none");
+      }
+    };
+    read();
+    const onStorage = (event: StorageEvent) => { if (event.key === key) read(); };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener(ACCESS_CHANGE_EVENT, read);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener(ACCESS_CHANGE_EVENT, read);
+    };
+  }, [ready, session]);
+  return status;
+}
 export function Workspace({ previewVersion, routeSegments }: { previewVersion?: string; routeSegments?: string[] } = {}) {
   const path = usePathname();
   const searchParams = useSearchParams();
@@ -144,6 +204,9 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
   const [menu, setMenu] = useState(false);
   const [modal, setModal] = useState("");
   const [supportOpen, setSupportOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const notifications = useNotifications();
+  const [supportTarget, setSupportTarget] = useState<SupportTarget | null>(null);
   const [network, setNetwork] = useState("All Chains");
   const [profileMenu, setProfileMenu] = useState(false);
   const [utilityMenu, setUtilityMenu] = useState(false);
@@ -155,6 +218,7 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
   ]);
   const [newUserName, setNewUserName] = useState("");
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
+  const accessStatus = useAccessStatus();
   const segments = routeSegments || path.split("/").filter(Boolean);
   const section = previewVersion ? "dashboard" : segments[1] || "dashboard";
   const isTrade = section === "trade";
@@ -163,7 +227,7 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
   const isWizard = isFarmWizardRoute(segments);
   const queryFarmId = searchParams.get("farm") || "";
   const queryMarket = searchParams.get("market") || "";
-  const tradeFarmName = app.farms.find((farm) => farm.id === queryFarmId)?.name || "Perpetual Farm";
+  const tradeFarmName = app.farms.find((farm) => farm.id === queryFarmId)?.name || "Perpetual DTF";
   const isFarmDetail = section === "farms" && !isWizard && segments.length > 2 && segments[2] !== "drafts";
   const isStrategyView = section === "strategies" && segments[2] === "view";
   let content;
@@ -201,6 +265,7 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
     content = <DtfDetail id={searchParams.get("dtf") || ""} />;
   else if (section === "strategies" && isV2) content = <DtfStrategies network={network} />;
   else if (section === "access") content = <DtfAccess />;
+  else if (section === "market" && isV2) content = <DtfMarket network={network} />;
   else if (section === "templates" || section === "strategies")
     content = (
       <TemplateLibrary strategies={section === "strategies"} id={segments[2]} />
@@ -209,7 +274,15 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
   else if (section === "positions") content = <Positions network={network} />;
   else if (section === "settings")
     content = <WorkspaceSettings tab={segments[2]} />;
-  else if (section === "resources") content = <Resources />;
+  else if (section === "resources")
+    content = (
+      <Resources
+        onOpenSupport={(target) => {
+          setSupportTarget(target ? { ...target, nonce: Date.now() } : null);
+          setSupportOpen(true);
+        }}
+      />
+    );
   else
     content = (
       <EmptyState
@@ -234,6 +307,31 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
       <aside className={`sidebar ${isTrade ? "trade-sidebar" : ""} ${menu ? "open" : ""}`}>
         <Brand />
         {!isV2 && <span className="nav-caption">WORKSPACE</span>}
+        {isV2 ? (
+          <nav aria-label="Main">
+            {([
+              ["Invest", investNav],
+              ["Manage", accessStatus === "granted" ? manageNav : [...manageNav, accessNav]],
+            ] as const).map(([group, items]) => (
+              <div className="nav-group" key={group} role="group" aria-labelledby={`nav-group-${group}`}>
+                <span className="nav-group-label" id={`nav-group-${group}`}>{group}</span>
+                {items.map((item) => (
+                  <Link
+                    className={section === item.section ? "active" : ""}
+                    key={item.href}
+                    href={item.href}
+                    aria-current={section === item.section ? "page" : undefined}
+                    title={isTrade ? item.label : undefined}
+                    onClick={() => setMenu(false)}
+                  >
+                    <item.icon size={18} />
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+            ))}
+          </nav>
+        ) : (
         <nav>
           {activeNav.map((item) => (
             <Link
@@ -251,6 +349,7 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
             </Link>
           ))}
         </nav>
+        )}
         {!isV2 && <div className="sidebar-resources">
           <span className="nav-caption">LEARN & EXPLORE</span>
           <Link href="/app/resources">
@@ -273,7 +372,13 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
               {profileMenu && (
                 <div className="profile-account-menu" role="menu">
                   <Link href="/app/settings" role="menuitem" onClick={() => setProfileMenu(false)}>
-                    <UserCircle size={17} /> Profile
+                    <UserCircle size={17} /> Settings
+                  </Link>
+                  <Link href="/app/access" role="menuitem" onClick={() => setProfileMenu(false)}>
+                    <ShieldCheck size={17} /> DTF Access
+                  </Link>
+                  <Link href="/app/resources" role="menuitem" onClick={() => setProfileMenu(false)}>
+                    <Lifebuoy size={17} /> Help
                   </Link>
                   <button role="menuitem" onClick={() => { setProfileMenu(false); setModal("wallet"); }}>
                     <Wallet size={17} />
@@ -303,7 +408,7 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
                 </span>
                 <span className="profile-copy">
                   <strong>{app.profile.name}</strong>
-                  <small>Fund manager</small>
+                  <small>Manager</small>
                 </span>
                 <ChevronDown className={profileMenu ? "workspace-chevron open" : "workspace-chevron"} size={15} />
               </button>
@@ -385,7 +490,7 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
             </span>
             <div>
               <strong>{app.profile.name}</strong>
-              <small>Fund manager</small>
+              <small>Manager</small>
             </div>
             <button
               className="icon-button"
@@ -411,20 +516,25 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
             </button>
             {isTrade ? (
               <>
-                <Link className="trade-top-back" href={farmDetailHref(queryFarmId)} aria-label="Back to Farm">
+                <Link className="trade-top-back" href={farmDetailHref(queryFarmId)} aria-label="Back to DTF">
                   <ArrowRight className="rotate-180" size={17} />
                 </Link>
                 <strong>{tradeFarmName}</strong>
               </>
             ) : isFarmDetail ? (
-              <Link className="farm-top-back" href="/app/farms"><ArrowRight className="rotate-180" size={14} /> All farms</Link>
+              <Link className="farm-top-back" href="/app/farms"><ArrowRight className="rotate-180" size={14} /> All DTFs</Link>
             ) : isStrategyView ? (
-              <Link className="farm-top-back" href="/app/strategies/"><ArrowRight className="rotate-180" size={14} /> All strategies</Link>
+              <StrategyBackLink />
             ) : (
-              <strong>{isWizard ? "Create farm" : activeNav.find((item) => item.section === section)?.label || section.charAt(0).toUpperCase() + section.slice(1)}</strong>
+              <strong>{isWizard ? "Create DTF" : activeNav.find((item) => item.section === section)?.label || pageTitles[section] || section.charAt(0).toUpperCase() + section.slice(1)}</strong>
             )}
           </div>
           <div className="topbar-actions">
+            {isV2 && (
+              <span className="preview-badge">
+                <LabelTip label="Preview">Preview environment. Figures are illustrative and no funds move.</LabelTip>
+              </span>
+            )}
             {isV2 ? (
               <div className="chain-filter">
                 <button
@@ -435,7 +545,7 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
                   onClick={() => setChainMenu((open) => !open)}
                 >
                   <NetworkIcon network={network === "All Chains" ? "All" : network} size={20} />
-                  <span>{network}</span>
+                  <span>{network === "All Chains" ? "All" : network}</span>
                   <ChevronDown className={chainMenu ? "workspace-chevron open" : "workspace-chevron"} size={14} />
                 </button>
                 {chainMenu && (
@@ -449,7 +559,7 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
                         onClick={() => { setNetwork(chain); setChainMenu(false); }}
                       >
                         <NetworkIcon network={chain === "All Chains" ? "All" : chain} size={22} />
-                        <span>{chain}</span>
+                        <span>{chain === "All Chains" ? "All" : chain}</span>
                         {network === chain && <Check size={15} />}
                       </button>
                     ))}
@@ -470,12 +580,24 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
                 </select>
               </label>
             )}
-            <button className="button wallet-button" onClick={() => setModal("wallet")}>
+            <button className="button wallet-button" onClick={() => setModal("wallet")} aria-label={app.wallet ? `Wallet ${shortAddress(app.wallet)} on ${walletNetwork(app.walletChain)}` : "Connect wallet"}>
               <Wallet size={16} />
-              {app.wallet ? `${app.wallet.slice(0, 6)}…${app.wallet.slice(-4)}` : "Connect wallet"}
+              {app.wallet ? (
+                <>
+                  <span className="mono">{shortAddress(app.wallet)}</span>
+                  <span className="wallet-network-chip"><NetworkIcon network={walletNetwork(app.walletChain)} size={14} />{walletNetwork(app.walletChain)}</span>
+                </>
+              ) : "Connect wallet"}
             </button>
-            <button className="icon-button notification-button" aria-label="Notifications" onClick={() => setModal("notifications")}>
-              <Bell size={19} /><span />
+            <button
+              className="icon-button notification-button"
+              aria-label={notifications.unread ? `Notifications, ${notifications.unread} unread` : "Notifications"}
+              aria-haspopup="dialog"
+              aria-expanded={notificationsOpen}
+              onClick={() => setNotificationsOpen(true)}
+            >
+              <Bell size={19} />
+              {notifications.unread > 0 && <span aria-hidden="true" />}
             </button>
             {isV2 && (
               <div className="utility-account">
@@ -528,6 +650,7 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
             )}
           </div>
         </header>
+        {isV2 && (section === "dashboard" || section === "market" || (section === "strategies" && !isStrategyView)) && <PriceTicker />}
         <main
           id="main"
           className={isWizard ? "main-content wizard-content" : isTrade ? "main-content trade-content" : "main-content"}
@@ -535,7 +658,7 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
           {app.storageError && (
             <Notice tone="warning">
               {app.storageError}{" "}
-              <Link href="/app/settings/security">Manage local data</Link>
+              <Link href="/app/settings/security">Open settings</Link>
             </Notice>
           )}
           {!app.ready ? (
@@ -550,13 +673,12 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
         </main>
         <footer className="app-footer">
           <span>
-            <span className="environment-dot" /> Local preview · Sample data only
+            <span className="environment-dot" /> Preview environment · figures are illustrative
           </span>
-          <span>Dexponent capital operations</span>
         </footer>
       </div>
       <nav className="bottom-nav">
-        {activeNav.slice(0, 4).map((item) => (
+        {(isV2 ? mobileNav : activeNav.slice(0, 4)).map((item) => (
           <Link
             key={item.href}
             className={section === item.section ? "active" : ""}
@@ -571,10 +693,8 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
         <Modal
           title={
             modal === "wallet"
-              ? "Connect your wallet"
-              : modal === "add-user"
-                ? "Add a workspace user"
-                : "Notifications"
+              ? app.wallet ? "Wallet" : "Connect wallet"
+              : "Add a workspace user"
           }
           onClose={() => setModal("")}
         >
@@ -592,10 +712,10 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
                 setNewUserName("");
                 setNewWorkspaceName("");
                 setModal("");
-                app.toast(`${user.name} added to this session`);
+                app.toast(`${user.name} added`);
               }}
             >
-              <p className="muted">Create another local profile for this browser session.</p>
+              <p className="muted">Add a profile and switch to it.</p>
               <div className="fields-grid single-column-fields">
                 <label className="field"><span>User name</span><input autoFocus value={newUserName} onChange={(event) => setNewUserName(event.target.value)} placeholder="Full name" maxLength={50} required /></label>
                 <label className="field"><span>Workspace name</span><input value={newWorkspaceName} onChange={(event) => setNewWorkspaceName(event.target.value)} placeholder="Personal workspace" maxLength={50} /></label>
@@ -606,32 +726,29 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
               </div>
             </form>
           ) : modal === "wallet" ? (
-            <>
-              <p className="muted">
-                Connect your public address with an installed EVM browser
-                wallet.
-              </p>
+            <div className="wallet-modal">
               {app.wallet ? (
                 <>
-                  <div className="wallet-address">{app.wallet}</div>
-                  <p className="small muted">
-                    Wallet chain: {app.walletChain} · No signatures requested
-                  </p>
-                  <button className="button full" onClick={app.disconnect}>
-                    Disconnect from this workspace
+                  <div className="wallet-connected">
+                    <span className="mono wallet-address">{app.wallet}</span>
+                    <span className="wallet-network-chip"><NetworkIcon network={walletNetwork(app.walletChain)} size={14} />{walletNetwork(app.walletChain)}</span>
+                  </div>
+                  <button className="button full" onClick={() => { app.disconnect(); setModal(""); }}>
+                    Disconnect
                   </button>
                 </>
               ) : (
-                <button
-                  className="button primary full"
-                  disabled={app.connecting}
-                  onClick={app.connect}
-                >
-                  <Wallet size={16} />
-                  {app.connecting
-                    ? "Waiting for wallet…"
-                    : "Connect browser wallet"}
-                </button>
+                <>
+                  <p className="muted">Connect an EVM wallet installed in your browser.</p>
+                  <button
+                    className="button primary full"
+                    disabled={app.connecting}
+                    onClick={app.connect}
+                  >
+                    <Wallet size={16} />
+                    {app.connecting ? "Waiting for wallet…" : "Browser wallet"}
+                  </button>
+                </>
               )}
               {app.walletError && (
                 <p role="alert" className="field-error">
@@ -639,95 +756,45 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
                 </p>
               )}
               {!app.wallet && (
-                <button className="button full" onClick={() => { app.connectDemo(); setModal(""); }}>
-                  Use demo wallet · no signatures
+                <button className="text-link wallet-preview-link" onClick={() => { app.connectDemo(); setModal(""); }}>
+                  Continue with preview wallet
                 </button>
               )}
-              <Notice>
-                Demo exploration does not require a wallet. Live transactions
-                are disabled in this prototype.
-              </Notice>
-            </>
-          ) : (
-            <EmptyState
-              title="You’re all caught up"
-              description="Saved drafts and preview results appear in your farms. Live monitoring notifications will arrive after integration."
-            />
-          )}
+            </div>
+          ) : null}
         </Modal>
       )}
-      <SupportCenter open={supportOpen} onOpenChange={setSupportOpen} />
+      <NotificationsPanel open={notificationsOpen} onClose={() => setNotificationsOpen(false)} data={notifications} />
+      <SupportCenter open={supportOpen} onOpenChange={setSupportOpen} target={supportTarget} />
     </div>
+  );
+}
+/** Display name for the connected wallet's chain. */
+function walletNetwork(chain: string) {
+  const value = chain.toLowerCase();
+  if (!value || value === "demo" || value === "base" || value === "0x2105" || value === "8453") return "Base";
+  if (value.includes("solana")) return "Solana";
+  return "Unsupported network";
+}
+/** Back from a DTF profile: to the Positions tab it was opened from, otherwise to all DTFs. */
+function StrategyBackLink() {
+  const [from, setFrom] = useState<"lp" | "manager" | null>(null);
+  useEffect(() => {
+    const value = new URLSearchParams(window.location.search).get("from");
+    setFrom(value === "lp" || value === "manager" ? value : null);
+  }, []);
+  return from ? (
+    <Link className="farm-top-back" href={`/app/positions/?view=${from}`}><ArrowRight className="rotate-180" size={14} /> Positions</Link>
+  ) : (
+    <Link className="farm-top-back" href="/app/strategies/"><ArrowRight className="rotate-180" size={14} /> All DTFs</Link>
   );
 }
 function CreateButton() {
   return (
     <Link className="button primary" href="/app/farms/new">
       <Plus size={16} />
-      Create farm
+      Create DTF
     </Link>
-  );
-}
-function Positions({ network }: { network: string }) {
-  const app = useApp();
-  const farms = app.farms.filter(
-    (farm) =>
-      Number(farm.values.demoPosition || 0) > 0 &&
-      (farm.status === "ACTIVE" || farm.status === "PAUSED") &&
-      (network === "All Chains" || farm.network === network),
-  );
-  const positionValue = (farm: Farm) => Number(farm.values.demoPosition || 0);
-  const capital = farms.reduce((total, farm) => total + positionValue(farm), 0);
-  const weightedApy = capital
-    ? farms.reduce((total, farm) => total + farm.apy * positionValue(farm), 0) / capital
-    : 0;
-  const weightedPerformance = capital
-    ? farms.reduce(
-        (total, farm) => total + farm.performance * positionValue(farm),
-        0,
-      ) / capital
-    : 0;
-
-  return (
-    <>
-      <PageHeading
-        eyebrow="PORTFOLIO"
-        title="Positions"
-        description="Review active Farm exposure, allocation, yield, and performance across selected chains."
-        action={<CreateButton />}
-      />
-      <div className="overview-metrics capital-metrics">
-        <Metric label="Portfolio value" value={money(capital)} caption="active Farm capital · demo" />
-        <Metric label="Open positions" value={String(farms.length).padStart(2, "0")} caption="across selected chains" />
-        <Metric label="Blended APY" value={`${weightedApy.toFixed(2)}%`} caption="position-weighted · demo" />
-        <Metric label="30D performance" value={`${weightedPerformance >= 0 ? "+" : ""}${weightedPerformance.toFixed(2)}%`} caption="position-weighted · demo" />
-      </div>
-      <DtfPositions network={network} />
-      <div className="section-heading">
-        <div>
-          <h2>Farm positions</h2>
-          <p>Farms where you hold a demo balance, including paused Farms that remain withdrawable.</p>
-        </div>
-      </div>
-      <div className="farm-table-wrap">
-        {!farms.length ? (
-          <EmptyState title="No positions yet" description="Explore an active Farm and complete a demo deposit to open your first position." href="/app/explore" label="Explore Farms" />
-        ) : (
-          <table className="farm-table">
-            <thead><tr><th>Farm / Strategy</th><th>Status</th><th>Your position</th><th>APY</th><th>30D performance</th><th>Network</th><th aria-label="Open Farm" /></tr></thead>
-            <tbody>{farms.map((farm) => <tr key={farm.id}>
-              <td><Link className="farm-name" href={farmDetailHref(farm.id)}><span className={`icon-tile ${farm.type.toLowerCase()}`}><StrategyIcon type={farm.type} size={18} /></span><span><strong>{farm.name}</strong><small>{farm.type} · Demo position</small></span></Link></td>
-              <td><Badge tone={farm.status === "ACTIVE" ? "mint" : "amber"}>{farm.status.charAt(0) + farm.status.slice(1).toLowerCase()}</Badge></td>
-              <td className="numeric">{money(positionValue(farm))}</td>
-              <td className="numeric">{farm.apy}%</td>
-              <td><span className="positive">+{farm.performance.toFixed(2)}%</span></td>
-              <td><span className="network-name"><NetworkIcon network={farm.network} size={19} />{farm.network}</span></td>
-              <td><Link className="icon-button" aria-label={`Open ${farm.name}`} href={farmDetailHref(farm.id)}><ArrowUpRight size={17} /></Link></td>
-            </tr>)}</tbody>
-          </table>
-        )}
-      </div>
-    </>
   );
 }
 function ExploreFarms({ network }: { network: string }) {
@@ -745,23 +812,21 @@ function ExploreFarms({ network }: { network: string }) {
   return (
     <>
       <PageHeading
-        eyebrow="FARM EXPLORER"
-        title="Find a Farm you can understand."
-        description="Compare strategy, performance, fees, liquidity, and risk before deciding whether to deposit."
+        title="Explore DTFs"
         action={<Link className="button" href="/app/farms">Manager workspace <ArrowRight size={15} /></Link>}
       />
       <section className="explore-intro panel">
         <div>
-          <strong>Built for informed decisions</strong>
-          <p>All figures are illustrative demo data. Review the strategy and risk details on each Farm profile.</p>
+          <strong>Compare before you deposit</strong>
+          <p>Review strategy, fees and risk on each DTF profile.</p>
         </div>
         <div className="explore-stats">
-          <span><strong>{farms.length}</strong> active Farms</span>
-          <span><strong>{money(farms.reduce((sum, farm) => sum + farm.tvl, 0), true)}</strong> demo TVL</span>
+          <span><strong>{farms.length}</strong> active DTFs</span>
+          <span><strong>{formatUsdCompact(farms.reduce((sum, farm) => sum + farm.tvl, 0))}</strong> TVL</span>
         </div>
       </section>
       <div className="list-toolbar explore-toolbar">
-        <label className="search-input"><Search size={16} /><input aria-label="Search public farms" placeholder="Search by Farm name…" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
+        <label className="search-input"><Search size={16} /><input aria-label="Search public DTFs" placeholder="Search by DTF name…" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
         <select aria-label="Filter by risk" value={risk} onChange={(event) => setRisk(event.target.value)}>
           {["All risk levels", "LOW", "MEDIUM", "HIGH", "CRITICAL"].map((level) => <option key={level}>{level}</option>)}
         </select>
@@ -778,461 +843,370 @@ function ExploreFarms({ network }: { network: string }) {
             <div>
               <span className="farm-kicker"><NetworkIcon network={farm.network} size={18} /> {farm.type} · {farm.network}</span>
               <h2>{farm.name}</h2>
-              <p>{String(farm.values.description || "A transparent onchain Farm with clearly defined strategy controls.")}</p>
+              <p>{String(farm.values.description || "A transparent onchain DTF with clearly defined strategy controls.")}</p>
             </div>
             <div className="explore-card-metrics">
               <div><span>APY</span><strong>{farm.apy}%</strong></div>
               <div><span>TVL</span><strong>{money(farm.tvl, true)}</strong></div>
               <div><span>30D</span><strong className="positive">+{farm.performance}%</strong></div>
             </div>
-            <div className="farm-manager-line"><span className="avatar small-avatar">AM</span><span>Managed by <strong>Alex Morgan</strong><small>Demo manager profile</small></span></div>
-            <Link className="button primary full" href={farmDetailHref(farm.id)}>Review Farm <ArrowRight size={15} /></Link>
+            <div className="farm-manager-line"><span className="avatar small-avatar">{app.profile.name.split(" ").map((part) => part[0]).slice(0, 2).join("")}</span><span>Managed by <strong>{app.profile.name}</strong></span></div>
+            <Link className="button primary full" href={farmDetailHref(farm.id)}>Review DTF <ArrowRight size={15} /></Link>
           </article>
         ))}
       </div>
-      {!farms.length && <EmptyState title="No matching Farms" description="Try another Farm name, network, or risk level." />}
+      {!farms.length && <EmptyState title="No matching DTFs" description="Try another DTF name, network, or risk level." />}
     </>
   );
 }
-function Dashboard({ network, enhanced }: { network: string; enhanced: boolean }) {
+/** Manager rows for the signed-in user's DTFs, with one shared clock so every figure agrees. */
+function useManagerData(network: string) {
   const app = useApp();
-  const farms = app.farms.filter(
-    (f) => network === "All Chains" || f.network === network,
+  const { portfolio } = useDtfPortfolio();
+  const [now] = useState(() => Date.now());
+  const rows = useMemo(
+    () => managerRows(app.farms, app.profile.name, portfolio, now, network),
+    [app.farms, app.profile.name, portfolio, now, network],
   );
-  const aggregate = portfolioMetrics(farms);
-  const { active, drafts, managedCapital: tvl } = aggregate;
-  const [range, setRange] = useState(30);
-  const curve = Array.from(
-    { length: 60 },
-    (_, i) =>
-      tvl *
-      (0.91 +
-        i * 0.0015 +
-        Math.sin(i * 1.5) * 0.004 +
-        Math.cos(i * 0.6) * 0.007) *
-      (range === 90 ? 0.85 + i * 0.0025 : 1),
-  );
-  const projectedYield = tvl * (aggregate.blendedApy / 100);
-  const modeledManagementFee = tvl * 0.01;
-  const modeledPerformanceFee = projectedYield * 0.1;
-  const allocationAmount = (type: StrategyType) =>
-    aggregate.allocation.find((item) => item.type === type)?.amount || 0;
-  const indexAllocation = tvl ? allocationAmount("INDEX") / tvl * 100 : 0;
-  const spotAllocation = tvl ? allocationAmount("SPOT") / tvl * 100 : 0;
-  function exportCapitalReport() {
-    const rows = [
-      "Farm,Strategy,Network,TVL,APY,30D performance,Status",
-      ...farms.map((farm) =>
-        [farm.name, farm.type, farm.network, farm.tvl, farm.apy, farm.performance, farm.status].join(","),
-      ),
-    ];
-    const url = URL.createObjectURL(
-      new Blob([rows.join("\n")], { type: "text/csv" }),
-    );
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = "dexponent-capital-overview.csv";
-    anchor.click();
-    URL.revokeObjectURL(url);
-    app.toast("Capital overview exported");
+  const summary = useMemo(() => managerSummary(rows), [rows]);
+  const byFarm = useMemo(() => new Map(rows.map((row) => [row.farm.id, row])), [rows]);
+  return { rows, summary, byFarm, now };
+}
+
+const OVERVIEW_RANGES = [7, 30, 90] as const;
+type OverviewRange = (typeof OVERVIEW_RANGES)[number];
+
+/** Sum of live TVL across DTFs, sampled daily over the range, ending now. */
+function aumSeries(rows: ManagerRow[], now: number, days: number) {
+  const live = rows.filter((row) => row.live);
+  if (!live.length) return [];
+  const histories = live.map((row) => dtfHistory(row.dtf, now));
+  const length = histories[0].length;
+  const points: { time: number; value: number }[] = [];
+  for (let back = days * 24; back >= 0; back -= 24) {
+    const index = length - 1 - back;
+    if (index < 0) continue;
+    const value = histories.reduce((sum, history) => sum + (history[index]?.live ? history[index].tvl : 0), 0);
+    points.push({ time: histories[0][index].time, value });
   }
+  return points;
+}
+
+/** "24 Sep" for short ranges; the year is added only when the range crosses into another year. */
+function axisLabel(time: number, withYear: boolean) {
+  const [day, month, year] = formatDate(time).split(" ");
+  return withYear ? `${day} ${month} ${year}` : `${day} ${month}`;
+}
+
+function Dashboard({ network }: { network: string; enhanced?: boolean }) {
+  const app = useApp();
+  const { rows, summary, now } = useManagerData(network);
+  const [range, setRange] = useState<OverviewRange>(30);
+  const drafts = app.farms.filter(
+    (farm) => (farm.status === "DRAFT" || farm.status === "SIMULATION") && (network === "All Chains" || farm.network === network),
+  );
+  const live = rows.filter((row) => row.live);
+  const aum = summary.aum;
+  const aum30dAgo = live.reduce((sum, row) => sum + dtfStats(row.dtf, now).tvl30dAgo, 0);
+  const aumChange = live.length ? aum - aum30dAgo : null;
+  const aumChangePct = aumChange !== null && aum30dAgo > 0 ? (aumChange / aum30dAgo) * 100 : null;
+  const series = useMemo(() => aumSeries(rows, now, range), [rows, now, range]);
+  const values = series.map((point) => point.value);
+  const first = values[0] ?? 0;
+  const last = values.at(-1) ?? 0;
+  const rangeChange = first > 0 ? (last / first - 1) * 100 : null;
+  const max = values.length ? Math.max(...values) : 0;
+  const min = values.length ? Math.min(...values) : 0;
+  const ticks = series.length
+    ? [0, 1, 2, 3].map((i) => series[Math.round((i / 3) * (series.length - 1))].time)
+    : [];
+  const crossesYear = ticks.length > 1 && new Date(ticks[0]).getUTCFullYear() !== new Date(ticks.at(-1)!).getUTCFullYear();
+  const byType = (type: StrategyType) => live.filter((row) => row.farm.type === type).reduce((sum, row) => sum + (row.tvl ?? 0), 0);
+  const indexShare = aum ? (byType("INDEX") / aum) * 100 : 0;
+  const spotShare = aum ? (byType("SPOT") / aum) * 100 : 0;
+  const managed = app.farms.filter((farm) => rows.some((row) => row.farm.id === farm.id));
   return (
     <>
-      <PageHeading
-        eyebrow="EXECUTIVE FINANCIAL SUMMARY"
-        title={enhanced ? "Farm overview" : "Capital overview"}
-        description="Monitor managed liquidity, capital flows, performance, and risk across every active Farm."
-        action={
-          <div className="heading-actions">
-            {!enhanced && <button className="button" onClick={exportCapitalReport}>
-              <ArrowDownToLine size={16} /> Export report
-            </button>}
-            <CreateButton />
-          </div>
-        }
-      />
-      <div className={`overview-metrics capital-metrics ${enhanced ? "six-metrics" : ""}`}>
+      <PageHeading title="Overview" action={<CreateButton />} />
+      <div className="overview-metrics capital-metrics">
         <Metric
-          label="Managed capital"
-          value={money(tvl)}
-          caption="across active Farms · demo"
+          label={<LabelTip label="AUM">Total TVL across your live DTFs.</LabelTip>}
+          value={formatUsdCompact(aum)}
+          caption={`${formatCount(live.length)} live DTF${live.length === 1 ? "" : "s"}`}
         />
         <Metric
-          label="Active farms"
-          value={String(active.length).padStart(2, "0")}
-          caption={`${drafts.length} draft${drafts.length === 1 ? "" : "s"} in progress`}
+          label={<LabelTip label="AUM change · 30D">Change in TVL over the last 30 days, from LP flows and performance together.</LabelTip>}
+          value={formatSignedUsd(aumChange, true)}
+          tone={toneOf(aumChange)}
+          caption={formatSignedPct(aumChangePct)}
         />
         <Metric
-          label="Net trajectory · 30D"
-          value={`${aggregate.netTrajectory30d >= 0 ? "+" : ""}${aggregate.netTrajectory30d.toFixed(2)}%`}
-          caption="TVL-weighted · demo"
+          label={<LabelTip label="Net flows · 30D">LP deposits minus withdrawals over the last 30 days.</LabelTip>}
+          value={formatSignedUsd(live.length ? summary.netFlows30d : null, true)}
+          tone={toneOf(live.length ? summary.netFlows30d : null)}
         />
         <Metric
-          label="Blended APY"
-          value={`${aggregate.blendedApy.toFixed(2)}%`}
-          caption="TVL-weighted · demo"
+          label={<LabelTip label="Fees earned">Estimated performance fees on LP yield since launch, at each DTF&apos;s configured fee rate. Not yet claimed.</LabelTip>}
+          value={formatUsdCompact(live.length ? summary.feesEarned : null)}
+          caption="est."
         />
-        {enhanced && <Metric
-          label="Withdrawable capital"
-          value={money(aggregate.withdrawableCapital, true)}
-          caption={`${aggregate.withdrawablePct.toFixed(1)}% of managed capital · demo`}
-        />}
-        {enhanced && <Metric
-          label="Total LPs"
-          value={aggregate.totalLps.toLocaleString()}
-          caption={`largest depositor ${aggregate.topHolderPct.toFixed(1)}% of managed capital`}
-        />}
       </div>
       <div className="dashboard-middle">
         <section className="panel portfolio-panel">
           <div className="panel-heading">
             <div>
-              <span className="panel-kicker">TRAJECTORY</span>
-              <h3>Portfolio performance</h3>
-              <p>
-                Value across your active farms{" "}
-                <span className="subtle-label">DEMO DATA</span>
-              </p>
+              <h3>AUM</h3>
+              <p>TVL across your live DTFs</p>
             </div>
-            <div className="segmented">
-              {[30, 90, 365].map((d) => (
+            <div className="segmented" role="group" aria-label="Chart range">
+              {OVERVIEW_RANGES.map((d) => (
                 <button
                   key={d}
                   className={range === d ? "active" : ""}
                   aria-pressed={range === d}
                   onClick={() => setRange(d)}
                 >
-                  {d === 365 ? "1Y" : `${d}D`}
+                  {d}D
                 </button>
               ))}
             </div>
           </div>
           <div className="chart-summary">
-            <AnimatedValue value={money(tvl)} />
-            <span className="positive">
-              <ArrowUpRight size={15} />
-              {performanceForRange(aggregate.netTrajectory30d, range).toFixed(2)}%{" "}
-              <span className="muted">sample period</span>
+            <AnimatedValue value={formatUsdCompact(aum)} />
+            <span className={toneOf(rangeChange) ?? "muted"}>
+              {formatSignedPct(rangeChange)} <span className="muted">{range}D</span>
             </span>
           </div>
-          {tvl > 0 ? (
+          {series.length > 1 ? (
             <>
               <div className="chart-with-axis">
-                <PerformanceChart
-                  points={
-                    range === 365
-                      ? curve.map((v, i) => v * (0.7 + i * 0.005))
-                      : curve
-                  }
-                />
+                <PerformanceChart points={values} label="AUM over time" />
                 <div className="chart-y">
-                  <span>{money(tvl * 1.02, true)}</span>
-                  <span>{money(tvl * 0.95, true)}</span>
-                  <span>{money(tvl * 0.88, true)}</span>
+                  <span>{formatUsdCompact(max)}</span>
+                  <span>{formatUsdCompact((max + min) / 2)}</span>
+                  <span>{formatUsdCompact(min)}</span>
                 </div>
               </div>
               <div className="chart-axis">
-                <span>
-                  {range === 365
-                    ? "Sep 2025"
-                    : range === 90
-                      ? "Jun 2026"
-                      : "Aug 08"}
-                </span>
-                <span>
-                  {range === 365
-                    ? "Jan 2026"
-                    : range === 90
-                      ? "Jul 2026"
-                      : "Aug 18"}
-                </span>
-                <span>
-                  {range === 365
-                    ? "May 2026"
-                    : range === 90
-                      ? "Aug 2026"
-                      : "Aug 28"}
-                </span>
-                <span>Sep 07</span>
+                {ticks.map((time, i) => (
+                  <span key={i}>{axisLabel(time, crossesYear)}</span>
+                ))}
               </div>
             </>
           ) : (
             <EmptyState
-              title="No performance data"
-              description="This network has no active demo farms."
+              title="No live DTFs"
+              description={network === "All Chains" ? "AUM appears once a DTF is live." : `You have no live DTFs on ${network}.`}
             />
           )}
         </section>
         <section className="panel allocation-panel">
           <div className="panel-heading">
             <div>
-              <span className="panel-kicker">CAPITAL MIX</span>
               <h3>Capital allocation</h3>
+              <p>By strategy type</p>
             </div>
-            <SlidersHorizontal size={15} />
           </div>
           <div
             className="allocation-donut"
+            role="img"
+            aria-label={families.map((f) => `${f.title} ${aum ? Math.round((byType(f.type) / aum) * 100) : 0}%`).join(", ")}
             style={{
-              background: tvl
-                ? `conic-gradient(#818cf8 0 ${indexAllocation}%, #f472b6 ${indexAllocation}% ${indexAllocation + spotAllocation}%, #3dc486 ${indexAllocation + spotAllocation}% 100%)`
+              background: aum
+                ? `conic-gradient(#818cf8 0 ${indexShare}%, #f472b6 ${indexShare}% ${indexShare + spotShare}%, #3dc486 ${indexShare + spotShare}% 100%)`
                 : "var(--border)",
             }}
           >
             <div>
-              <span>STRATEGIES</span>
-              <AnimatedValue value={String(new Set(active.map((f) => f.type)).size)} />
-              <small>in your portfolio</small>
+              <span>TYPES</span>
+              <AnimatedValue value={String(new Set(live.map((row) => row.farm.type)).size)} />
+              <small>in use</small>
             </div>
           </div>
           <div className="allocation-legend">
             {families.map((f) => {
-              const amount = allocationAmount(f.type);
+              const amount = byType(f.type);
               return (
                 <div key={f.type}>
                   <span className={`legend-dot ${f.type.toLowerCase()}`} />
                   <span>{f.title}</span>
-                  <strong>{tvl ? Math.round((amount / tvl) * 100) : 0}%</strong>
-                  <small>{money(amount, true)}</small>
+                  <strong>{aum ? Math.round((amount / aum) * 100) : 0}%</strong>
+                  <small>{formatUsdCompact(amount)}</small>
                 </div>
               );
             })}
           </div>
-          <div className="allocation-note">
-            <Shield size={13} />
-            Demo risk mix: medium to high
-          </div>
         </section>
       </div>
-      <section className="panel cost-panel">
-        <div className="cost-panel-copy">
-          <span className="panel-kicker">COST BREAKDOWN</span>
-          <h3>Modeled annual fee load</h3>
-          <p>Estimated from a 1% management fee and 10% performance fee on projected yield. Review each Farm for configured terms.</p>
-        </div>
-        <div className="cost-rows">
-          <div>
-            <span>Management fees</span>
-            <AnimatedValue value={money(modeledManagementFee, true)} />
-            <i style={{ width: "68%" }} />
-          </div>
-          <div>
-            <span>Performance fees</span>
-            <AnimatedValue value={money(modeledPerformanceFee, true)} />
-            <i style={{ width: "42%" }} />
-          </div>
-          <div>
-            <span>Projected net yield</span>
-            <AnimatedValue className="positive" value={money(Math.max(0, projectedYield - modeledManagementFee - modeledPerformanceFee), true)} />
-            <i className="positive-bar" style={{ width: "84%" }} />
-          </div>
-        </div>
-      </section>
       <div className="section-heading">
         <div>
           <h2>
-            Managed farms{" "}
-            <span className="count-pill">
-              {farms.filter((f) => f.status !== "DRAFT").length}
-            </span>
+            Managed DTFs <span className="count-pill">{formatCount(managed.length)}</span>
           </h2>
-          <p>A closer look at the Farms you’re managing.</p>
         </div>
         <Link className="text-link" href="/app/farms">
-          View all farms <ArrowRight size={15} />
+          View all <ArrowRight size={15} />
         </Link>
       </div>
-      <FarmTable
-        farms={farms.filter((f) => f.status !== "DRAFT").slice(0, 4)}
-      />
-      <div className="dashboard-bottom">
-        <section className="start-banner">
-          <div className="icon-tile">
-            <Plus size={22} />
-          </div>
-          <div>
-            <h3>Your next strategy starts here.</h3>
-            <p>
-              A curated template. A few thoughtful decisions. Your next farm.
-            </p>
-          </div>
-          <Link className="button" href="/app/templates">
-            Explore templates <ArrowRight size={15} />
-          </Link>
-        </section>
+      <FarmTable farms={managed.slice(0, 4)} rows={rows} />
+      {drafts.length > 0 && (
         <Link href="/app/farms/drafts" className="draft-banner">
           <FileText size={21} />
           <div>
-            <h3>Pick up where you left off</h3>
-            <p>{drafts.length} saved drafts in your workspace</p>
+            <h3>Continue draft</h3>
+            <p>{formatCount(drafts.length)} saved</p>
           </div>
           <ArrowRight size={17} />
         </Link>
-      </div>
+      )}
     </>
   );
 }
-function FarmTable({ farms }: { farms: Farm[] }) {
+
+const statusTone: Partial<Record<Farm["status"], string>> = { ACTIVE: "mint", READY: "blue", DEPLOYING: "blue", DRAFT: "neutral", SIMULATION: "neutral" };
+function statusLabel(status: Farm["status"]) {
+  if (status === "SIMULATION") return "Draft";
+  return status.charAt(0) + status.slice(1).toLowerCase();
+}
+
+function ReturnCell({ row }: { row: ManagerRow | undefined }) {
+  if (!row || !row.live || row.ret.value === null) return <>{MISSING}</>;
+  const value = row.ret.kind === "apy" ? formatPct(row.ret.value) : formatSignedPct(row.ret.value);
+  return (
+    <span className="return-cell">
+      <strong className={row.ret.kind === "sinceLaunch" ? toneOf(row.ret.value) : undefined}>{value}</strong>
+      <small>{row.ret.kind === "apy" ? "APY" : "Since launch"}</small>
+    </span>
+  );
+}
+
+function FarmTable({ farms, rows }: { farms: Farm[]; rows: ManagerRow[] }) {
+  const byFarm = new Map(rows.map((row) => [row.farm.id, row]));
   return (
     <div className="farm-table-wrap">
       {!farms.length ? (
         <EmptyState
-          title="Space for your next strategy"
-          description="Create a farm from a template to get started."
+          title="No DTFs yet"
+          description="Create a DTF from a template to get started."
           href="/app/farms/new"
         />
       ) : (
-        <table className="farm-table">
+        <table className="farm-table managed-table">
           <thead>
             <tr>
-              <th>Farm</th>
-              <th>Status</th>
-              <th>TVL</th>
-              <th>APY</th>
-              <th>30D performance</th>
-              <th>Base token</th>
-              <th aria-label="Manage" />
+              <th scope="col">DTF</th>
+              <th scope="col">Status</th>
+              <th scope="col" className="numeric">TVL</th>
+              <th scope="col" className="numeric">
+                <LabelTip label="Return">After fees. Return since launch for DTFs under 90 days old, APY after that.</LabelTip>
+              </th>
+              <th scope="col" className="numeric">24h</th>
+              <th scope="col" className="numeric">
+                <LabelTip label="Net flows · 30D">LP deposits minus withdrawals over the last 30 days.</LabelTip>
+              </th>
+              <th scope="col" className="numeric">LPs</th>
+              <th scope="col"><span className="sr-only">Open</span></th>
             </tr>
           </thead>
           <tbody>
-            {farms.map((f) => (
-              <tr key={f.id}>
-                <td>
-                  <Link className="farm-name" href={farmDetailHref(f.id)}>
-                    <span className={`icon-tile ${f.type.toLowerCase()}`}>
-                      <StrategyIcon type={f.type} size={18} />
-                    </span>
-                    <span>
-                      <strong>{f.name}</strong>
-                      <small>
-                        <span className={`strategy-tag ${f.type.toLowerCase()}`}>{f.type}</span>
-                        <span>·</span>{" "}{f.network} Network
-                      </small>
-                    </span>
-                  </Link>
-                </td>
-                <td>
-                  <Badge
-                    tone={
-                      f.status === "ACTIVE"
-                        ? "mint"
-                        : f.status === "READY"
-                          ? "blue"
-                          : "amber"
-                    }
-                  >
-                    {f.status.charAt(0) + f.status.slice(1).toLowerCase()}
-                  </Badge>
-                </td>
-                <td className="numeric">
-                  {f.source === "demo" ? money(f.tvl, true) : "—"}
-                </td>
-                <td className="numeric">
-                  {f.source === "demo" ? `${f.apy}%` : "—"}
-                </td>
-                <td>
-                  <div className="table-performance">
-                    <span className="positive">
-                      {f.source === "demo"
-                        ? `+${f.performance.toFixed(2)}%`
-                        : "No live data"}
-                    </span>
-                    {f.source === "demo" && (
-                      <PerformanceChart
-                        mini
-                        points={Array.from(
-                          { length: 22 },
-                          (_, i) =>
-                            100 +
-                            (i * f.performance) / 14 +
-                            Math.sin(i * 2) * 0.8,
-                        )}
-                      />
-                    )}
-                  </div>
-                </td>
-                <td>
-                  <span className="network-name">
-                    <AssetIcon symbol={String(f.values.asset || "USDC")} size={19} />
-                    {String(f.values.asset || "USDC")}
-                  </span>
-                </td>
-                <td>
-                  <Link
-                    className="icon-button"
-                    aria-label={`Manage ${f.name}`}
-                    href={farmDetailHref(f.id)}
-                  >
-                    <ArrowUpRight size={17} />
-                  </Link>
-                </td>
-              </tr>
-            ))}
+            {farms.map((f) => {
+              const row = byFarm.get(f.id);
+              const live = Boolean(row?.live);
+              return (
+                <tr key={f.id}>
+                  <td>
+                    <Link className="farm-name" href={f.status === "DRAFT" || f.status === "SIMULATION" ? `/app/farms/new?draft=${f.id}` : farmDetailHref(f.id)}>
+                      <span className={`icon-tile ${f.type.toLowerCase()}`}>
+                        {f.icon ? <img src={f.icon} alt="" /> : <StrategyIcon type={f.type} size={18} />}
+                      </span>
+                      <span>
+                        <strong>{f.name || "Untitled DTF"}</strong>
+                        <small>
+                          <span className={`strategy-tag ${f.type.toLowerCase()}`}>{f.type.charAt(0) + f.type.slice(1).toLowerCase()}</span>
+                          <span className="network-name"><NetworkIcon network={f.network} size={14} />{f.network}</span>
+                        </small>
+                      </span>
+                    </Link>
+                  </td>
+                  <td>
+                    <Badge tone={statusTone[f.status] ?? "amber"}>{statusLabel(f.status)}</Badge>
+                  </td>
+                  <td className="numeric">{live ? formatUsdCompact(row!.tvl) : MISSING}</td>
+                  <td className="numeric"><ReturnCell row={row} /></td>
+                  <td className={`numeric ${toneOf(live ? row!.change24hPct : null) ?? ""}`}>
+                    {live ? formatSignedPct(row!.change24hPct) : MISSING}
+                  </td>
+                  <td className={`numeric ${toneOf(live ? row!.netFlows30d : null) ?? ""}`}>
+                    {live ? formatSignedUsd(row!.netFlows30d, true) : MISSING}
+                  </td>
+                  <td className="numeric">{live ? formatCount(row!.depositors) : MISSING}</td>
+                  <td>
+                    <Link
+                      className="icon-button"
+                      aria-label={`Open ${f.name || "DTF"}`}
+                      href={f.status === "DRAFT" || f.status === "SIMULATION" ? `/app/farms/new?draft=${f.id}` : farmDetailHref(f.id)}
+                    >
+                      <CaretRight size={16} />
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}
     </div>
   );
 }
+
+const typeFilters = ["ALL", "INDEX", "SPOT", "PERPETUAL"] as const;
+
 function FarmList({ drafts, network }: { drafts: boolean; network: string }) {
   const app = useApp();
+  const { rows } = useManagerData("All Chains");
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState("All strategies");
+  const [filter, setFilter] = useState<(typeof typeFilters)[number]>("ALL");
   const [deleting, setDeleting] = useState<Farm | null>(null);
-  const visible = app.farms.filter(
-    (f) =>
-      (network === "All Chains" || f.network === network) &&
-      (!drafts || f.status === "DRAFT" || f.status === "SIMULATION") &&
-      (filter === "All strategies" || f.type === filter) &&
-      f.name.toLowerCase().includes(query.toLowerCase()),
-  );
+  const isDraft = (f: Farm) => f.status === "DRAFT" || f.status === "SIMULATION";
+  const draftCount = app.farms.filter(isDraft).length;
+  const visible = app.farms
+    .filter(
+      (f) =>
+        (network === "All Chains" || f.network === network) &&
+        (!drafts || isDraft(f)) &&
+        (filter === "ALL" || f.type === filter) &&
+        f.name.toLowerCase().includes(query.trim().toLowerCase()),
+    )
+    .sort((a, b) => Number(isDraft(a)) - Number(isDraft(b)) || b.tvl - a.tvl);
   return (
     <>
-      <PageHeading
-        eyebrow="YOUR STRATEGY WORKSPACE"
-        title={drafts ? "A place for your next ideas." : "My farms"}
-        description={
-          drafts
-            ? "Your work is saved. Continue whenever inspiration strikes."
-            : "Create, monitor, and fine-tune your Farms."
-        }
-        action={<CreateButton />}
-      />
+      <PageHeading title={drafts ? "Drafts" : "Managed DTFs"} action={<CreateButton />} />
       <div className="tabs">
         <Link className={!drafts ? "active" : ""} href="/app/farms">
-          All farms <span>{app.farms.length}</span>
+          All DTFs <span>{formatCount(app.farms.length)}</span>
         </Link>
         <Link className={drafts ? "active" : ""} href="/app/farms/drafts">
-          Drafts{" "}
-          <span>
-            {
-              app.farms.filter(
-                (f) => f.status === "DRAFT" || f.status === "SIMULATION",
-              ).length
-            }
-          </span>
+          Drafts <span>{formatCount(draftCount)}</span>
         </Link>
       </div>
       <div className="list-toolbar">
         <label className="search-input">
           <Search size={16} />
           <input
-            aria-label="Search farms"
-            placeholder="Search farms…"
+            aria-label="Search DTFs"
+            placeholder="Search DTFs…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </label>
-        <select
-          aria-label="Filter strategy"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-        >
-          {["All strategies", "INDEX", "SPOT", "PERPETUAL"].map((s) => (
-            <option key={s}>{s}</option>
+        <div className="dtf-segment" role="group" aria-label="Filter by strategy type">
+          {typeFilters.map((type) => (
+            <button key={type} aria-pressed={filter === type} onClick={() => setFilter(type)}>
+              {type === "ALL" ? "All" : type.charAt(0) + type.slice(1).toLowerCase()}
+            </button>
           ))}
-        </select>
-        <span className="muted small">{visible.length} farms</span>
+        </div>
+        <span className="muted small">{formatCount(visible.length)} DTF{visible.length === 1 ? "" : "s"}</span>
       </div>
       {drafts ? (
         <div className="draft-grid">
@@ -1244,27 +1218,23 @@ function FarmList({ drafts, network }: { drafts: boolean; network: string }) {
                 </span>
                 <Badge>Draft</Badge>
               </div>
-              <h3>{f.name || "Untitled farm"}</h3>
+              <h3>{f.name || "Untitled DTF"}</h3>
               <p>
-                {f.type} · {f.network}
+                {f.type.charAt(0) + f.type.slice(1).toLowerCase()} · {f.network}
               </p>
               <div className="draft-progress">
                 <div style={{ width: `${((f.step + 1) / 6) * 100}%` }} />
               </div>
               <small className="muted">
-                Step {f.step + 1} of 6 · Updated{" "}
-                {new Date(f.updatedAt).toLocaleDateString()}
+                Step {f.step + 1} of 6 · Updated {formatDate(f.updatedAt)}
               </small>
               <div className="card-actions">
-                <Link
-                  className="button primary"
-                  href={`/app/farms/new?draft=${f.id}`}
-                >
-                  Continue draft <ArrowRight size={14} />
+                <Link className="button primary" href={`/app/farms/new?draft=${f.id}`}>
+                  Continue <ArrowRight size={14} />
                 </Link>
                 <button
                   className="icon-button"
-                  aria-label={`Delete ${f.name}`}
+                  aria-label={`Delete ${f.name || "draft"}`}
                   onClick={() => setDeleting(f)}
                 >
                   <X size={17} />
@@ -1274,24 +1244,20 @@ function FarmList({ drafts, network }: { drafts: boolean; network: string }) {
           ))}
           {visible.length === 0 && (
             <EmptyState
-              title={query ? "No matching drafts" : "A clean slate"}
-              description="Your new strategies will be saved here automatically."
+              title={query ? "No matching drafts" : "No drafts"}
+              description="Drafts are saved as you build a DTF."
               href="/app/farms/new"
             />
           )}
         </div>
+      ) : visible.length || !query ? (
+        <FarmTable farms={visible} rows={rows} />
       ) : (
-        <FarmTable farms={visible} />
+        <EmptyState title="No matching DTFs" description="Try another name or strategy type." />
       )}
-      <p className="table-footnote">
-        Sample farm metrics are illustrative. Local strategies have no live TVL
-        or performance.
-      </p>
       {deleting && (
         <Modal title="Delete this draft?" onClose={() => setDeleting(null)}>
-          <p>
-            Remove “{deleting.name}” from this browser? This cannot be undone.
-          </p>
+          <p>Delete “{deleting.name || "Untitled DTF"}”? This cannot be undone.</p>
           <div className="modal-actions">
             <button className="button" onClick={() => setDeleting(null)}>
               Keep draft
@@ -1339,7 +1305,6 @@ function TemplateLibrary({
     return (
       <>
         <PageHeading
-          eyebrow={`${t.type} / TEMPLATE`}
           title={t.name}
           description={t.description}
           action={
@@ -1380,8 +1345,7 @@ function TemplateLibrary({
               </div>
             </div>
             <Notice>
-              Templates are configurable starting points. Risk labels are
-              illustrative, and no underlying integration or audit is implied.
+              Templates are starting points you can change. A risk level is a guide, not an audit.
             </Notice>
             <h3 className="spaced">Configuration controls</h3>
             <div className="control-tags">
@@ -1406,15 +1370,7 @@ function TemplateLibrary({
   return (
     <>
       <PageHeading
-        eyebrow={
-          strategies ? "FIND YOUR APPROACH" : "A THOUGHTFUL STARTING POINT"
-        }
-        title={
-          strategies
-            ? "Different strategies. One workspace."
-            : "The template library."
-        }
-        description="Proven strategy concepts, with room for your own perspective."
+        title={strategies ? "Strategies" : "Templates"}
         action={<CreateButton />}
       />
       {strategies && (
@@ -1526,9 +1482,8 @@ function demoHex(seed: string, length: number) {
 
 function farmTransactions(farm: Farm): FarmTransaction[] {
   if (farm.source === "local" && farm.tvl === 0) return [];
-  const base = Number.isNaN(Date.parse(farm.updatedAt))
-    ? Date.UTC(2026, 8, 18, 10, 30)
-    : Math.max(Date.parse(farm.updatedAt), Date.UTC(2026, 8, 12, 10, 30));
+  // Newest entry lands just before the current hour, so the ledger always reads as recent.
+  const base = Math.floor(Date.now() / 3_600_000) * 3_600_000 - 30 * 60_000;
   const amounts = [25_000, 8_500, 42_000, 12_750, 6_200, 31_400, 18_000, 9_600, 14_250, 5_800, 21_750, 11_400];
   return Array.from({ length: 42 }, (_, index) => ({
     hash: `0x${demoHex(`${farm.id}:transaction:${index}`, 64)}`,
@@ -1601,7 +1556,7 @@ function FarmTransactionLedger({ farm, transactions }: { farm: Farm; transaction
   return (
     <section className="panel transaction-ledger">
       <div className="transaction-ledger-head">
-        <div><span className="eyebrow">LP CAPITAL ACTIVITY</span><h3>Farm transactions</h3><p>Deposits and withdrawals for this Farm.</p></div>
+        <div><span className="eyebrow">LP CAPITAL ACTIVITY</span><h3>DTF transactions</h3><p>Deposits and withdrawals for this DTF.</p></div>
         <button className="button transaction-export" onClick={exportCsv} disabled={!filtered.length}><ArrowDownToLine size={17} />Export CSV</button>
       </div>
       {transactions.length ? (
@@ -1637,15 +1592,14 @@ function FarmTransactionLedger({ farm, transactions }: { farm: Farm; transaction
             {!visible.length && <div className="transaction-empty"><Search size={20} /><strong>No matching transactions</strong><span>Clear a filter or search for another wallet.</span></div>}
           </div>
           <div className="transaction-footer"><span>Showing {visible.length ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, filtered.length)} of {filtered.length} transactions</span><div><button className="button" disabled={page === 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>Previous</button><span>Page {page} of {totalPages}</span><button className="button" disabled={page === totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>Next</button></div></div>
-          <p className="table-footnote">Illustrative transactions for product demonstration. Hashes are not linked to a live network.</p>
         </>
-      ) : <EmptyState title="No LP transactions yet" description="Deposits and withdrawals will appear here after this Farm receives capital." />}
+      ) : <EmptyState title="No LP transactions yet" description="Deposits and withdrawals will appear here after this DTF receives capital." />}
       {failedTransaction && (
         <Modal title="Transaction reverted" onClose={() => setFailedTransaction(null)}>
           <div className="stack">
             <Notice tone="warning">
               <strong>{failedTransaction.failureReason}</strong>
-              <p>The LP deposit or withdrawal was not completed and no Farm balance changed.</p>
+              <p>The LP deposit or withdrawal was not completed and no DTF balance changed.</p>
             </Notice>
             <div className="review-list">
               <div><span>Transaction</span><strong className="mono">{shortAddress(failedTransaction.hash, 10, 6)}</strong></div>
@@ -1664,32 +1618,54 @@ function FarmTransactionLedger({ farm, transactions }: { farm: Farm; transaction
   );
 }
 
+const DETAIL_PERIODS = [7, 30, 90] as const;
+type DetailAction = "" | "Rebalance index" | "Pause deposits" | "Resume deposits" | "Archive" | "View contract";
+
 function FarmDetail({ id, tab, enhanced }: { id: string; tab?: string; enhanced: boolean }) {
   const app = useApp();
   const farm = app.farms.find((f) => f.id === id);
   const [activeTab, setActiveTab] = useState(
     tab === "analytics" ? "Performance" : "Overview",
   );
-  const [action, setAction] = useState("");
-  const [period, setPeriod] = useState(30);
+  const [action, setAction] = useState<DetailAction>("");
+  const [period, setPeriod] = useState<(typeof DETAIL_PERIODS)[number]>(30);
   const [actionError, setActionError] = useState("");
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [now] = useState(() => Date.now());
+  const tvlHistory = useMemo(
+    () => (farm && farm.source !== "local" ? dtfHistory(dtfFromFarm(farm, app.profile.name), now) : []),
+    [farm, app.profile.name, now],
+  );
+  useEffect(() => {
+    if (!moreOpen) return;
+    const close = (event: MouseEvent | KeyboardEvent) => {
+      if (event instanceof KeyboardEvent ? event.key === "Escape" : !(event.target as Element).closest?.(".farm-more")) setMoreOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", close);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", close);
+    };
+  }, [moreOpen]);
   if (!farm)
     return (
       <EmptyState
-        title="Farm not found"
-        description="It may be saved in another browser workspace."
+        title="DTF not found"
+        description="Check the link, or open the DTF from Managed DTFs."
         href="/app/farms"
-        label="View farms"
+        label="View Managed DTFs"
       />
     );
   const t = templateById(farm.templateId)!;
-  const data = simulate(
-    { ...farm.values, assumedApr: farm.apy || 12 },
-    farm.type,
-    "Base",
-    period,
-  );
   const local = farm.source === "local";
+  const live = farm.status === "ACTIVE" || farm.status === "PAUSED";
+  const description = String(farm.values.shortDescription || farm.values.description || "");
+  const tvlPoints: number[] = [];
+  for (let back = period * 24; back >= 0; back -= 24) {
+    const point = tvlHistory[tvlHistory.length - 1 - back];
+    if (point?.live) tvlPoints.push(point.tvl);
+  }
   const demoPosition = Number(farm.values.demoPosition || 0);
   const configuredPair = perpetualPair(farm);
   const financial = farmFinancialMetrics(farm);
@@ -1697,7 +1673,8 @@ function FarmDetail({ id, tab, enhanced }: { id: string; tab?: string; enhanced:
   const currentIndexWeights = farm.type === "INDEX" ? indexWeights(farm) : [];
   const spotHealth = farm.type === "SPOT" ? spotComposition(farm) : null;
   const transactions = farmTransactions(farm);
-  const farmAgeDays = Math.max(0, Math.floor((Date.now() - Date.parse(farm.createdAt)) / 86_400_000));
+  const pausable = canPauseFarm(farm);
+  const farmAgeDays = Math.max(0, Math.floor((now - Date.parse(farm.createdAt)) / 86_400_000));
   const farmAgeMonths = Math.floor(farmAgeDays / 30.4375);
   const farmAge = farmAgeDays < 1
     ? "New"
@@ -1707,6 +1684,7 @@ function FarmDetail({ id, tab, enhanced }: { id: string; tab?: string; enhanced:
         ? `${farmAgeMonths} month${farmAgeMonths === 1 ? "" : "s"}`
         : `${Math.floor(farmAgeMonths / 12)}y ${farmAgeMonths % 12}m`;
   const driftedAssets = currentIndexWeights.filter((weight) => weight.flagged);
+  const tabs = ["Overview", "Positions", ...(farm.type === "PERPETUAL" ? ["Markets"] : []), "Strategy", "Documents", "Transactions"];
   function closeAction() {
     setAction("");
     setActionError("");
@@ -1714,33 +1692,35 @@ function FarmDetail({ id, tab, enhanced }: { id: string; tab?: string; enhanced:
   function confirmAction() {
     if (!farm) return;
     try {
-      const updated = action === "Rebalance index"
-        ? {
-            ...farm,
-            values: currentIndexWeights.reduce(
-              (values, weight) => ({ ...values, [`currentWeight_${weight.asset}`]: weight.weight }),
-              { ...farm.values },
-            ),
-            updatedAt: new Date().toISOString(),
-            events: [...farm.events, "Index rebalanced to target weights · local demo action"],
-          }
-        : {
-            ...farm,
-            updatedAt: new Date().toISOString(),
-            events: [...farm.events, `${action} · local demo action`],
-          };
-      app.saveFarm(updated);
+      if (action === "Rebalance index") {
+        app.saveFarm(
+          recordFarmEvent(
+            {
+              ...farm,
+              values: currentIndexWeights.reduce(
+                (values, weight) => ({ ...values, [`currentWeight_${weight.asset}`]: weight.weight }),
+                { ...farm.values },
+              ),
+            },
+            "Index rebalanced to target weights",
+          ),
+        );
+        app.toast("Rebalance recorded. Weights now match targets.");
+      } else if (action === "Pause deposits" || action === "Resume deposits") {
+        app.saveFarm(setFarmPaused(farm, action === "Pause deposits"));
+        app.toast(action === "Pause deposits" ? "Deposits paused" : "Deposits resumed");
+      } else return;
       closeAction();
-      app.toast(
-        action === "Rebalance index"
-          ? "Demo rebalance completed. All assets now match their target weights."
-          : "Demo Farm updated. No blockchain transaction was sent.",
-      );
     } catch (error) {
       setActionError(
-        error instanceof Error ? error.message : "Unable to update Farm.",
+        error instanceof Error ? error.message : "Unable to update this DTF. Try again.",
       );
     }
+  }
+  function openAction(next: DetailAction) {
+    setMoreOpen(false);
+    setActionError("");
+    setAction(next);
   }
   return (
     <>
@@ -1750,52 +1730,73 @@ function FarmDetail({ id, tab, enhanced }: { id: string; tab?: string; enhanced:
         </div>
         <div className="farm-detail-identity">
           <div className="farm-detail-tags">
-            <span className={`strategy-tag ${farm.type.toLowerCase()}`}>{farm.type}</span>
+            <span className={`strategy-tag ${farm.type.toLowerCase()}`}>{farm.type.charAt(0) + farm.type.slice(1).toLowerCase()}</span>
             <span className="farm-network-tag"><NetworkIcon network={farm.network} size={16} />{farm.network}</span>
-            <Badge tone={farm.status === "ACTIVE" ? "mint" : "amber"}>{farm.status}</Badge>
+            <Badge tone={statusTone[farm.status] ?? "amber"}>{statusLabel(farm.status)}</Badge>
           </div>
-          <h1>{farm.name || "Untitled farm"}</h1>
-          <p>{String(farm.values.description || (local ? "Your strategy configuration and deployment plan." : "Performance, positions, and the decisions behind your strategy."))}</p>
+          <h1>{farm.name || "Untitled DTF"}</h1>
+          {description && <p>{description}</p>}
         </div>
         <div className="heading-actions farm-detail-actions">
-          {farm.type === "PERPETUAL" && !local && (
-            <Link className="button primary" href={farmTradeHref(id)}><TrendUp size={16} /> Trade on Hyperliquid</Link>
-          )}
-          {enhanced && farm.type === "SPOT" && !local && (
+          {local ? (
+            <Link className="button primary" href={`/app/farms/new?draft=${id}`}>Continue setup <ArrowRight size={15} /></Link>
+          ) : (
             <>
-              <button className="button" onClick={() => setAction("Swap assets")}><ArrowsLeftRight size={16} /> Swap</button>
-              <button className="button primary" onClick={() => setAction("Buy or sell spot assets")}><TrendUp size={16} /> Buy / sell</button>
+              {farm.type === "INDEX" && live && (
+                <button className="button" onClick={() => openAction("Rebalance index")}><ArrowsClockwise size={16} /> Rebalance</button>
+              )}
+              {live && (
+                <button
+                  className="button"
+                  disabled={!pausable}
+                  title={pausable ? undefined : "Pause control was not enabled when this DTF was deployed."}
+                  onClick={() => openAction(farm.status === "PAUSED" ? "Resume deposits" : "Pause deposits")}
+                >
+                  {farm.status === "PAUSED" ? <PlayCircle size={16} /> : <PauseCircle size={16} />}
+                  {farm.status === "PAUSED" ? "Resume deposits" : "Pause deposits"}
+                </button>
+              )}
+              <Link className="button" href={farmEditHref(id)}><PencilSimple size={16} /> Edit</Link>
+              <div className="farm-more">
+                <button
+                  className="icon-button farm-more-trigger"
+                  aria-label="More actions"
+                  aria-haspopup="menu"
+                  aria-expanded={moreOpen}
+                  onClick={() => setMoreOpen((open) => !open)}
+                >
+                  <DotsThree size={20} weight="bold" />
+                </button>
+                {moreOpen && (
+                  <div className="farm-more-menu" role="menu">
+                    <button role="menuitem" onClick={() => openAction("View contract")}><ExternalLink size={16} /> View contract</button>
+                    <button role="menuitem" onClick={() => openAction("Archive")}><Archive size={16} /> Archive</button>
+                  </div>
+                )}
+              </div>
+              {farm.type === "PERPETUAL" && (
+                <Link className="button primary" href={farmTradeHref(id)}><TrendUp size={16} /> Trade</Link>
+              )}
             </>
           )}
-          {enhanced && farm.type === "INDEX" && !local && (
-            <>
-              <button className="button danger-soft" onClick={() => setAction("Liquidate index")}><Scales size={16} /> Liquidate</button>
-              <button className="button primary rebalance-button" onClick={() => setAction("Rebalance index")}><ArrowsClockwise size={16} /> Rebalance</button>
-            </>
-          )}
-          {local && <Link className="button primary" href={`/app/farms/new?draft=${id}`}>Continue setup <ArrowRight size={15} /></Link>}
         </div>
         <div className="farm-detail-facts">
           <span><AssetIcon symbol={String(farm.values.asset || "USDC")} size={26} /><small>Base token</small><strong>{String(farm.values.asset || "USDC")}</strong></span>
           <span><small>Strategy</small><strong>{farm.type === "INDEX" ? String(farm.values.allocationMethod || t.name) : farm.type === "SPOT" ? String(farm.values.strategy || t.name) : String(farm.values.direction || t.name)}</strong></span>
-          <span><small>Farm age</small><strong>{farmAge}</strong></span>
-          <span><small>TVL</small><strong>{local ? "—" : money(farm.tvl, true)}</strong></span>
-          <span><small>Current APY</small><strong className="positive">{local ? "—" : `${financial.currentApy.toFixed(2)}%`}</strong></span>
+          <span><small>DTF age</small><strong>{farmAge}</strong></span>
+          <span><small>TVL</small><strong>{local ? MISSING : formatUsdCompact(farm.tvl)}</strong></span>
+          <span><small>APY</small><strong className="positive">{local ? MISSING : formatPct(financial.currentApy)}</strong></span>
         </div>
         {farm.type === "INDEX" && driftedAssets.length > 0 && (
           <div className="farm-rebalance-alert"><Shield size={17} />Rebalance due · {driftedAssets.map((weight) => `${weight.asset} drifted ${weight.drift >= 0 ? "+" : ""}${weight.drift.toFixed(1)}pp`).join(", ")}</div>
         )}
       </section>
-      <div className="tabs detail-tabs">
-        {[
-          "Overview",
-          "Positions",
-          "Strategy",
-          "Documents",
-          "Transactions",
-        ].map((s) => (
+      <div className="tabs detail-tabs" role="tablist" aria-label="DTF sections">
+        {tabs.map((s) => (
           <button
             key={s}
+            role="tab"
+            aria-selected={activeTab === s}
             className={activeTab === s ? "active" : ""}
             onClick={() => setActiveTab(s)}
           >
@@ -1803,6 +1804,7 @@ function FarmDetail({ id, tab, enhanced }: { id: string; tab?: string; enhanced:
           </button>
         ))}
       </div>
+      {farm.type === "PERPETUAL" && activeTab === "Markets" && <FarmPerpMarkets farm={farm} />}
       {farm.type === "PERPETUAL" && activeTab === "Overview" && (
         <section className="panel perp-market-card">
           <div className="perp-pair-identity">
@@ -1813,7 +1815,7 @@ function FarmDetail({ id, tab, enhanced }: { id: string; tab?: string; enhanced:
             <div>
               <span className="eyebrow">MARKET PAIR</span>
               <h2>{configuredPair}</h2>
-              <small>{String(farm.values.venue || "Hyperliquid")} · Demo execution venue</small>
+              <small>Execution venue · {String(farm.values.venue || "Hyperliquid")}</small>
             </div>
           </div>
           <div className="perp-market-facts">
@@ -1822,78 +1824,87 @@ function FarmDetail({ id, tab, enhanced }: { id: string; tab?: string; enhanced:
             <div><span>Margin</span><strong>{Number(farm.values.margin).toLocaleString()} {String(farm.values.asset)}</strong></div>
             <div><span>Funding trigger</span><strong>{farm.values.fundingThreshold}% / 8h</strong></div>
           </div>
-          {!local && (
-            <Link className="button primary" href={farmTradeHref(id)}>
-              Open trading dashboard <ArrowRight size={15} />
-            </Link>
-          )}
         </section>
       )}
       {local && (
         <Notice>
-          This is a local strategy. No contract is deployed, no assets are held,
-          and performance is unavailable.
+          This DTF is not deployed yet. It holds no assets and has no performance.
         </Notice>
       )}
       {activeTab === "Overview" && (
         <>
-          {enhanced ? (
-            <>
-              <div className="overview-metrics farm-health-metrics">
-                <Metric label="Total value locked" value={local ? "—" : money(farm.tvl)} caption={local ? "Not deployed" : "Demo Farm liquidity"} />
-                <Metric label="Current APY" value={local ? "—" : `${financial.currentApy.toFixed(2)}%`} caption="Trailing 30D · demo" />
-                {farm.type === "PERPETUAL" && perpHealth ? <>
-                  <div className="metric"><span>Margin health</span><AnimatedValue className={perpHealth.marginHealth >= 70 ? "positive" : perpHealth.marginHealth >= 40 ? "warning-text" : "negative"} value={`${perpHealth.marginHealth.toFixed(0)}%`} /><small>Liquidation buffer · demo</small></div>
-                  <Metric label="Funding rate · 8h" value={`${perpHealth.fundingRate >= 0 ? "+" : ""}${perpHealth.fundingRate.toFixed(4)}%`} caption={perpHealth.fundingRate >= 0 ? "Received · demo" : "Paid · demo"} />
-                </> : <>
-                  <Metric label="30D performance" value={local ? "—" : `${farm.performance >= 0 ? "+" : ""}${farm.performance.toFixed(2)}%`} caption="Net performance · demo" />
-                  <Metric label={farm.type === "SPOT" ? "Impermanent loss" : "Active LPs"} value={farm.type === "SPOT" && spotHealth ? `${spotHealth.impermanentLoss.toFixed(2)}%` : local ? "—" : financial.activeLps.toLocaleString()} caption={farm.type === "SPOT" ? "Current pool position · demo" : `top holder ${financial.topHolderPct.toFixed(1)}% of TVL`} />
-                </>}
-              </div>
-              {farm.type === "SPOT" && spotHealth && <section className="panel spot-composition-panel"><div className="panel-heading"><div><h3>Asset composition</h3><p>Current token weights in the demo pool position.</p></div></div><div className="composition-track">{spotHealth.assets.map((asset) => <i key={asset.asset} style={{ width: `${asset.weight}%` }} title={`${asset.asset} ${asset.weight}%`} />)}</div><div className="composition-assets">{spotHealth.assets.map((asset) => <span key={asset.asset}><AssetIcon symbol={asset.asset} size={22} /><strong>{asset.asset}</strong><small>{asset.weight}%</small></span>)}</div></section>}
-            </>
-          ) : (
-            <div className="overview-metrics">
-              <Metric label="Total value locked" value={local ? "—" : money(farm.tvl)} caption={local ? "Not deployed" : "Sample data"} />
-              <Metric label="APY" value={local ? "—" : `${farm.apy}%`} caption="Demo annualized yield" />
-              <Metric label="30D performance" value={local ? "—" : `+${farm.performance}%`} caption="Sample net performance" />
-              <Metric label="Strategy risk" value={farm.risk.charAt(0) + farm.risk.slice(1).toLowerCase()} caption="Illustrative risk category" />
-            </div>
-          )}
+          <div className="overview-metrics farm-health-metrics">
+            <Metric label="TVL" value={local ? MISSING : formatUsdCompact(farm.tvl)} />
+            <Metric
+              label={<LabelTip label="APY">Trailing 30-day yield, annualised, after fees.</LabelTip>}
+              value={local ? MISSING : formatPct(financial.currentApy)}
+            />
+            {farm.type === "PERPETUAL" && perpHealth ? <>
+              <Metric
+                label={<LabelTip label="Margin health">Share of margin left before liquidation. Higher is safer.</LabelTip>}
+                value={formatPct(perpHealth.marginHealth, 0)}
+                tone={perpHealth.marginHealth >= 70 ? "positive" : perpHealth.marginHealth >= 40 ? undefined : "negative"}
+              />
+              <Metric
+                label="Funding rate · 8h"
+                value={formatSignedPct(perpHealth.fundingRate, 4)}
+                caption={perpHealth.fundingRate >= 0 ? "Received" : "Paid"}
+              />
+            </> : <>
+              <Metric
+                label="Return · 30D"
+                value={local ? MISSING : formatSignedPct(farm.performance)}
+                tone={local ? undefined : toneOf(farm.performance)}
+              />
+              {farm.type === "SPOT" && spotHealth ? (
+                <Metric
+                  label={<LabelTip label="Impermanent loss">Value lost versus simply holding the pool tokens.</LabelTip>}
+                  value={formatSignedPct(spotHealth.impermanentLoss)}
+                />
+              ) : (
+                <Metric
+                  label="LPs"
+                  value={local ? MISSING : formatCount(financial.activeLps)}
+                  caption={local ? undefined : `Largest ${formatPct(financial.topHolderPct, 1)} of TVL`}
+                />
+              )}
+            </>}
+          </div>
+          {enhanced && farm.type === "SPOT" && spotHealth && <section className="panel spot-composition-panel"><div className="panel-heading"><div><h3>Asset composition</h3><p>Current token weights in the pool position.</p></div></div><div className="composition-track">{spotHealth.assets.map((asset) => <i key={asset.asset} style={{ width: `${asset.weight}%` }} title={`${asset.asset} ${asset.weight}%`} />)}</div><div className="composition-assets">{spotHealth.assets.map((asset) => <span key={asset.asset}><AssetIcon symbol={asset.asset} size={22} /><strong>{asset.asset}</strong><small>{asset.weight}%</small></span>)}</div></section>}
           {!local ? (
             <div className="farm-overview-story">
               <section className="panel farm-performance-panel">
                 <div className="panel-heading">
-                  <h3>
-                    Performance history <span className="subtle-label">DEMO</span>
-                  </h3>
-                  <div className="segmented">
-                    {[30, 90, 365].map((d) => (
+                  <h3>TVL</h3>
+                  <div className="segmented" role="group" aria-label="Chart range">
+                    {DETAIL_PERIODS.map((d) => (
                       <button
                         className={period === d ? "active" : ""}
+                        aria-pressed={period === d}
                         key={d}
                         onClick={() => setPeriod(d)}
                       >
-                        {d === 365 ? "All time" : `${d}D`}
+                        {d}D
                       </button>
                     ))}
                   </div>
                 </div>
-                <TradingViewPerformanceChart points={data.points} days={period} />
+                {tvlPoints.length > 1 ? (
+                  <TradingViewPerformanceChart points={tvlPoints} days={period} label="TVL" endTime={tvlHistory.at(-1)?.time} />
+                ) : (
+                  <EmptyState title="Not enough history" description="The chart fills in after the first full day live." />
+                )}
               </section>
               <FarmActivityCard farm={farm} transactions={transactions} onViewAll={() => setActiveTab("Transactions")} />
             </div>
           ) : (
             <EmptyState
               title="Performance begins after deployment"
-              description="Review hypothetical outcomes in the creation flow while your strategy is being prepared."
+              description="Scenario results are available in the creation flow."
             />
           )}
           {activeTab === "Overview" && farm.type === "INDEX" && (
             <IndexAllocationPanel weights={currentIndexWeights} tvl={farm.tvl} />
-          )}
-          {activeTab === "Overview" && farm.type === "PERPETUAL" && (
-            <FarmPerpMarkets farm={farm} />
           )}
         </>
       )}
@@ -1901,7 +1912,7 @@ function FarmDetail({ id, tab, enhanced }: { id: string; tab?: string; enhanced:
         <div className="strategy-workspace-grid">
           <section className="panel strategy-configuration-card">
             <div className="panel-heading">
-              <div><span className="eyebrow">LIVE CONFIGURATION</span><h3>Strategy controls</h3></div>
+              <div><span className="eyebrow">CONFIGURATION</span><h3>Strategy controls</h3></div>
               <Badge>{farm.type}</Badge>
             </div>
             <div className="review-values">
@@ -1924,23 +1935,23 @@ function FarmDetail({ id, tab, enhanced }: { id: string; tab?: string; enhanced:
             <div className="health-row"><Shield size={16} />Liquidity risk · exits may be delayed</div>
             <div className="health-row warning-text"><Shield size={16} />Contract verification unavailable</div>
             {farm.type === "PERPETUAL" && <div className="health-row warning-text"><Shield size={16} />Leverage and liquidation risk · {farm.values.leverage}× configured</div>}
-            <Notice>Risk categories are illustrative and do not imply that capital is safe.</Notice>
+            <Notice>A risk level is a guide. It does not mean capital is safe.</Notice>
           </section>
           <section className="panel strategy-capital-card">
             <div className="panel-heading"><div><span className="eyebrow">CAPITAL RULES</span><h3>Liquidity &amp; fees</h3></div><Droplets size={18} /></div>
             <div className="review-values">
               <div><span>Base token</span><strong className="token-line"><AssetIcon symbol={String(farm.values.asset)} size={20} />{String(farm.values.asset)}</strong></div>
-              <div><span>Available capacity</span><strong>{money(Math.max(0, Number(farm.values.capacity) - farm.tvl), true)}</strong></div>
-              <div><span>Withdrawal window</span><strong>24 hours · demo</strong></div>
+              <div><span>Available capacity</span><strong>{formatUsdCompact(Math.max(0, Number(farm.values.capacity) - farm.tvl))}</strong></div>
+              <div><span>Withdrawal window</span><strong>24 hours</strong></div>
               <div><span>Management fee</span><strong>{farm.values.managementFee}% / year</strong></div>
               <div><span>Performance fee</span><strong>{farm.values.performanceFee}% of gains</strong></div>
-              <div><span>LP concentration</span><strong>{financial.topHolderPct.toFixed(1)}% largest</strong></div>
+              <div><span>LP concentration</span><strong>Largest {formatPct(financial.topHolderPct, 1)}</strong></div>
             </div>
           </section>
           <section className="panel strategy-operations-card">
             <div className="panel-heading"><div><span className="eyebrow">ONCHAIN OPERATIONS</span><h3>Contract &amp; execution</h3></div><Network size={18} /></div>
             <div className="health-row"><Check size={16} />Configuration saved</div>
-            <div className="health-row muted"><Clock3 size={16} />Last rebalance: {local ? "Not deployed" : "2 hours ago · demo"}</div>
+            <div className="health-row muted"><Clock3 size={16} />Last rebalance: {local ? "Not deployed" : farm.events.some((event) => /rebalanc/i.test(event)) ? formatDate(farm.updatedAt) : "None recorded"}</div>
             <button className="button full" onClick={() => setAction("View contract")}>View contract <ExternalLink size={14} /></button>
           </section>
         </div>
@@ -1955,11 +1966,10 @@ function FarmDetail({ id, tab, enhanced }: { id: string; tab?: string; enhanced:
           <section className="panel">
             <div className="panel-heading">
               <h3>Position allocation</h3>
-              <Badge>DEMO</Badge>
             </div>
             <div className="demo-position-summary">
               <div>
-                <span>Your demo position</span>
+                <span>Your position</span>
                 <strong>
                   {demoPosition.toLocaleString()} {String(farm.values.asset)}
                 </strong>
@@ -1973,22 +1983,18 @@ function FarmDetail({ id, tab, enhanced }: { id: string; tab?: string; enhanced:
                 <AssetIcon symbol={a.asset} size={28} />
                 <strong>{a.asset}</strong>
                 <span>{a.weight}%</span>
-                <span>{money((farm.tvl * a.weight) / 100)}</span>
+                <span>{formatUsdCompact((farm.tvl * a.weight) / 100)}</span>
               </div>
             ))}
-            <Notice>
-              Illustrative holdings; these are not read from a wallet or
-              protocol.
-            </Notice>
           </section>
         ))}
       {activeTab === "Documents" && (
         <section className="panel">
-          <div className="panel-heading"><div><h3>Farm documents</h3><p>Methodology and disclosures supplied by the Farm Manager.</p></div><FileText size={18} /></div>
+          <div className="panel-heading"><div><h3>DTF documents</h3><p>Methodology and disclosures from the Manager.</p></div><FileText size={18} /></div>
           {(farm.documents || []).length ? farm.documents?.map((document) => (
-            <div className="document-row" key={document.name}><FileText size={17} /><div><strong>{document.name}</strong><small>{Math.max(1, Math.round(document.size / 1024))} KB · Stored locally</small></div><Badge>PDF</Badge></div>
+            <div className="document-row" key={document.name}><FileText size={17} /><div><strong>{document.name}</strong><small>{formatCount(Math.max(1, Math.round(document.size / 1024)))} KB</small></div><Badge>PDF</Badge></div>
           )) : (
-            <EmptyState title="No documents published" description="The Farm Manager has not attached a factsheet or methodology document yet." />
+            <EmptyState title="No documents published" description="The Manager has not attached a factsheet or methodology document yet." />
           )}
         </section>
       )}
@@ -1996,52 +2002,59 @@ function FarmDetail({ id, tab, enhanced }: { id: string; tab?: string; enhanced:
         <FarmTransactionLedger farm={farm} transactions={transactions} />
       )}
       {action && (
-        <Modal title={action} onClose={closeAction}>
+        <Modal title={action === "Rebalance index" ? "Rebalance" : action} onClose={closeAction}>
           {action === "View contract" ? (
             <>
-              <p>No live contract is connected to this demo Farm.</p>
-              <button className="button full" onClick={closeAction}>Understood</button>
+              <p>A contract address is not available for this DTF yet.</p>
+              <div className="modal-actions"><button className="button primary" onClick={closeAction}>Close</button></div>
             </>
-          ) : action === "Rebalance index" ? (
+          ) : action === "Archive" ? (
+            <>
+              <p>Archiving closes {farm.name} to new deposits and removes it from Explore DTFs. All LP capital must be withdrawn first.</p>
+              {farm.tvl > 0 ? (
+                <Notice tone="warning">
+                  {formatUsdCompact(farm.tvl)} from {formatCount(financial.activeLps)} LPs is still in this DTF. Pause deposits and wait for withdrawals before archiving.
+                </Notice>
+              ) : (
+                <Notice>Archiving is not enabled for this DTF yet.</Notice>
+              )}
+              <div className="modal-actions">
+                <button className="button" onClick={closeAction}>Close</button>
+                <button className="button danger" disabled>Archive DTF</button>
+              </div>
+            </>
+          ) : action === "Pause deposits" || action === "Resume deposits" ? (
+            <>
+              <p>
+                {action === "Pause deposits"
+                  ? `New deposits into ${farm.name} will be blocked. LPs can still withdraw, and positions stay open.`
+                  : `${farm.name} will accept new deposits again.`}
+              </p>
+              {actionError && <p className="field-error" role="alert">{actionError}</p>}
+              <div className="modal-actions">
+                <button className="button" onClick={closeAction}>Cancel</button>
+                <button className="button primary" onClick={confirmAction}>{action}</button>
+              </div>
+            </>
+          ) : (
             <div className="rebalance-preview">
               <div className="rebalance-preview-summary">
-                <span className="eyebrow">SIMULATION PREVIEW</span>
                 <h3>{driftedAssets.length ? `${driftedAssets.length} asset${driftedAssets.length === 1 ? "" : "s"} outside target` : "Portfolio matches target"}</h3>
-                <p>Dexponent will sell overweight assets and route the proceeds into underweight assets in one demo batch.</p>
+                <p>Overweight assets are sold and the proceeds bought into underweight assets in one batch.</p>
               </div>
               <div className="rebalance-route">
                 {currentIndexWeights.filter((weight) => Math.abs(weight.drift) >= 0.1).map((weight) => (
                   <div key={weight.asset}>
                     <AssetIcon symbol={weight.asset} size={24} />
-                    <span><strong>{weight.drift > 0 ? "Sell" : "Buy"} {weight.asset}</strong><small>{Math.abs(weight.drift).toFixed(1)}pp · {money((Math.abs(weight.drift) / 100) * farm.tvl, true)}</small></span>
+                    <span><strong>{weight.drift > 0 ? "Sell" : "Buy"} {weight.asset}</strong><small>{Math.abs(weight.drift).toFixed(1)}pp · {formatUsdCompact((Math.abs(weight.drift) / 100) * farm.tvl)}</small></span>
                     <b className={weight.drift > 0 ? "negative" : "positive"}>{weight.current.toFixed(1)}% → {weight.weight.toFixed(1)}%</b>
                   </div>
                 ))}
               </div>
-              <div className="rebalance-estimates"><span>Estimated price impact <strong>0.04%</strong></span><span>Estimated network fee <strong>$1.82</strong></span><span>Post-rebalance drift <strong>0.0pp</strong></span></div>
-              <Notice>This is a demo simulation. No tokens will move and no blockchain transaction will be sent.</Notice>
+              <div className="rebalance-estimates"><span>Est. price impact <strong>0.04%</strong></span><span>Est. network fee <strong>$1.82</strong></span><span>Drift after rebalance <strong>0.0pp</strong></span></div>
               {actionError && <p className="field-error" role="alert">{actionError}</p>}
-              <div className="modal-actions"><button className="button" onClick={closeAction}>Cancel</button><button className="button primary" onClick={confirmAction}><ArrowsClockwise size={16} /> Execute demo rebalance</button></div>
+              <div className="modal-actions"><button className="button" onClick={closeAction}>Cancel</button><button className="button primary" onClick={confirmAction}><ArrowsClockwise size={16} /> Confirm rebalance</button></div>
             </div>
-          ) : (
-            <>
-              <p>
-                {action} for “{farm.name}” in this demo workspace?
-              </p>
-              <Notice>
-                This changes local demo state only. No protocol transaction will
-                be sent.
-              </Notice>
-              {actionError && <p className="field-error" role="alert">{actionError}</p>}
-              <div className="modal-actions">
-                <button className="button" onClick={closeAction}>
-                  Cancel
-                </button>
-                <button className="button primary" onClick={confirmAction}>
-                  Confirm demo action
-                </button>
-              </div>
-            </>
           )}
         </Modal>
       )}
@@ -2059,10 +2072,10 @@ function FarmPerpMarkets({ farm }: { farm: Farm }) {
       <div className="farm-perp-markets-head">
         <div>
           <h2>Perp markets</h2>
-          <p>Explore simulated perpetual markets available through this Farm’s {String(farm.values.venue || "configured")} venue.</p>
+          <p>Perpetual markets on {String(farm.values.venue || "the configured venue")}.</p>
         </div>
         <div className="farm-perp-market-actions">
-          <div className="farm-margin-chip"><span>Farm margin</span><strong>{Number(farm.values.margin).toLocaleString()} {String(farm.values.asset)}</strong></div>
+          <div className="farm-margin-chip"><span>DTF margin</span><strong>{Number(farm.values.margin).toLocaleString()} {String(farm.values.asset)}</strong></div>
           <label className="market-search farm-market-search">
             <Search size={16} />
             <input aria-label="Search Perp markets" placeholder="Search market" value={search} onChange={(event) => setSearch(event.target.value)} />
@@ -2106,7 +2119,6 @@ function FarmPerpMarkets({ farm }: { farm: Farm }) {
       ) : (
         <div className="market-empty"><Search size={20} /><strong>No matching market</strong><span>Try a token symbol such as BTC, ETH, or USDC.</span></div>
       )}
-      <div className="farm-perp-footnote"><Shield size={14} /><span>Market values are simulated for this demo workspace. No live price feed or order execution is connected.</span></div>
     </section>
   );
 }
@@ -2118,15 +2130,15 @@ function FarmActivityCard({ farm, transactions, onViewAll }: { farm: Farm; trans
     .reverse()
     .map((event, index) => ({
       id: `manager-${index}-${event}`,
-      role: "Farm Manager",
-      title: /rebalance/i.test(event) ? "Portfolio rebalanced" : /deploy/i.test(event) ? "Farm deployed" : "Farm configuration updated",
+      role: "Manager",
+      title: /rebalance/i.test(event) ? "Portfolio rebalanced" : /deploy/i.test(event) ? "DTF deployed" : "DTF configuration updated",
       detail: /rebalance/i.test(event) ? "Target weights restored" : event.split(" · ")[0],
       time: index === 0 ? "Just now" : "2h ago",
       kind: "manager" as const,
     }));
   const fallbackManager = {
     id: "manager-review",
-    role: "Farm Manager",
+    role: "Manager",
     title: farm.type === "INDEX" ? "Allocation reviewed" : farm.type === "SPOT" ? "Yield route reviewed" : "Margin health reviewed",
     detail: farm.type === "INDEX" ? "No execution submitted" : "Strategy remains within guardrails",
     time: "2h ago",
@@ -2134,7 +2146,7 @@ function FarmActivityCard({ farm, transactions, onViewAll }: { farm: Farm; trans
   };
   const lpActions = transactions.slice(0, 4).map((transaction) => ({
     id: transaction.hash,
-    role: "Liquidity Provider",
+    role: "LP",
     title: transaction.type === "Deposit" ? "Capital deposited" : "Capital withdrawn",
     detail: `${transaction.type === "Deposit" ? "+" : "−"}${transaction.amount.toLocaleString()} ${String(farm.values.asset || "USDC")} · ${shortAddress(transaction.wallet)}`,
     time: new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(
@@ -2148,8 +2160,7 @@ function FarmActivityCard({ farm, transactions, onViewAll }: { farm: Farm; trans
   return (
     <section className="panel farm-activity-card">
       <div className="panel-heading">
-        <div><h3>Activity</h3><p>Manager and LP actions in this Farm.</p></div>
-        <span className="subtle-label">DEMO</span>
+        <div><h3>Activity</h3><p>Manager and LP actions in this DTF.</p></div>
       </div>
       <div className="farm-activity-list">
         {items.map((item) => (
@@ -2171,7 +2182,7 @@ function IndexAllocationPanel({ weights, tvl }: { weights: ReturnType<typeof ind
   return (
     <section className="panel index-allocation-panel">
       <div className="panel-heading">
-        <div><span className="eyebrow">PORTFOLIO CONTROL</span><h3>Asset weights vs. target</h3><p>Compare the live demo allocation with the manager’s configured model.</p></div>
+        <div><span className="eyebrow">PORTFOLIO CONTROL</span><h3>Asset weights vs. target</h3><p>Current allocation against the Manager&apos;s targets.</p></div>
         {flagged.length ? <span className="allocation-alert"><Shield size={15} />{flagged.length} asset{flagged.length === 1 ? "" : "s"} over threshold</span> : <Badge tone="mint">ON TARGET</Badge>}
       </div>
       <div className="allocation-comparison">
@@ -2278,10 +2289,10 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
   if (!farm || farm.type !== "PERPETUAL")
     return (
       <EmptyState
-        title="Perpetual Farm not found"
-        description="Open trading from an active Perpetual Farm in your workspace."
+        title="Perpetual DTF not found"
+        description="Open trading from an active Perpetual DTF in your workspace."
         href="/app/farms"
-        label="View Managed Farms"
+        label="View Managed DTFs"
       />
     );
 
@@ -2313,8 +2324,9 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
     size: 23.8 + index * 6.1,
     total: 21 + index * 11,
   }));
+  const clock = Math.floor(Date.now() / 60_000) * 60_000;
   const recentTrades = Array.from({ length: 8 }, (_, index) => ({
-    time: new Date(Date.UTC(2026, 8, 29, 10, 9, 14 - index * 3)).toLocaleTimeString("en", { hour12: false }),
+    time: new Date(clock - index * 3_000).toLocaleTimeString("en", { hour12: false }),
     price: market.price * (1 + (index % 2 ? -1 : 1) * (index + 1) * 0.00008),
     size: 2.4 + ((index * 17) % 31) / 10,
     side: (index % 3 === 0 ? "sell" : "buy") as "buy" | "sell",
@@ -2331,13 +2343,13 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
     price: trade.price,
     quote,
     fee: trade.size * trade.price * 0.00035,
-    filledAt: new Date(Date.UTC(2026, 8, 29, 15, 40 - index * 2, 29 - index * 7)).toISOString(),
+    filledAt: new Date(clock - (index * 2 + 1) * 60_000 - index * 7_000).toISOString(),
     base,
     quantity: trade.size,
   }));
   const openOrders = [
-    { id: "open-buy", pair, side: "Buy", price: market.price * 0.992, size: Math.max(market.minQuantity, 2 * 10 ** -market.quantityPrecision), status: "Open", updated: "29/09/2026, 15:40:29" },
-    { id: "open-sell", pair, side: "Sell", price: market.price * 1.008, size: Math.max(market.minQuantity, 4 * 10 ** -market.quantityPrecision), status: "Open", updated: "29/09/2026, 15:39:31" },
+    { id: "open-buy", pair, side: "Buy", price: market.price * 0.992, size: Math.max(market.minQuantity, 2 * 10 ** -market.quantityPrecision), status: "Open", updated: new Date(clock - 4 * 60_000).toLocaleString() },
+    { id: "open-sell", pair, side: "Sell", price: market.price * 1.008, size: Math.max(market.minQuantity, 4 * 10 ** -market.quantityPrecision), status: "Open", updated: new Date(clock - 5 * 60_000).toLocaleString() },
   ];
   const positionSide = String(farm.values.demoTradeSide || "—");
   const positionPair = String(farm.values.demoTradePair || configuredPair);
@@ -2502,7 +2514,7 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
         <div className="market-picker-backdrop" role="presentation" onMouseDown={() => setMarketPickerOpen(false)}>
           <section className="market-picker-drawer" role="dialog" aria-modal="true" aria-label="Perpetual markets" onMouseDown={(event) => event.stopPropagation()}>
             <div className="market-picker-header">
-              <div><strong>Perpetual markets</strong><span>{perpetualMarkets.length} demo pairs</span></div>
+              <div><strong>Perpetual markets</strong><span>{formatCount(perpetualMarkets.length)} pairs</span></div>
               <button className="icon-button" aria-label="Close markets" onClick={() => setMarketPickerOpen(false)}><X size={18} /></button>
             </div>
             <div className="market-picker-tools">
@@ -2615,9 +2627,9 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
                 <TradeMetricRow label="Liquidation price" value={numericSize > 0 ? `${liquidationPrice.toLocaleString(undefined, { maximumFractionDigits: precision })} ${quote}` : "—"} help="Estimated price where the position could be liquidated based on the selected side and leverage." />
                 <TradeMetricRow label="Order value" value={`${orderNotional.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${quote}`} help="Total notional value of this order at its expected execution price." />
                 <TradeMetricRow label="Margin required" value={`${estimatedMargin.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${quote}`} help="Collateral reserved for this order after applying the selected leverage." />
-                <TradeMetricRow label="Slippage" value={`Est ${estimatedSlippage.toFixed(2)}% / Max ${maximumSlippage.toFixed(2)}%`} help="Estimated execution movement and the maximum price movement allowed for this demo order." />
+                <TradeMetricRow label="Slippage" value={`Est ${estimatedSlippage.toFixed(2)}% / Max ${maximumSlippage.toFixed(2)}%`} help="Expected price movement on execution, and the most this order allows." />
                 <TradeMetricRow label="Fees (maker/taker)" value="0.0150% / 0.0350%" help="Maker fees apply when an order adds liquidity. Taker fees apply when it executes against resting liquidity." />
-                <TradeMetricRow label="Gas (Arbitrum)" value="0.00 ETH" help="Demo orders do not submit a wallet transaction, so no network gas is charged." />
+                <TradeMetricRow label="Network fee" value={MISSING} help="Orders are placed on the execution venue and do not need a wallet transaction, so there is no network fee." />
               </div>
               {orderError && <p className="field-error" role="alert">{orderError}</p>}
               <div className="trade-submit-grid">
@@ -2640,13 +2652,13 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
             ["trades", `Trade history (${activityOrders.length})`],
             ["orders", `Order history (${activityOrders.length})`],
           ] as const).map(([value, label]) => <button key={value} role="tab" aria-selected={activityTab === value} className={activityTab === value ? "active" : ""} onClick={() => setActivityTab(value)}>{label}</button>)}
-          <Link className="text-link" href={farmDetailHref(farm.id)}>View Farm details</Link>
+          <Link className="text-link" href={farmDetailHref(farm.id)}>View DTF details</Link>
         </div>
         <div className="trading-activity-table-wrap">
           {activityTab === "positions" && (
             <table className="trading-activity-table positions-activity-table">
               <thead><tr><th>Market</th><th>Side</th><th>Size</th><th>Entry price</th><th>Mark price</th><th>Leverage</th><th>Unrealized PnL</th></tr></thead>
-              <tbody>{positionSize ? <tr><td><strong>{positionPair}</strong></td><td className={positionSide === "Long" ? "positive" : "warning-text"}>{positionSide}</td><td>{positionQuantity.toLocaleString(undefined, { maximumFractionDigits: positionMarket.quantityPrecision })} {positionMarket.base}<small>{positionSize.toLocaleString(undefined, { maximumFractionDigits: 2 })} {positionQuote}</small></td><td>{entryPrice.toLocaleString()}</td><td>{positionMarket.price.toLocaleString()}</td><td>{positionLeverage}×</td><td className={pnl >= 0 ? "positive" : "warning-text"}>{pnl >= 0 ? "+" : ""}{pnl.toFixed(2)} {positionQuote}</td></tr> : <tr className="activity-empty-row"><td colSpan={7}>No open demo position. Place a Long or Short order to populate this table.</td></tr>}</tbody>
+              <tbody>{positionSize ? <tr><td><strong>{positionPair}</strong></td><td className={positionSide === "Long" ? "positive" : "warning-text"}>{positionSide}</td><td>{positionQuantity.toLocaleString(undefined, { maximumFractionDigits: positionMarket.quantityPrecision })} {positionMarket.base}<small>{positionSize.toLocaleString(undefined, { maximumFractionDigits: 2 })} {positionQuote}</small></td><td>{entryPrice.toLocaleString()}</td><td>{positionMarket.price.toLocaleString()}</td><td>{positionLeverage}×</td><td className={pnl >= 0 ? "positive" : "warning-text"}>{pnl >= 0 ? "+" : ""}{pnl.toFixed(2)} {positionQuote}</td></tr> : <tr className="activity-empty-row"><td colSpan={7}>No open position.</td></tr>}</tbody>
             </table>
           )}
           {activityTab === "open" && (
@@ -2689,7 +2701,7 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
                 <p>Choose how collateral supports this {pair} position. This setting applies to the order you are building.</p>
                 <div className="account-type-options margin-mode-options" role="radiogroup" aria-label="Margin mode">
                   <button type="button" role="radio" aria-checked={pendingMarginMode === "Cross"} className={pendingMarginMode === "Cross" ? "active" : ""} onClick={() => setPendingMarginMode("Cross")}>
-                    <span><strong>Cross</strong><small>Share available margin across open positions. Losses can use more of the Farm account balance before liquidation.</small></span><i>{pendingMarginMode === "Cross" && <Check size={13} weight="bold" />}</i>
+                    <span><strong>Cross</strong><small>Share available margin across open positions. Losses can use more of the DTF account balance before liquidation.</small></span><i>{pendingMarginMode === "Cross" && <Check size={13} weight="bold" />}</i>
                   </button>
                   <button type="button" role="radio" aria-checked={pendingMarginMode === "Isolated"} className={pendingMarginMode === "Isolated" ? "active" : ""} onClick={() => setPendingMarginMode("Isolated")}>
                     <span><strong>Isolated</strong><small>Limit risk to margin assigned to this position. Additional margin can be added or removed independently.</small></span><i>{pendingMarginMode === "Isolated" && <Check size={13} weight="bold" />}</i>
@@ -2724,7 +2736,7 @@ function TradingDashboard({ farmId, initialPair = "" }: { farmId: string; initia
 
             {tradeSettingsPanel === "account" && (
               <div className="trade-settings-content">
-                <p>Choose how this demo trading account groups collateral and risk. This preference does not send an on-chain transaction.</p>
+                <p>Choose how this trading account groups collateral and risk.</p>
                 <div className="account-type-options" role="radiogroup" aria-label="Trading account type">
                   <button type="button" role="radio" aria-checked={pendingAccountType === "Unified"} className={pendingAccountType === "Unified" ? "active" : ""} onClick={() => setPendingAccountType("Unified")}>
                     <span><strong>Unified Account <em>Recommended</em></strong><small>Keep each collateral asset in a separate balance. Perpetual positions use their settlement asset as collateral, shared across positions with the same collateral.</small></span><i>{pendingAccountType === "Unified" && <Check size={13} weight="bold" />}</i>
@@ -2804,17 +2816,34 @@ function OrderBookRow({
   );
 }
 
+function downloadCsv(filename: string, rows: (string | number)[][]) {
+  const csv = rows.map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(",")).join("\n");
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 function Analytics({ network }: { network: string }) {
   const app = useApp();
+  const { rows, summary } = useManagerData(network);
   const [scenario, setScenario] = useState<Scenario>("Base");
   const [days, setDays] = useState(90);
-  const demo = app.farms.filter(
-    (f) =>
-      f.source === "demo" &&
-      (network === "All Chains" || f.network === network),
+  const live = rows.filter((row) => row.live);
+  const tvlOf = (row: ManagerRow) => row.tvl ?? 0;
+  const apy = summary.aum
+    ? live.reduce((sum, row) => sum + (row.dtf.apy7d ?? 0) * tvlOf(row), 0) / summary.aum
+    : 0;
+  const grossYield = live.reduce((sum, row) => sum + tvlOf(row) * ((row.dtf.apy7d ?? 0) / 100), 0);
+  const managementFees = live.reduce((sum, row) => sum + tvlOf(row) * (row.dtf.managementFee / 100), 0);
+  const performanceFees = live.reduce(
+    (sum, row) => sum + Math.max(0, tvlOf(row) * ((row.dtf.apy7d ?? 0) / 100)) * (row.dtf.performanceFee / 100),
+    0,
   );
-  const total = demo.reduce((s, f) => s + f.tvl, 0);
-  const apy = total ? demo.reduce((s, f) => s + f.apy * f.tvl, 0) / total : 0;
+  const netYield = Math.max(0, grossYield - managementFees - performanceFees);
+  const barWidth = (value: number) => `${grossYield > 0 ? Math.max(2, Math.min(100, (value / grossYield) * 100)) : 0}%`;
   const result = simulate(
     { ...templates[0].defaults, assumedApr: apy },
     "INDEX",
@@ -2822,57 +2851,91 @@ function Analytics({ network }: { network: string }) {
     days,
   );
   function exportCsv() {
-    const rows = [
-      "Farm,Strategy,TVL,APY,30D performance,Source",
-      ...demo.map((f) =>
-        [f.name, f.type, f.tvl, f.apy, f.performance, "demo"].join(","),
-      ),
-    ];
-    const url = URL.createObjectURL(
-      new Blob([rows.join("\n")], { type: "text/csv" }),
-    );
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "farm-manager-demo-analytics.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsv("dexponent-analytics.csv", [
+      ["DTF", "Strategy", "Network", "Status", "TVL (USD)", "Return (%)", "Return basis", "Net flows 30D (USD)", "Fees earned est. (USD)", "Largest LP (% of TVL)"],
+      ...rows.map((row) => [
+        row.farm.name,
+        row.farm.type,
+        row.farm.network,
+        statusLabel(row.farm.status),
+        row.tvl === null ? "" : row.tvl.toFixed(2),
+        row.ret.value === null ? "" : row.ret.value.toFixed(2),
+        row.ret.label,
+        row.netFlows30d === null ? "" : row.netFlows30d.toFixed(2),
+        row.feesEarned.toFixed(2),
+        row.topDepositorPct === null ? "" : row.topDepositorPct.toFixed(2),
+      ]),
+    ]);
+    app.toast("Analytics exported");
   }
   return (
     <>
       <PageHeading
-        eyebrow="SEE THE BIGGER PICTURE"
-        title="Portfolio analytics"
-        description="Understand your strategy mix and explore hypothetical outcomes."
+        title="Analytics"
         action={
-          <button className="button" onClick={exportCsv}>
+          <button className="button" onClick={exportCsv} disabled={!rows.length}>
             <ArrowDownToLine size={16} />
-            Export demo report
+            Export CSV
           </button>
         }
       />
       <div className="overview-metrics">
-        <Metric label="Demo portfolio TVL" value={money(total)} />
-        <Metric label="Weighted APY" value={`${apy.toFixed(2)}%`} />
-        <Metric label="Strategies" value={String(demo.length)} />
         <Metric
-          label="Data source"
-          value="Demo"
-          caption="No live feeds connected"
+          label={<LabelTip label="TVL">Total value locked across your live DTFs.</LabelTip>}
+          value={formatUsdCompact(live.length ? summary.aum : null)}
+        />
+        <Metric
+          label={<LabelTip label="Weighted return">TVL-weighted return after fees. Uses return since launch for DTFs under 90 days old and APY after that.</LabelTip>}
+          value={formatSignedPct(summary.weightedReturn)}
+          tone={toneOf(summary.weightedReturn)}
+        />
+        <Metric
+          label={<LabelTip label="Net flows · 30D">LP deposits minus withdrawals over the last 30 days.</LabelTip>}
+          value={formatSignedUsd(live.length ? summary.netFlows30d : null, true)}
+          tone={toneOf(live.length ? summary.netFlows30d : null)}
+        />
+        <Metric
+          label={<LabelTip label="Fees earned">Estimated performance fees on LP yield since launch. Not yet claimed.</LabelTip>}
+          value={formatUsdCompact(live.length ? summary.feesEarned : null)}
+          caption="est."
         />
       </div>
+      <section className="panel cost-panel">
+        <div className="cost-panel-copy">
+          <h3>Fee breakdown</h3>
+          <p>Estimated annual fees at current TVL</p>
+        </div>
+        <div className="cost-rows">
+          <div>
+            <span>Management fees</span>
+            <AnimatedValue value={formatUsdCompact(managementFees)} />
+            <i style={{ width: barWidth(managementFees) }} />
+          </div>
+          <div>
+            <span>Performance fees</span>
+            <AnimatedValue value={formatUsdCompact(performanceFees)} />
+            <i style={{ width: barWidth(performanceFees) }} />
+          </div>
+          <div>
+            <span>Net yield to LPs</span>
+            <AnimatedValue className="positive" value={formatUsdCompact(netYield)} />
+            <i className="positive-bar" style={{ width: barWidth(netYield) }} />
+          </div>
+        </div>
+      </section>
       <section className="panel">
         <div className="panel-heading">
           <div>
-            <h3>Hypothetical portfolio explorer</h3>
-            <p>$10,000 starting balance · synthetic scenario model</p>
+            <h3>Scenario analysis</h3>
+            <p>$10,000 at your weighted APY of {formatPct(apy)}</p>
           </div>
-          <Badge tone="amber">HYPOTHETICAL</Badge>
         </div>
         <div className="simulation-controls">
-          <div className="segmented">
+          <div className="segmented" role="group" aria-label="Scenario">
             {(["Bull", "Base", "Bear", "Stress"] as Scenario[]).map((s) => (
               <button
                 className={scenario === s ? "active" : ""}
+                aria-pressed={scenario === s}
                 key={s}
                 onClick={() => setScenario(s)}
               >
@@ -2880,11 +2943,12 @@ function Analytics({ network }: { network: string }) {
               </button>
             ))}
           </div>
-          <div className="segmented">
+          <div className="segmented" role="group" aria-label="Scenario horizon">
             {[30, 90, 365].map((d) => (
               <button
                 key={d}
                 className={days === d ? "active" : ""}
+                aria-pressed={days === d}
                 onClick={() => setDays(d)}
               >
                 {d === 365 ? "1Y" : `${d}D`}
@@ -2892,31 +2956,66 @@ function Analytics({ network }: { network: string }) {
             ))}
           </div>
         </div>
-        <PerformanceChart points={result.points} />
+        <PerformanceChart points={result.points} label="Scenario value" />
         <div className="simulation-metrics">
-          <Metric
-            label="Scenario return"
-            value={`${result.returnPct.toFixed(2)}%`}
-          />
-          <Metric
-            label="Volatility"
-            value={`${result.volatility.toFixed(2)}%`}
-          />
-          <Metric
-            label="Max drawdown"
-            value={`${result.drawdown.toFixed(2)}%`}
-          />
+          <Metric label="Scenario return" value={formatSignedPct(result.returnPct)} tone={toneOf(result.returnPct)} />
+          <Metric label="Volatility" value={formatPct(result.volatility)} />
+          <Metric label="Max drawdown" value={formatPct(result.drawdown)} />
         </div>
-        <Notice>
-          Uses demo weighted APY as a gross annual assumption, a 1% management
-          fee and a 10% performance fee. Synthetic market shocks; no historical
-          data. Gas, slippage, liquidity and contract failures are excluded.
-        </Notice>
+        <p className="table-footnote">Model output, not a forecast. Assumes 1% management and 10% performance fees; excludes gas and slippage.</p>
       </section>
       <div className="section-heading">
-        <h2>Farm comparison</h2>
+        <h2>By DTF</h2>
       </div>
-      <FarmTable farms={demo} />
+      <div className="farm-table-wrap">
+        {rows.length ? (
+          <table className="farm-table analytics-table">
+            <thead>
+              <tr>
+                <th scope="col">DTF</th>
+                <th scope="col" className="numeric">TVL</th>
+                <th scope="col" className="numeric">
+                  <LabelTip label="Return">After fees. Return since launch for DTFs under 90 days old, APY after that.</LabelTip>
+                </th>
+                <th scope="col" className="numeric">Net flows · 30D</th>
+                <th scope="col" className="numeric">
+                  <LabelTip label="Fees earned">Estimated performance fees since launch.</LabelTip>
+                </th>
+                <th scope="col" className="numeric">
+                  <LabelTip label="LP concentration">Largest LP&apos;s share of TVL.</LabelTip>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id}>
+                  <td>
+                    <Link className="farm-name" href={farmDetailHref(row.farm.id)}>
+                      <span className={`icon-tile ${row.farm.type.toLowerCase()}`}>
+                        {row.farm.icon ? <img src={row.farm.icon} alt="" /> : <StrategyIcon type={row.farm.type} size={18} />}
+                      </span>
+                      <span>
+                        <strong>{row.farm.name}</strong>
+                        <small>
+                          <span className={`strategy-tag ${row.farm.type.toLowerCase()}`}>{row.farm.type.charAt(0) + row.farm.type.slice(1).toLowerCase()}</span>
+                          <span className="network-name"><NetworkIcon network={row.farm.network} size={14} />{row.farm.network}</span>
+                        </small>
+                      </span>
+                    </Link>
+                  </td>
+                  <td className="numeric">{row.live ? formatUsdCompact(row.tvl) : MISSING}</td>
+                  <td className="numeric"><ReturnCell row={row} /></td>
+                  <td className={`numeric ${toneOf(row.live ? row.netFlows30d : null) ?? ""}`}>{row.live ? formatSignedUsd(row.netFlows30d, true) : MISSING}</td>
+                  <td className="numeric">{row.live ? formatUsdCompact(row.feesEarned) : MISSING}</td>
+                  <td className="numeric">{row.live && row.topDepositorPct !== null ? formatPct(row.topDepositorPct, 1) : MISSING}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <EmptyState title="No managed DTFs" description="Analytics appear once a DTF is live." href="/app/farms/new" />
+        )}
+      </div>
     </>
   );
 }
@@ -2924,16 +3023,11 @@ function WorkspaceSettings({ tab }: { tab?: string }) {
   const app = useApp();
   const [name, setName] = useState(app.profile.name);
   const [workspace, setWorkspace] = useState(app.profile.workspace);
-  const [reset, setReset] = useState(false);
   const [saved, setSaved] = useState(false);
   const selected = tab || "general";
   return (
     <>
-      <PageHeading
-        eyebrow="MAKE IT YOURS"
-        title="Workspace settings"
-        description="Manage your preferences, wallet, and local workspace data."
-      />
+      <PageHeading title="Settings" />
       <div className="tabs">
         {["general", "wallet", "team", "security"].map((t) => (
           <Link
@@ -2960,8 +3054,7 @@ function WorkspaceSettings({ tab }: { tab?: string }) {
           >
             <div className="panel-heading">
               <div>
-                <h3>Profile & workspace</h3>
-                <p>Personalize this browser’s workspace.</p>
+                <h3>Profile</h3>
               </div>
             </div>
             <div className="fields-grid">
@@ -2992,96 +3085,99 @@ function WorkspaceSettings({ tab }: { tab?: string }) {
             </div>
             <div className="settings-row">
               <div>
-                <h3>Appearance</h3>
-                <p>Use {app.theme === "dark" ? "light" : "dark"} mode.</p>
+                <h3 id="settings-theme-label">Theme</h3>
               </div>
-              <button
-                type="button"
-                className="button"
-                onClick={app.toggleTheme}
-              >
-                {app.theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-                Switch theme
-              </button>
+              <div className="dtf-segment" role="radiogroup" aria-labelledby="settings-theme-label">
+                {([
+                  ["dark", "Dark", Moon],
+                  ["light", "Light", Sun],
+                  ["system", "System", Monitor],
+                ] as const).map(([value, label, Icon]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={app.themePreference === value}
+                    aria-pressed={app.themePreference === value}
+                    onClick={() => app.setThemePreference(value)}
+                  >
+                    <Icon size={14} /> {label}
+                  </button>
+                ))}
+              </div>
             </div>
             <button
               className="button primary"
               disabled={!name.trim() || !workspace.trim()}
               type="submit"
             >
-              {saved ? "Preferences saved" : "Save preferences"}
+              {saved ? "Saved" : "Save changes"}
               {saved && <Check size={15} />}
             </button>
           </form>
         )}
         {selected === "wallet" && (
           <section className="panel">
-            <h3>Connected wallet</h3>
-            <p className="muted">
-              Browser wallet access uses your public account only.
-            </p>
+            <h3>Wallet</h3>
             {app.wallet ? (
               <>
-                <div className="wallet-address">{app.wallet}</div>
-                <p className="muted small">Chain ID: {app.walletChain}</p>
+                <div className="wallet-connected">
+                  <span className="mono wallet-address">{app.wallet}</span>
+                  <span className="wallet-network-chip"><NetworkIcon network={walletNetwork(app.walletChain)} size={14} />{walletNetwork(app.walletChain)}</span>
+                </div>
                 <button className="button" onClick={app.disconnect}>
-                  Disconnect workspace
+                  Disconnect
                 </button>
               </>
             ) : (
-              <button
-                className="button primary"
-                disabled={app.connecting}
-                onClick={app.connect}
-              >
-                <Wallet size={16} />
-                {app.connecting
-                  ? "Waiting for wallet…"
-                  : "Connect browser wallet"}
-              </button>
+              <>
+                <p className="muted">No wallet connected.</p>
+                <button
+                  className="button primary"
+                  disabled={app.connecting}
+                  onClick={app.connect}
+                >
+                  <Wallet size={16} />
+                  {app.connecting ? "Waiting for wallet…" : "Connect wallet"}
+                </button>
+              </>
             )}
             {app.walletError && (
               <p className="field-error" role="alert">
                 {app.walletError}
               </p>
             )}
-            <Notice>
-              Changing the workspace network filter does not switch your
-              wallet’s chain. Live execution will verify the actual chain before
-              asking you to sign.
-            </Notice>
+            <p className="muted small">
+              The network filter in the top bar does not switch your wallet&apos;s network. You are asked to switch before signing.
+            </p>
           </section>
         )}
         {selected === "team" && (
           <section className="panel">
-            <h3>Your team</h3>
+            <h3>Team</h3>
             <div className="settings-row">
               <div className="profile-row">
                 <span className="avatar">{app.profile.name[0]}</span>
                 <div>
                   <strong>{app.profile.name}</strong>
-                  <small>Local demo profile</small>
+                  <small>Manager</small>
                 </div>
               </div>
               <Badge>Owner</Badge>
             </div>
-            <Notice>
-              Team invitations and role permissions require an authenticated
-              backend. This prototype is a personal local workspace.
-            </Notice>
+            <p className="muted small">Team invitations and roles are not available yet.</p>
           </section>
         )}
         {selected === "security" && (
           <section className="panel">
-            <h3>Local data & security</h3>
+            <h3>Data &amp; security</h3>
             <p className="muted">
-              Drafts and preferences are stored in this browser. No private keys
-              or credentials are collected.
+              Private keys and seed phrases are never requested or stored.
             </p>
             <div className="settings-row">
               <div>
-                <h3>Export workspace</h3>
-                <p>Save all farm configurations as JSON.</p>
+                <h3>Export DTF configurations</h3>
+                <p>Download every DTF configuration as JSON.</p>
               </div>
               <button
                 className="button"
@@ -3093,128 +3189,66 @@ function WorkspaceSettings({ tab }: { tab?: string }) {
                   );
                   const a = document.createElement("a");
                   a.href = url;
-                  a.download = "farm-workspace.json";
+                  a.download = "dexponent-dtfs.json";
                   a.click();
                   URL.revokeObjectURL(url);
                 }}
               >
-                Export data
+                Export JSON
               </button>
             </div>
-            <div className="settings-row">
-              <div>
-                <h3>Reset demo workspace</h3>
-                <p>Delete local farms and restore sample data.</p>
-              </div>
-              <button className="button danger" onClick={() => setReset(true)}>
-                Reset workspace
-              </button>
-            </div>
-            <Notice>
-              Wallet connection is not authentication. Production
-              authentication, authorization, audit logs, and security policies
-              are not connected.
-            </Notice>
           </section>
         )}
       </div>
-      {reset && (
-        <Modal title="Reset this workspace?" onClose={() => setReset(false)}>
-          <p>
-            All farm configurations in this browser will be deleted and the demo
-            farms restored. Export your work first if you need to keep it.
-          </p>
-          <div className="modal-actions">
-            <button className="button" onClick={() => setReset(false)}>
-              Cancel
-            </button>
-            <button
-              className="button danger"
-              onClick={() => {
-                app.reset();
-                setReset(false);
-                app.toast("Demo workspace restored");
-              }}
-            >
-              Delete local farms & reset
-            </button>
-          </div>
-        </Modal>
-      )}
     </>
   );
 }
-function Resources() {
+function Resources({ onOpenSupport }: { onOpenSupport: (target?: Omit<SupportTarget, "nonce">) => void }) {
+  const popular = popularIssues.map((issue) => articleById(issue.articleId)).filter((article): article is NonNullable<typeof article> => Boolean(article)).slice(0, 6);
   return (
     <>
       <PageHeading
-        eyebrow="A LITTLE CONTEXT GOES A LONG WAY"
-        title="The workspace guide"
-        description="Everything you need to explore Dexponent."
+        title="Help"
+        action={
+          <button className="button primary" onClick={() => onOpenSupport()}>
+            <Lifebuoy size={16} /> Open help center
+          </button>
+        }
       />
-      <div className="resource-grid">
-        {[
-          {
-            title: "Create your first farm",
-            description:
-              "Choose Index, Spot, or Perpetual. Start with a template, configure its parameters, review, and explore a scenario. Finish with a deployment preview.",
-            href: "/app/farms/new",
-            label: "Create farm",
-          },
-          {
-            title: "Pick up a draft",
-            description:
-              "Changes are autosaved locally after template selection. Resume drafts from any saved stage. Your draft stays in this browser.",
-            href: "/app/farms/drafts",
-            label: "Open drafts",
-          },
-          {
-            title: "Understand the demo",
-            description:
-              "Sample farms demonstrate portfolio views. Simulations use synthetic assumptions. Ready means the configuration is saved, not that a contract is deployed.",
-            href: "/app/templates",
-            label: "Explore templates",
-          },
-        ].map((r) => (
-          <section className="panel" key={r.title}>
-            <BookOpen className="positive" size={22} />
-            <h3>{r.title}</h3>
-            <p className="muted">{r.description}</p>
-            <Link className="text-link" href={r.href}>
-              {r.label}
-              <ArrowRight size={15} />
-            </Link>
-          </section>
-        ))}
-      </div>
-      <section className="panel" id="documentation">
+      <section className="panel help-page">
         <div className="panel-heading">
-          <h3>Product documentation</h3>
-          <Badge>LOCAL PROJECT</Badge>
+          <h3>Common questions</h3>
         </div>
-        <div className="review-values">
-          <div>
-            <span>Product scope & journey</span>
-            <strong>docs/PRODUCT.md</strong>
-          </div>
-          <div>
-            <span>Architecture & integration boundaries</span>
-            <strong>docs/ARCHITECTURE.md</strong>
-          </div>
-          <div>
-            <span>Template fields & validation</span>
-            <strong>docs/STRATEGY_ENGINE.md</strong>
-          </div>
-          <div>
-            <span>Deployment adapter</span>
-            <strong>docs/DEPLOYMENT.md</strong>
-          </div>
-          <div>
-            <span>Research & sources</span>
-            <strong>docs/research/web3-defi-product-research.md</strong>
-          </div>
+        <ul className="help-list">
+          {popular.map((article) => (
+            <li key={article.id}>
+              <button className="help-question" onClick={() => onOpenSupport({ article: article.id })}>
+                <span>
+                  <strong>{article.question}</strong>
+                  <small>{article.summary}</small>
+                </span>
+                <CaretRight size={15} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      </section>
+      <section className="panel help-page">
+        <div className="panel-heading">
+          <h3>Topics</h3>
+        </div>
+        <div className="help-topics">
+          {helpCategories.map((category) => (
+            <button key={category.id} className="help-topic" onClick={() => onOpenSupport({ category: category.id })}>
+              <strong>{category.label}</strong>
+              <small>{formatCount(articlesIn(category.id).length)} article{articlesIn(category.id).length === 1 ? "" : "s"}</small>
+            </button>
+          ))}
         </div>
       </section>
+      <p className="muted small">
+        Still stuck? <a className="text-link" href={supportMailto("Help request")}>Email support</a>
+      </p>
     </>
   );
 }

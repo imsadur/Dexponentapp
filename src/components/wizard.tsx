@@ -37,6 +37,7 @@ import {
 } from "@/domain/strategy";
 import { deploymentAdapter } from "@/adapters/deployment";
 import { deployDemoFarm } from "@/domain/farm-actions";
+import { formatUsdCompact } from "@/domain/format";
 import { farmDetailHref } from "@/domain/routes";
 import { useApp } from "./provider";
 import {
@@ -55,14 +56,20 @@ import {
 
 gsap.registerPlugin(useGSAP);
 
-const steps = [
-  "Strategy + template",
-  "Configure",
-  "Risk & fees",
-  "Review",
-  "Simulate",
-  "Deploy",
+/**
+ * Four visible stages. Internal step indices (persisted on drafts as `farm.step`) keep the
+ * original 0–5 numbering so older drafts resume correctly: 2 folds into 1, 4 folds into 3.
+ */
+const stages = [
+  { label: "Strategy & template", step: 0 },
+  { label: "Details & configuration", step: 1 },
+  { label: "Review", step: 3 },
+  { label: "Deploy", step: 5 },
 ];
+const stageOf = (step: number) => (step >= 5 ? 3 : step >= 3 ? 2 : step >= 1 ? 1 : 0);
+const normalizeStep = (step: number) => stages[stageOf(step)].step;
+/** Fields shown in the "Risk & fees" group; everything else marked advanced is collapsed. */
+const riskFeeKeys = new Set(["risk", "managementFee", "performanceFee"]);
 export function Wizard({ farmId }: { farmId?: string }) {
   const app = useApp(),
     router = useRouter();
@@ -73,7 +80,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [scenario, setScenario] = useState<Scenario>("Base");
   const [days, setDays] = useState(90);
-  const [simulated, setSimulated] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const [success, setSuccess] = useState(false);
   const [initialized, setInitialized] = useState(false);
@@ -101,9 +108,10 @@ export function Wizard({ farmId }: { farmId?: string }) {
       }
       setFarm(copy);
       setType(copy.type);
-      setStep(editingExisting ? 1 : Math.min(copy.step, 5));
+      setStep(editingExisting ? 1 : normalizeStep(Math.min(copy.step, 5)));
     } else {
       const t = templateById(params.get("template") || "");
+
       if (t) {
         setType(t.type);
         setFarm(makeFarm(t, crypto.randomUUID()));
@@ -163,7 +171,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
     },
     [],
   );
-  const t = farm ? templateById(farm.templateId) : null;
+  const t = farm ? templateById(farm.templateId, farm.type) : null;
   const values = farm?.values || {};
   const allocations = farm?.allocations || [];
   const risk = t ? riskFor(t, values) : "MEDIUM";
@@ -178,22 +186,18 @@ export function Wizard({ farmId }: { farmId?: string }) {
           }
         : f,
     );
-    setSimulated(false);
     setAccepted(false);
     setErrors({});
   }
   function value(key: string, v: string | number) {
     let next = { ...values, [key]: v };
-    if (key === "strategy" && v === "Staking")
-      next = { ...next, protocol: "Lido", asset: "ETH" };
     if (key === "strategy" && v === "Liquidity Provision")
-      next = { ...next, protocol: "Uniswap", pool: "ETH / USDC" };
+      next = { ...next, protocol: "Aerodrome", pool: "ETH / USDC" };
     if (key === "strategy" && v === "Lending")
       next = { ...next, protocol: "Aave" };
     change({
       values: next,
       name: String(next.name),
-      ...(key === "strategy" && v === "Staking" ? { network: "Ethereum" } : {}),
     });
     if (key === "allocationMethod" && v === "Equal Weight" && farm) {
       const n = farm.allocations.length;
@@ -218,17 +222,23 @@ export function Wizard({ farmId }: { farmId?: string }) {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function next() {
-    if ((step === 1 || step === 2) && farm && t) {
+    if (step === 1 && farm && t) {
       const e = validateStrategy(t, values, allocations, farm.network);
       setErrors(e);
       if (Object.keys(e).length) {
+        if (
+          t.fields.some(
+            (f) => f.advanced && !riskFeeKeys.has(f.key) && e[f.key],
+          )
+        )
+          setShowAdvanced(true);
         requestAnimationFrame(() =>
           document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(),
         );
         return;
       }
     }
-    go(step + 1);
+    go(stages[Math.min(stageOf(step) + 1, stages.length - 1)].step);
   }
   function selectTemplate(id: string) {
     const selected = templateById(id)!;
@@ -236,7 +246,6 @@ export function Wizard({ farmId }: { farmId?: string }) {
     setFarm(created);
     setType(selected.type);
     setStep(1);
-    setSimulated(false);
     setAccepted(false);
   }
   function finish() {
@@ -251,7 +260,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
           risk,
           apy: Math.max(0, Number(projected.apy.toFixed(2))),
           updatedAt: new Date().toISOString(),
-          events: [...farm.events, "Farm configuration updated · local demo action"],
+          events: [...farm.events, "DTF configuration updated"],
         };
         app.saveFarm(updated);
         setFarm(updated);
@@ -268,7 +277,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
       app.saveFarm(finished);
       setFarm(finished);
       setSuccess(true);
-      app.toast(`${finished.name} deployed and added to Managed Farms.`);
+      app.toast(`${finished.name} created.`);
       router.push(farmDetailHref(finished.id));
     } catch (e) {
       setErrors({
@@ -287,10 +296,10 @@ export function Wizard({ farmId }: { farmId?: string }) {
   if (farmId && !app.farms.some((f) => f.id === farmId))
     return (
       <EmptyState
-        title="Farm not found"
-        description="This farm may belong to a different browser workspace."
+        title="DTF not found"
+        description="Check the link or open Managed DTFs."
         href="/app/farms"
-        label="View farms"
+        label="View DTFs"
       />
     );
   if (success && farm)
@@ -299,20 +308,15 @@ export function Wizard({ farmId }: { farmId?: string }) {
         <span className="success-icon">
           <CheckCircle2 size={38} />
         </span>
-        <Badge tone="mint">DEMO FARM ACTIVE</Badge>
-        <h1>Your Farm is deployed in demo mode.</h1>
+        <Badge tone="mint">ACTIVE</Badge>
+        <h1>DTF created</h1>
         <p>
-          <strong>{farm.name}</strong> is active and now appears in Managed
-          Farms with working demo controls.
+          <strong>{farm.name}</strong> now appears in Managed DTFs.
         </p>
-        <Notice>
-          This deployment uses local demo state. No wallet approval, assets, or
-          blockchain transaction were used.
-        </Notice>
         {app.storageError && <Notice tone="warning">{app.storageError}</Notice>}
         <div className="hero-actions">
           <Link className="button primary" href={farmDetailHref(farm.id)}>
-            Manage farm <ArrowRight size={16} />
+            Manage DTF <ArrowRight size={16} />
           </Link>
           <button
             className="button"
@@ -333,21 +337,18 @@ export function Wizard({ farmId }: { farmId?: string }) {
         </div>
       </div>
     );
+  const stage = stageOf(step);
   const titles = [
-    "Choose a direction and a starting point.",
-    "Make this Farm yours.",
-    "Set the guardrails.",
-    "Every detail, in perspective.",
-    "Explore the possibilities.",
-    "Deploy your demo Farm.",
+    editingExisting ? "Edit DTF" : "Create DTF",
+    "Details & configuration",
+    "Review",
+    editingExisting ? "Save changes" : "Deploy",
   ];
   const descriptions = [
-    "Select a strategy, then choose the template that best matches your intent.",
-    "Configure identity, assets, network, and core strategy behavior.",
-    "Review risk limits, fees, and advanced execution settings.",
-    "Review your configuration before exploring hypothetical performance.",
-    "Test assumptions across market conditions before you commit.",
-    "Activate a working demo Farm and manage it from your workspace.",
+    "Choose a strategy type and template.",
+    "Identity, assets, risk and fees.",
+    "Check settings and estimated outcomes.",
+    editingExisting ? "Confirm the updated configuration." : "Confirm and create the DTF.",
   ];
   const result = farm ? simulate(values, farm.type, scenario, days) : null;
   const plan =
@@ -360,7 +361,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
     <div className="wizard">
       <div className="wizard-top">
         <Link href="/app/farms" className="back-link">
-          <ArrowLeft size={15} /> My farms
+          <ArrowLeft size={15} /> Managed DTFs
         </Link>
         <span className="save-status">
           <Save size={13} />
@@ -377,27 +378,25 @@ export function Wizard({ farmId }: { farmId?: string }) {
         </button>
       </div>
       <nav aria-label="Creation steps" className="stepper">
-        {steps.map((s, i) => (
+        {stages.map((s, i) => (
           <button
-            key={s}
-            aria-current={i === step ? "step" : undefined}
-            disabled={i > step}
-            onClick={() => go(i)}
-            className={`${i === step ? "active" : ""} ${i < step ? "done" : ""}`}
+            key={s.label}
+            aria-current={i === stage ? "step" : undefined}
+            aria-label={`Step ${i + 1} of ${stages.length}: ${s.label}`}
+            disabled={i > stage}
+            onClick={() => go(s.step)}
+            className={`${i === stage ? "active" : ""} ${i < stage ? "done" : ""}`}
           >
-            <span>{i < step ? <Check size={13} /> : i + 1}</span>
-            {s}
+            <span>{i < stage ? <Check size={13} /> : i + 1}</span>
+            {s.label}
           </button>
         ))}
       </nav>
       <div className="wizard-heading">
-        <div className="eyebrow">
-          STEP {String(step + 1).padStart(2, "0")} / 06
-        </div>
         <h1 ref={heading} tabIndex={-1}>
-          {titles[step]}
+          {titles[stage]}
         </h1>
-        <p>{descriptions[step]}</p>
+        <p>{descriptions[stage]}</p>
       </div>
       {step === 0 && (
         <div
@@ -408,10 +407,10 @@ export function Wizard({ farmId }: { farmId?: string }) {
             <div>
               <span>Strategy</span>
               <strong>
-                {type ? "Strategy selected" : "How should this Farm work?"}
+                {type ? "Strategy selected" : "Choose a strategy"}
               </strong>
             </div>
-            {type && <small>Select another strategy to compare templates.</small>}
+            {type && <small>Switch strategy to compare templates.</small>}
           </div>
           <div className="family-grid creation-families compactable-families">
             {families.map((f) => (
@@ -422,7 +421,6 @@ export function Wizard({ farmId }: { farmId?: string }) {
                 onClick={() => {
                   if (type !== f.type) {
                     setFarm(null);
-                    setSimulated(false);
                     setAccepted(false);
                   }
                   setType(f.type);
@@ -453,11 +451,10 @@ export function Wizard({ farmId }: { farmId?: string }) {
               <div className="selection-section-heading template-heading">
                 <div>
                   <span>Template</span>
-                  <strong>Choose your starting point</strong>
+                  <strong>Choose a template</strong>
                 </div>
                 <small>
-                  {templates.filter((item) => item.type === type).length} fully
-                  configurable templates
+                  {templates.filter((item) => item.type === type).length} templates
                 </small>
               </div>
               <div className="template-grid creation-template-grid">
@@ -503,7 +500,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
                 }}
               >
                 <Plus size={16} /> Start from scratch
-                <span>Use only the required fields for this strategy</span>
+                <span>Required fields only</span>
                 <ArrowRight size={16} />
               </button>
             </section>
@@ -511,25 +508,24 @@ export function Wizard({ farmId }: { farmId?: string }) {
         </div>
       )}
       {step >= 1 && farm && t && (
-        <div className={`builder-grid no-builder-visual ${step !== 1 ? "review-layout" : ""}`}>
+        <div className={`builder-grid no-builder-visual ${stage !== 1 ? "review-layout" : ""}`}>
           <div className="configuration">
-            {step === 1 && (
+            {stage === 1 && (
               <>
                 <section className="panel">
                   <div className="panel-heading">
                     <div>
-                      <h3>Strategy essentials</h3>
-                      <p>A strong foundation for your farm.</p>
+                      <h3>Details</h3>
                     </div>
                     <SlidersHorizontal size={17} />
                   </div>
                   <div className="farm-artwork-field">
                     <div className="farm-artwork-preview">
-                      {farm.icon ? <img src={farm.icon} alt="Farm artwork preview" /> : <StrategyIcon type={farm.type} size={27} />}
+                      {farm.icon ? <img src={farm.icon} alt="DTF artwork preview" /> : <StrategyIcon type={farm.type} size={27} />}
                     </div>
                     <div>
-                      <strong>Farm logo or icon</strong>
-                      <p>Add a square PNG, JPG, WebP or SVG. It stays in this browser for the prototype.</p>
+                      <strong>DTF logo or icon</strong>
+                      <p>Square PNG, JPG, WebP or SVG, up to 1 MB.</p>
                       <label className="button small upload-button">
                         <Upload size={14} /> {farm.icon ? "Replace artwork" : "Upload artwork"}
                         <input
@@ -554,7 +550,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
                   <div className="document-upload-field">
                     <div>
                       <strong>Supporting documents</strong>
-                      <p>Add a factsheet, methodology, or risk disclosure for LP review.</p>
+                      <p>Factsheet, methodology or risk disclosure for LPs.</p>
                     </div>
                     <label className="button small upload-button">
                       <FileText size={14} /> Add PDF
@@ -617,7 +613,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
                       )}
                     </label>
                     {t.fields
-                      .filter((f) => !f.advanced && f.key !== "risk")
+                      .filter((f) => !f.advanced && !riskFeeKeys.has(f.key))
                       .map((f) => (
                         <ParameterField
                           key={f.key}
@@ -634,7 +630,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
                     <div className="panel-heading">
                       <div>
                         <h3>Asset allocation</h3>
-                        <p>Give each asset a place in your strategy.</p>
+                        <p>Weights must total 100%.</p>
                       </div>
                       <span
                         className={
@@ -752,28 +748,21 @@ export function Wizard({ farmId }: { farmId?: string }) {
                       String(values.allocationMethod),
                     ) && (
                       <Notice>
-                        These weights are manually specified in this prototype.
-                        Live market-cap and risk weighting require a market data
-                        adapter.
+                        Weights are set manually for this allocation method.
                       </Notice>
                     )}
                   </section>
                 )}
-              </>
-            )}
-            {step === 2 && (
-              <>
                 <section className="panel risk-settings-panel">
                   <div className="panel-heading">
                     <div>
-                      <h3>Risk, fees & advanced settings</h3>
-                      <p>Set the boundaries before reviewing the full Farm.</p>
+                      <h3>Risk & fees</h3>
                     </div>
                     <Risk level={risk} />
                   </div>
                   <div className="fields-grid">
                     {t.fields
-                      .filter((f) => f.advanced || f.key === "risk")
+                      .filter((f) => riskFeeKeys.has(f.key))
                       .map((f) => (
                         <ParameterField
                           key={f.key}
@@ -784,55 +773,55 @@ export function Wizard({ farmId }: { farmId?: string }) {
                         />
                       ))}
                   </div>
+                  {farm.type === "PERPETUAL" && (
+                    <Notice tone="warning">
+                      <strong>
+                        {Number(values.leverage) >= 5
+                          ? "High leverage: capital at substantial risk."
+                          : "Liquidation risk requires attention."}
+                      </strong>
+                      <p>
+                        Position size:{" "}
+                        {money(Number(values.margin) * Number(values.leverage))}.
+                        Your entire margin can be lost. Liquidation price
+                        depends on the venue quote at execution.
+                      </p>
+                    </Notice>
+                  )}
                 </section>
-                <section className="panel risk-review-strip">
-                  <div>
-                    <span>Management fee</span>
-                    <strong>{values.managementFee}% / year</strong>
+                <details
+                  className="panel wizard-advanced"
+                  open={showAdvanced}
+                  onToggle={(e) => setShowAdvanced(e.currentTarget.open)}
+                >
+                  <summary>
+                    <span>Advanced settings</span>
+                    <ChevronDown size={15} />
+                  </summary>
+                  <div className="fields-grid">
+                    {t.fields
+                      .filter((f) => f.advanced && !riskFeeKeys.has(f.key))
+                      .map((f) => (
+                        <ParameterField
+                          key={f.key}
+                          field={f}
+                          value={values[f.key]}
+                          error={errors[f.key]}
+                          onChange={(v) => value(f.key, v)}
+                        />
+                      ))}
                   </div>
-                  <div>
-                    <span>Performance fee</span>
-                    <strong>{values.performanceFee}% of gains</strong>
-                  </div>
-                  <div>
-                    <span>Illustrative risk</span>
-                    <Risk level={risk} />
-                  </div>
-                </section>
-                {farm.type === "PERPETUAL" && (
-                  <Notice tone="warning">
-                    <strong>
-                      {Number(values.leverage) >= 5
-                        ? "High leverage: capital at substantial risk."
-                        : "Liquidation risk requires attention."}
-                    </strong>
-                    <p>
-                      Position size:{" "}
-                      {money(Number(values.margin) * Number(values.leverage))}.
-                      Your entire margin can be lost. Liquidation price and
-                      distance require a live exchange quote and are currently
-                      unavailable.
-                    </p>
-                  </Notice>
-                )}
-                <Notice>
-                  Template defaults are only a starting point. These controls
-                  determine fees, exposure limits, and automated behavior for
-                  this demo Farm.
-                </Notice>
+                </details>
               </>
             )}
-            {step === 3 && (
+            {stage === 2 && (
               <>
                 <section className="panel">
                   <div className="panel-heading">
-                    <h3>Configuration overview</h3>
+                    <h3>Configuration</h3>
                     <div className="review-edit-actions">
                       <button className="text-link" onClick={() => go(1)}>
-                        Edit configuration
-                      </button>
-                      <button className="text-link" onClick={() => go(2)}>
-                        Edit risk & fees
+                        Edit
                       </button>
                     </div>
                   </div>
@@ -841,7 +830,9 @@ export function Wizard({ farmId }: { farmId?: string }) {
                       <div key={f.key}>
                         <span>{f.label}</span>
                         <strong>
-                          {values[f.key]} {f.unit}
+                          {f.key === "capacity"
+                            ? formatUsdCompact(Number(values[f.key]))
+                            : `${values[f.key]}${f.unit ? ` ${f.unit}` : ""}`}
                         </strong>
                       </div>
                     ))}
@@ -865,7 +856,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
                   {[
                     "Required fields complete",
                     "Allocation and risk parameters checked",
-                    "Template network selected",
+                    "Network supported",
                   ].map((s) => (
                     <div className="health-row" key={s}>
                       <CheckCircle2 size={16} />
@@ -874,32 +865,23 @@ export function Wizard({ farmId }: { farmId?: string }) {
                   ))}
                   <div className="health-row warning-text">
                     <Shield size={16} />
-                    No audit or live integration verified
+                    Audit pending
                   </div>
                   <div className="health-row muted">
                     <Clock3 size={16} />
                     {app.wallet
-                      ? "Wallet connected · public address only"
-                      : "Wallet optional for this preview"}
+                      ? "Wallet connected"
+                      : "Wallet not connected"}
                   </div>
                 </section>
-                <Notice>
-                  Permissions and exact asset approvals will be supplied by the
-                  live contract adapter. This review does not authorize any
-                  transfer.
-                </Notice>
-              </>
-            )}
-            {step === 4 && result && (
+                {result && (
               <section className="panel simulation-panel">
                 <div className="panel-heading">
                   <div>
-                    <h3>Scenario explorer</h3>
-                    <p>
-                      Hypothetical performance of a $10,000 starting position.
-                    </p>
+                    <h3>Scenario estimate</h3>
+                    <p>Estimated value of a $10,000 position.</p>
                   </div>
-                  <Badge tone="amber">SIMULATED</Badge>
+                  <Badge tone="amber">ESTIMATED</Badge>
                 </div>
                 <div className="simulation-controls">
                   <div className="segmented">
@@ -909,10 +891,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
                           key={s}
                           aria-pressed={scenario === s}
                           className={scenario === s ? "active" : ""}
-                          onClick={() => {
-                            setScenario(s);
-                            setSimulated(false);
-                          }}
+                          onClick={() => setScenario(s)}
                         >
                           {s}
                         </button>
@@ -925,10 +904,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
                         key={d}
                         aria-pressed={days === d}
                         className={days === d ? "active" : ""}
-                        onClick={() => {
-                          setDays(d);
-                          setSimulated(false);
-                        }}
+                        onClick={() => setDays(d)}
                       >
                         {d === 365 ? "1Y" : `${d}D`}
                       </button>
@@ -936,7 +912,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
                   </div>
                 </div>
                 <div className="simulation-total">
-                  <span>Hypothetical ending value</span>
+                  <span>Estimated ending value</span>
                   <strong>{money(result.points.at(-1)!)}</strong>
                   <span
                     className={
@@ -949,7 +925,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
                 </div>
                 <PerformanceChart
                   points={result.points}
-                  label={`${scenario} hypothetical performance`}
+                  label={`${scenario} scenario, estimated performance`}
                 />
                 <div className="chart-axis">
                   <span>Day 0</span>
@@ -983,47 +959,32 @@ export function Wizard({ farmId }: { farmId?: string }) {
                   />
                 </div>
                 <Notice tone={scenario === "Stress" ? "warning" : "info"}>
-                  <strong>Hypothetical, not a historical backtest.</strong>
+                  <strong>Estimate, not a historical backtest.</strong>
                   <p>
                     Assumes {values.assumedApr}% annual gross return,{" "}
                     {values.managementFee}% annual management fee and{" "}
                     {values.performanceFee}% performance fee on gains.{" "}
                     {farm.type === "PERPETUAL"
                       ? `Applies ${values.leverage}× exposure and simplified funding/volatility shocks. Actual liquidation paths are not modeled.`
-                      : "Uses a synthetic daily price path."}{" "}
+                      : "Uses a modelled daily price path."}{" "}
                     Excludes gas, slippage, real funding payments, liquidity
                     constraints and smart contract failures. Returns are not
                     guaranteed.
                   </p>
                 </Notice>
-                <button
-                  className={`button ${simulated ? "" : "primary"} full`}
-                  onClick={() => setSimulated(true)}
-                >
-                  {simulated ? (
-                    <>
-                      <Check size={16} />
-                      Scenario reviewed
-                    </>
-                  ) : (
-                    <>
-                      Review this scenario <ArrowRight size={16} />
-                    </>
-                  )}
-                </button>
               </section>
+                )}
+                <Notice>
+                  This review does not authorize any transfer.
+                </Notice>
+              </>
             )}
-            {step === 5 && (
+            {stage === 3 && (
               <section className="panel deployment-panel">
                 <div className="panel-heading">
                   <div>
                     <h3>Deployment plan</h3>
-                    <p>
-                      Everything that will happen when live deployment is
-                      enabled.
-                    </p>
                   </div>
-                  <Badge tone="mint">DEMO DEPLOYMENT</Badge>
                 </div>
                 <div className="review-values">
                   <div>
@@ -1032,11 +993,11 @@ export function Wizard({ farmId }: { farmId?: string }) {
                   </div>
                   <div>
                     <span>Contract type</span>
-                    <strong>Strategy vault · adapter pending</strong>
+                    <strong>Strategy vault</strong>
                   </div>
                   <div>
                     <span>Deployment cost</span>
-                    <strong>Not available</strong>
+                    <strong>{plan?.cost ?? "—"}</strong>
                   </div>
                   <div>
                     <span>Wallet</span>
@@ -1066,23 +1027,19 @@ export function Wizard({ farmId }: { farmId?: string }) {
                           }
                         </small>
                       </div>
-                      <span className="muted small">Ready</span>
+                      <span className="muted small">{s.state}</span>
                     </div>
                   ))}
                 </div>
-                <Notice>
-                  Deploying creates an active demo Farm in Managed Farms. It can
-                  accept demo deposits, withdrawals, and eligible manager pause
-                  actions without sending a blockchain transaction.
-                </Notice>
                 <label className="check-label">
                   <input
                     type="checkbox"
                     checked={accepted}
                     onChange={(e) => setAccepted(e.target.checked)}
                   />
-                  I understand this is a demo deployment and no Farm will be
-                  deployed onchain.
+                  {editingExisting
+                    ? "I have reviewed the updated configuration."
+                    : "I understand this DTF is created in preview and no transaction is sent."}
                 </label>
                 {errors.deployment && (
                   <p className="field-error" role="alert">
@@ -1101,7 +1058,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
                 <span className={`icon-tile ${farm.type.toLowerCase()} farm-summary-icon`}>
                   {farm.icon ? <img src={farm.icon} alt="" /> : <StrategyIcon type={farm.type} />}
                 </span>
-                <h3>{String(values.name) || "Untitled farm"}</h3>
+                <h3>{String(values.name) || "Untitled DTF"}</h3>
                 <Badge>{farm.type}</Badge>
                 <div className="summary-rows">
                   <div>
@@ -1149,14 +1106,6 @@ export function Wizard({ farmId }: { farmId?: string }) {
                     <strong>{values.performanceFee}%</strong>
                   </div>
                 </div>
-                <div className="summary-foot">
-                  <Shield size={14} />
-                  <span>
-                    Preview configuration.
-                    <br />
-                    No live capital at risk.
-                  </span>
-                </div>
               </div>
             </details>
           </aside>
@@ -1165,46 +1114,33 @@ export function Wizard({ farmId }: { farmId?: string }) {
       <div className="wizard-footer">
         <button
           className="button"
-          disabled={step === 0}
-          onClick={() => go(step - 1)}
+          disabled={stage === 0}
+          onClick={() => go(stages[Math.max(0, stage - 1)].step)}
         >
           <ArrowLeft size={15} />
           Back
         </button>
         <span className="muted small">
-          {step === 0
-            ? type
-              ? "Choose a template to continue."
-              : "Start by selecting a strategy."
-            : step === 1
-              ? "Core settings first. Guardrails come next."
-              : "Your draft stays in this browser."}
+          Step {stage + 1} of {stages.length}
         </span>
-        {step !== 0 && (
+        {stage !== 0 && (
           <button
             className="button primary"
-            disabled={
-              (step === 4 && !simulated) ||
-              (step === 5 && !accepted)
-            }
-            onClick={step === 5 ? finish : next}
+            disabled={stage === 3 && !accepted}
+            onClick={stage === 3 ? finish : next}
           >
-            {step === 1
-              ? "Continue to risk & fees"
-              : step === 2
-                ? "Review Farm"
-                : step === 3
-                  ? "Explore simulation"
-                  : step === 4
-                    ? "Continue to deploy"
-                    : editingExisting ? "Save changes" : "Deploy demo Farm"}
+            {stage === 1
+              ? "Review DTF"
+              : stage === 2
+                ? "Continue to deploy"
+                : editingExisting ? "Save changes" : "Create DTF"}
             <ArrowRight size={15} />
           </button>
         )}
       </div>
-      {Object.keys(errors).length > 0 && (step === 1 || step === 2) && (
+      {Object.keys(errors).length > 0 && stage === 1 && (
         <p className="field-error" role="alert">
-          Please resolve the highlighted fields before continuing.
+          Resolve the highlighted fields to continue.
         </p>
       )}
     </div>
@@ -1311,7 +1247,6 @@ function StrategyMini({ type }: { type: StrategyType }) {
         <path d="M0 75L35 65L65 80L100 40L135 52L165 20L210 30" />
         <path d="M0 35L35 45L65 30L100 70L135 58L165 90L210 80" />
       </svg>
-      <span>DELTA HEDGE</span>
     </div>
   );
 }

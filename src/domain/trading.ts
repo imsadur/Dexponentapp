@@ -109,9 +109,9 @@ export function perpetualPair(farm: Farm) {
 
 export function placeDemoOrder(farm: Farm, order: DemoOrder): Farm {
   if (farm.type !== "PERPETUAL")
-    throw new Error("Trading is available only for Perpetual Farms.");
+    throw new Error("Trading is available only for Perpetual DTFs.");
   if (farm.status !== "ACTIVE")
-    throw new Error("Resume this Farm before placing a demo trade.");
+    throw new Error("Resume this DTF before placing a trade.");
   if (!Number.isFinite(order.size) || order.size <= 0)
     throw new Error("Enter a position size greater than zero.");
   if (!Number.isFinite(order.leverage) || order.leverage < 1 || order.leverage > 10)
@@ -170,7 +170,7 @@ export function placeDemoOrder(farm: Farm, order: DemoOrder): Farm {
     updatedAt: filledAt,
     events: [
       ...farm.events,
-      `${order.reduceOnly ? "Reduce" : order.side} ${pair} · ${order.size.toLocaleString()} ${quote} at ${order.leverage}× · demo order filled`,
+      `${order.reduceOnly ? "Reduce" : order.side} ${pair} · ${order.size.toLocaleString()} ${quote} at ${order.leverage}× · order filled`,
     ],
   };
 }

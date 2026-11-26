@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import {
   templates,
   makeFarm,
+  normalizeNetwork,
   simulate,
+  templateById,
   validateStrategy,
 } from "../src/domain/strategy";
 import { deploymentAdapter } from "../src/adapters/deployment";
@@ -31,7 +33,7 @@ test("out-of-range leverage and unsupported networks are rejected", () => {
   const t = templates.find((t) => t.type === "PERPETUAL")!,
     f = makeFarm(t, "test");
   f.values.leverage = 11;
-  const e = validateStrategy(t, f.values, f.allocations, "Base");
+  const e = validateStrategy(t, f.values, f.allocations, "Arbitrum");
   assert.ok(e.leverage);
   assert.ok(e.network);
 });
@@ -46,6 +48,25 @@ test("stress scenarios lose money and fees reduce outcomes", () => {
       base.returnPct,
   );
   assert.deepEqual(base, simulate(f.values, f.type, "Base", 90));
+});
+test("library has four templates per strategy type with distinct theses", () => {
+  for (const type of ["INDEX", "SPOT", "PERPETUAL"] as const)
+    assert.equal(templates.filter((t) => t.type === type).length, 4, type);
+  assert.equal(new Set(templates.map((t) => t.description)).size, templates.length);
+  for (const t of templates) {
+    assert.ok(t.description.split(/\s+/).length <= 14, t.name);
+    assert.deepEqual(t.networks, ["Base", "Solana"], t.name);
+  }
+});
+test("retired template ids resolve to a current template", () => {
+  assert.equal(templateById("lp-farming")?.id, "liquidity-yield");
+  assert.equal(templateById("funding-rate-capture")?.id, "funding-capture");
+  assert.equal(templateById("unknown-id", "SPOT")?.type, "SPOT");
+  assert.equal(templateById("unknown-id"), undefined);
+});
+test("legacy networks normalize to Base", () => {
+  assert.equal(normalizeNetwork("Arbitrum"), "Base");
+  assert.equal(normalizeNetwork("Solana"), "Solana");
 });
 test("deployment preview never fabricates hashes or executes transactions", async () => {
   const t = templates[0],

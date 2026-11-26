@@ -15,6 +15,8 @@ import {
 import Link from "next/link";
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
+  ACCESS_CHANGE_EVENT,
+  DEMO_INVITE_CODES,
   PLAN_MAX,
   accessKey,
   contactMethods,
@@ -35,6 +37,7 @@ import {
 } from "@/domain/access";
 import type { StrategyType } from "@/domain/strategy";
 import { useApp } from "./provider";
+import { formatDate } from "@/domain/format";
 import { PageHeading } from "./ui";
 
 const RETURN = "/app/access/";
@@ -49,9 +52,8 @@ export function DtfAccess() {
   return (
     <div className="access-page">
       <PageHeading
-        eyebrow="FUND MANAGER"
-        title="DTF access"
-        description="Anyone can invest as an LP with just a connected wallet. Launching a DTF during beta requires an invitation code or approval."
+        title="DTF Access"
+        description="Manager access to launch DTFs"
       />
       {!app.ready ? (
         <div className="access-card access-loading" aria-busy="true">Checking your account…</div>
@@ -82,10 +84,10 @@ function SignedOutAccess() {
       <ol className="access-preview" aria-label="How access works">
         <li><span>1</span><div><strong>Sign in</strong><small>Email or mobile number</small></div></li>
         <li><span>2</span><div><strong>Manager profile</strong><small>Your name and verified email</small></div></li>
-        <li><span>3</span><div><strong>Unlock deployment</strong><small>Redeem an invitation or request access</small></div></li>
+        <li><span>3</span><div><strong>Deployment access</strong><small>Redeem an invitation or request access</small></div></li>
       </ol>
       <p className="access-lp-note">
-        Just want to invest? LPs only need a connected wallet. <Link href="/app/strategies">Explore strategies <ArrowRight size={13} /></Link>
+        LPs only need a connected wallet. <Link href="/app/strategies">Explore DTFs <ArrowRight size={13} /></Link>
       </p>
     </>
   );
@@ -110,6 +112,7 @@ function useAccessRecord() {
     setRecord(next);
     try {
       localStorage.setItem(key, JSON.stringify(next));
+      window.dispatchEvent(new Event(ACCESS_CHANGE_EVENT));
     } catch {
       app.toast("Saved for this visit only. Browser storage is unavailable.");
     }
@@ -126,13 +129,13 @@ function SignedInAccess() {
   const showProfileForm = !complete || editingProfile;
 
   const accessState =
-    record.status === "granted" ? "Granted" : record.status === "requested" ? "Under review" : "Locked";
+    record.status === "granted" ? undefined : record.status === "requested" ? undefined : "Invitation or approval needed";
 
   return (
     <>
       <ol className="access-steps" aria-label="Access progress">
         <Step done title="Account" detail={session.identifier} />
-        <Step done={complete} title="Manager profile" detail={complete ? "Complete" : "Name and email needed"} />
+        <Step done={complete} title="Manager profile" detail={complete ? undefined : "Name and email needed"} />
         <Step
           done={record.status === "granted"}
           pending={record.status === "requested"}
@@ -188,7 +191,7 @@ function SignedInAccess() {
             <SealCheck size={24} weight="fill" />
             <div>
               <strong>You can launch DTFs</strong>
-              <p>Access unlocked with an invitation code. Start from a template; you can review everything before deploying.</p>
+              <p>Access granted with an invitation code. Start from a template and review everything before deploying.</p>
             </div>
             <Link className="button primary" href="/app/farms/new">Create your first DTF <ArrowRight size={15} /></Link>
           </div>
@@ -197,7 +200,7 @@ function SignedInAccess() {
             <LockSimple size={20} />
             <div>
               <strong>Complete your manager profile first</strong>
-              <p>Add your name and contact email above to unlock this step.</p>
+              <p>Add your name and contact email above to continue.</p>
             </div>
           </div>
         ) : record.status === "requested" && record.request ? (
@@ -214,7 +217,7 @@ function SignedInAccess() {
             record={record}
             onGranted={() => {
               save({ ...record, status: "granted", grantedVia: "invitation" });
-              app.toast("Invitation redeemed. DTF deployment unlocked.");
+              app.toast("Invitation redeemed. You can now launch DTFs.");
             }}
             onRequested={(request) => {
               save({ ...record, status: "requested", request });
@@ -227,17 +230,15 @@ function SignedInAccess() {
   );
 }
 
-function Step({ done, pending, title, detail }: { done: boolean; pending?: boolean; title: string; detail: string }) {
+function Step({ done, pending, title, detail }: { done: boolean; pending?: boolean; title: string; detail?: string }) {
   const state = done ? "done" : pending ? "pending" : "todo";
+  const status = done ? "Complete" : pending ? "In review" : "Not started";
   return (
     <li className={`access-step ${state}`}>
       {done ? <CheckCircle size={20} weight="fill" /> : pending ? <Clock size={20} weight="fill" /> : <Circle size={20} />}
       <div>
         <strong>{title}</strong>
-        <small>
-          <span className="sr-only">{done ? "Complete: " : pending ? "In progress: " : "Not started: "}</span>
-          {detail}
-        </small>
+        <small>{detail ? `${status} · ${detail}` : status}</small>
       </div>
     </li>
   );
@@ -417,7 +418,7 @@ function InviteForm({ onGranted }: { onGranted: () => void }) {
         label="Invitation code"
         htmlFor={`${id}-code`}
         error={error}
-        hint={<>Each code works once. Demo environment: try <code>DTF-DEMO-2026</code>.</>}
+        hint={<>Each code works once. Preview: use code <code>{DEMO_INVITE_CODES[0]}</code></>}
       >
         <div className="access-invite-row">
           <input
@@ -589,7 +590,7 @@ function RequestSummary({ request, onEdit, onWithdraw }: { request: AccessReques
         <Clock size={22} weight="fill" />
         <div>
           <strong>Request under review</strong>
-          <p>Submitted {new Date(request.submittedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}. We&apos;ll reach you on {method}.</p>
+          <p>Submitted {formatDate(request.submittedAt)}</p>
         </div>
       </div>
       <dl className="access-summary">
@@ -598,7 +599,7 @@ function RequestSummary({ request, onEdit, onWithdraw }: { request: AccessReques
         <div><dt>Contact</dt><dd>{request.contact}</dd></div>
         <div><dt>Plan</dt><dd>{request.plan}</dd></div>
       </dl>
-      <p className="access-demo-note"><WarningCircle size={14} /> Demo: the request is saved in this browser only. No review service is connected yet.</p>
+      <p className="access-demo-note">We&apos;ll review your request and reply {request.contactMethod === "email" ? "by email" : `on ${method}`}.</p>
       <div className="access-actions">
         <button className="button" onClick={onEdit}><PencilSimple size={15} /> Edit request</button>
         <button className="button ghost-danger" onClick={onWithdraw}>Withdraw</button>

@@ -29,7 +29,7 @@ export function deployDemoFarm(
         pauseControl: "manager",
       },
     },
-    "Farm deployed in demo mode",
+    "DTF deployed",
   );
 }
 
@@ -41,23 +41,28 @@ export function canPauseFarm(farm: Farm) {
   );
 }
 
+/** Records a manager action (rebalance, edit, archive) in the DTF's activity log. */
+export function recordFarmEvent(farm: Farm, event: string): Farm {
+  return withEvent(farm, event);
+}
+
 export function setFarmPaused(farm: Farm, paused: boolean): Farm {
   if (!canPauseFarm(farm))
-    throw new Error("Pause controls are not available for this Farm.");
+    throw new Error("Pause controls are not available for this DTF.");
   return withEvent(
     { ...farm, status: paused ? "PAUSED" : "ACTIVE" },
-    paused ? "Farm paused in demo mode" : "Farm resumed in demo mode",
+    paused ? "Deposits paused" : "Deposits resumed",
   );
 }
 
 export function depositToDemoFarm(farm: Farm, amount: number): Farm {
   if (farm.source !== "demo" || farm.status !== "ACTIVE")
-    throw new Error("Deposits are available only while this demo Farm is active.");
+    throw new Error("Deposits are available only while this DTF is active.");
   if (!Number.isFinite(amount) || amount < 100)
     throw new Error("Enter a deposit of at least 100.");
   const capacity = Number(farm.values.capacity);
   if (Number.isFinite(capacity) && farm.tvl + amount > capacity)
-    throw new Error("This deposit exceeds the Farm’s available capacity.");
+    throw new Error("This deposit exceeds the DTF’s available capacity.");
   const position = Number(farm.values.demoPosition || 0);
   return withEvent(
     {
@@ -65,24 +70,24 @@ export function depositToDemoFarm(farm: Farm, amount: number): Farm {
       tvl: farm.tvl + amount,
       values: { ...farm.values, demoPosition: position + amount },
     },
-    `Deposited ${amount.toLocaleString()} ${String(farm.values.asset)} in demo mode`,
+    `Deposited ${amount.toLocaleString()} ${String(farm.values.asset)}`,
   );
 }
 
 export function withdrawFromDemoFarm(farm: Farm, amount: number): Farm {
   if (farm.source !== "demo" || !["ACTIVE", "PAUSED"].includes(farm.status))
-    throw new Error("Withdrawals are unavailable for this Farm.");
+    throw new Error("Withdrawals are unavailable for this DTF.");
   const position = Number(farm.values.demoPosition || 0);
   if (!Number.isFinite(amount) || amount <= 0)
     throw new Error("Enter an amount greater than zero.");
   if (amount > position)
-    throw new Error("The withdrawal exceeds your demo position.");
+    throw new Error("The withdrawal exceeds your position.");
   return withEvent(
     {
       ...farm,
       tvl: Math.max(0, farm.tvl - amount),
       values: { ...farm.values, demoPosition: position - amount },
     },
-    `Withdrew ${amount.toLocaleString()} ${String(farm.values.asset)} in demo mode`,
+    `Withdrew ${amount.toLocaleString()} ${String(farm.values.asset)}`,
   );
 }

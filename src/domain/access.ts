@@ -1,7 +1,7 @@
 import type { StrategyType } from "./strategy";
 
 /**
- * Fund manager access during beta. LPs only need a wallet; launching a DTF
+ * Manager access during beta. LPs only need a wallet; launching a DTF
  * needs a complete manager profile plus an invitation code or an approved
  * request. No review service is connected yet, so records live in the browser.
  */
@@ -49,14 +49,27 @@ export type AccessRecord = {
 
 export const PLAN_MIN = 20;
 export const PLAN_MAX = 600;
-/** Invitation codes this demo environment accepts. */
-export const DEMO_INVITE_CODES = ["DTF-DEMO-2026"];
+/** Invitation codes the preview environment accepts. The first one is shown as a hint. */
+export const DEMO_INVITE_CODES = ["DTF-BETA-2026", "DTF-DEMO-2026"];
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const TELEGRAM = /^@?[a-zA-Z][a-zA-Z0-9_]{4,31}$/;
 const X_HANDLE = /^@?[a-zA-Z0-9_]{1,15}$/;
 
 export const accessKey = (identifier: string) => `fm:dtf-access:${identifier.toLowerCase()}`;
+/** Fired on window after the access record is saved, so the navigation can update without a reload. */
+export const ACCESS_CHANGE_EVENT = "fm:access-change";
+
+/** Deployment access status from a stored record. Anything unreadable counts as "none". */
+export function parseAccessStatus(raw: string | null): AccessRecord["status"] {
+  if (!raw) return "none";
+  try {
+    const status = (JSON.parse(raw) as Partial<AccessRecord>).status;
+    return status === "granted" || status === "requested" ? status : "none";
+  } catch {
+    return "none";
+  }
+}
 
 export function emptyRecord(identifier: string, method: "email" | "mobile", name: string): AccessRecord {
   const [firstName = "", ...rest] = name.trim().split(/\s+/);

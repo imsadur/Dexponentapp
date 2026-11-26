@@ -1,4 +1,11 @@
-import { Farm, farmSchema, makeFarm, templateById, type Values } from "../domain/strategy";
+import {
+  Farm,
+  farmSchema,
+  makeFarm,
+  normalizeNetwork,
+  templateById,
+  type Values,
+} from "../domain/strategy";
 export const STORAGE_KEY = "farm-manager:farms:v1";
 const seedPositionByFarmId: Record<string, number> = {
   "demo-0": 72_480,
@@ -94,7 +101,7 @@ export function seedFarms(): Farm[] {
     performance: data.performance,
     status: "ACTIVE" as const,
     source: "demo" as const,
-    events: ["Demo fixture loaded · sample data"],
+    events: ["DTF launched"],
     lpPositions: makeDemoLpPositions(
       `demo-${i}`,
       data.activeLps,
@@ -112,6 +119,12 @@ function makeDemoLpPositions(id: string, count: number, tvl: number, topHolderPc
     depositedUsd: index === 0 ? topDeposit : remainder,
   }));
 }
+/** Generic copy that older builds wrote into every DTF; replaced by the template thesis on read. */
+const LEGACY_DESCRIPTIONS = new Set([
+  "Build a diversified basket with transparent weights and scheduled rebalancing.",
+  "Allocate capital to a yield strategy with configurable harvest and exposure limits.",
+  "Configure directional or hedged exposure with explicit margin and risk controls.",
+]);
 export const localDataAdapter = {
   read(): Farm[] {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -119,11 +132,13 @@ export const localDataAdapter = {
     const parsed = farmSchema.array().safeParse(JSON.parse(raw));
     if (!parsed.success)
       throw new Error(
-        "Saved workspace could not be read. Export or reset local data in Settings.",
+        "Saved DTFs could not be loaded. Reset saved data in Settings.",
       );
     return (parsed.data as Farm[]).map((farm) => {
+      const template = templateById(farm.templateId, farm.type);
+      const savedDescription = String(farm.values.description || "");
       const values: Values = {
-        ...templateById(farm.templateId)?.defaults,
+        ...template?.defaults,
         ...(demoMetricsByFarmId[farm.id] || {}),
         ...farm.values,
         capacity:
@@ -133,12 +148,17 @@ export const localDataAdapter = {
         demoPosition:
           farm.values.demoPosition ?? seedPositionByFarmId[farm.id] ?? 0,
         description:
-          farm.values.description ||
-          templateById(farm.templateId)?.description ||
-          "A transparent onchain Farm with clearly defined strategy controls.",
+          (!LEGACY_DESCRIPTIONS.has(savedDescription) && savedDescription) ||
+          template?.description ||
+          "Strategy controls and fees are listed below.",
       };
       return {
       ...farm,
+      templateId: template?.id ?? farm.templateId,
+      network: normalizeNetwork(farm.network),
+      events: farm.events.map((event) =>
+        event === "Demo fixture loaded · sample data" ? "DTF launched" : event,
+      ),
       values,
       documents: farm.documents || [],
       lpPositions:

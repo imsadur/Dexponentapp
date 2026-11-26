@@ -571,9 +571,9 @@
 .auth-error {
   margin: 0;
   padding: 10px 12px;
-  border: 1px solid #e8a29340;
+  border: 1px solid #c71b0040;
   border-radius: 8px;
-  background: #e8a2930d;
+  background: #c71b000d;
   color: var(--danger);
   font-size: 13px;
 }

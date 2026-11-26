@@ -55,17 +55,17 @@ export function Landing({ release = "v2" }: { release?: string }) {
       <section className="hero">
         <div className="hero-copy">
           <h1>
-            Launch and run onchain Farms with <img src="/brand/dexponent-mark.svg" alt="" /> <span>clarity.</span>
+            Launch and run onchain DTFs with <img src="/brand/dexponent-mark.svg" alt="" /> <span>clarity.</span>
           </h1>
           <p>
-            A professional workspace for Farm Managers and Liquidity Providers to create, evaluate, fund, and monitor transparent DeFi strategies.
+            A professional workspace for DTF Managers and Liquidity Providers to create, evaluate, fund, and monitor transparent DeFi strategies.
           </p>
           <div className="hero-actions">
             <Link className="button primary large" href="/signup">
-              Create a Farm <ArrowRight size={17} />
+              Create a DTF <ArrowRight size={17} />
             </Link>
             <a className="text-link" href="#strategies">
-              Explore Farms <ArrowRight size={16} />
+              Explore DTFs <ArrowRight size={16} />
             </a>
           </div>
         </div>
@@ -101,12 +101,12 @@ export function Landing({ release = "v2" }: { release?: string }) {
       </section>
       <div className="landing-divider marquee" aria-label="Dexponent capabilities">
         <div className="marquee-track">
-          {[0, 1].map((copy) => <span key={copy}>Farm creation <i>·</i> Index <i>·</i> Spot yield <i>·</i> Perpetuals <i>·</i> LP discovery <i>·</i> Risk visibility <i>·</i></span>)}
+          {[0, 1].map((copy) => <span key={copy}>DTF creation <i>·</i> Index <i>·</i> Spot yield <i>·</i> Perpetuals <i>·</i> LP discovery <i>·</i> Risk visibility <i>·</i></span>)}
         </div>
       </div>
       <section className="landing-section" id="strategies">
         <div className="section-intro">
-          <h2>Start with a proven Farm structure.</h2>
+          <h2>Start with a proven DTF structure.</h2>
           <p>Choose the return source, then make the controls your own.</p>
         </div>
         <div className="family-grid">
@@ -164,9 +164,9 @@ export function Landing({ release = "v2" }: { release?: string }) {
       </section>
       <footer className="landing-footer">
         <Brand />
-        <span>Transparent Farms for managers and liquidity providers</span>
+        <span>Transparent DTFs for managers and liquidity providers</span>
         <Link href="/app/dashboard">
-          Enter demo workspace <ArrowRight size={14} />
+          Open app <ArrowRight size={14} />
         </Link>
       </footer>
     </main>
@@ -187,7 +187,7 @@ export function Login({ signup = false }: { signup?: boolean }) {
             ? "Make room for your next idea."
             : "Welcome to your workspace."}
         </h1>
-        <p>Connect a browser wallet or explore the Dexponent demo.</p>
+        <p>Connect a wallet to continue.</p>
         <button
           className="button primary full"
           onClick={app.connect}
@@ -212,12 +212,10 @@ export function Login({ signup = false }: { signup?: boolean }) {
         )}
         <div className="or-divider">or</div>
         <Link className="button full" href="/app/dashboard">
-          Explore demo workspace <ArrowRight size={16} />
+          Continue without a wallet <ArrowRight size={16} />
         </Link>
         <Notice>
-          Demo access is local to this browser. Wallet connection requests your
-          public address; it does not create an authenticated account or request
-          a signature.
+          Connecting shares your public address only. No signature is requested.
         </Notice>
         <Link href="/" className="muted small">
           ← Back to Dexponent

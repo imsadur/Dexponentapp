@@ -122,11 +122,11 @@ export function PerpTradingChart({
 
     candleSeries = chart.addSeries(CandlestickSeries, {
       upColor: "#52d3a2",
-      downColor: "#ef7f76",
+      downColor: "#c71b00",
       borderUpColor: "#52d3a2",
-      borderDownColor: "#ef7f76",
+      borderDownColor: "#c71b00",
       wickUpColor: "#7fe2bb",
-      wickDownColor: "#f19a91",
+      wickDownColor: "#c71b00",
       priceLineColor: "#8b8dff",
       priceLineWidth: 1,
       lastValueVisible: true,
@@ -144,7 +144,7 @@ export function PerpTradingChart({
     volumeSeries.setData(candles.map((candle) => ({
       time: candle.time,
       value: candle.volume,
-      color: candle.close >= candle.open ? "rgba(82,211,162,.28)" : "rgba(239,127,118,.26)",
+      color: candle.close >= candle.open ? "rgba(82,211,162,.28)" : "rgba(199,27,0,.3)",
     })));
 
     const averageSeries = chart.addSeries(LineSeries, {
@@ -219,7 +219,7 @@ export function PerpTradingChart({
           </tbody></table>
         </div>
       )}
-      <div className="perp-chart-footer"><span>Volume · Simulated feed</span><span>UTC · % · log · auto</span></div>
+      <div className="perp-chart-footer"><span>Volume</span><span>UTC · % · log · auto</span></div>
     </div>
   );
 }

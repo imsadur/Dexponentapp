@@ -54,7 +54,7 @@ export function DtfChart({
     if (!el || !points.length) return;
     const css = getComputedStyle(document.documentElement);
     const token = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
-    const line = tone === "up" ? token("--success", "#3dc486") : token("--danger", "#e8a293");
+    const line = tone === "up" ? token("--success", "#3dc486") : token("--danger", "#c71b00");
     const muted = token("--text-muted", "#71717a");
     const secondary = token("--text-secondary", "#a1a1aa");
     const border = token("--border", "#27272a");

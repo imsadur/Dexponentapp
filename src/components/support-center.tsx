@@ -72,11 +72,25 @@ type HelpView =
   | { level: "category"; id: HelpCategoryId }
   | { level: "article"; id: string };
 
+/** Where to open the panel; a new `nonce` re-applies the same target. */
+export type SupportTarget = { article?: string; category?: HelpCategoryId; nonce: number };
+
 /** Help & support: right-side panel plus a floating assistant chat. */
-export function SupportCenter({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export function SupportCenter({ open, onOpenChange, target }: { open: boolean; onOpenChange: (open: boolean) => void; target?: SupportTarget | null }) {
   const [tab, setTab] = useState<Tab>("support");
   const [view, setView] = useState<HelpView>({ level: "home" });
   const [chatOpen, setChatOpen] = useState(false);
+
+  useEffect(() => {
+    if (!target) return;
+    if (target.article) {
+      setTab("help");
+      setView({ level: "article", id: target.article });
+    } else if (target.category) {
+      setTab("help");
+      setView({ level: "category", id: target.category });
+    }
+  }, [target]);
 
   const openArticle = (id: string) => {
     setTab("help");
@@ -193,7 +207,7 @@ function SupportTab({ onOpenChat }: { onOpenChat: () => void }) {
         <button className="support-channel" onClick={onOpenChat}>
           <span className="support-channel-icon"><Robot size={22} /></span>
           <span>
-            <strong>Chat with AI assistant <em>Demo</em></strong>
+            <strong>Chat with AI assistant</strong>
             <small>Instant answers to common questions, any time.</small>
           </span>
           <CaretRight size={16} />
@@ -362,7 +376,7 @@ function ArticleView({
       <section className="support-example">
         <p className="support-ai-label"><Lightbulb size={14} weight="fill" /> Example</p>
         <p>{article.example}</p>
-        <small>Illustrative example with hypothetical numbers, not a performance claim.</small>
+        <small>Hypothetical numbers, not a performance claim.</small>
       </section>
       <div className="support-feedback" aria-live="polite">
         {feedback ? (
@@ -457,7 +471,7 @@ function AssistantChat({ onClose, onOpenArticle }: { onClose: () => void; onOpen
         <span className="assistant-avatar"><Robot size={18} weight="fill" /></span>
         <div>
           <h2 id={titleId}>Dexponent Assistant</h2>
-          <p><span className="assistant-dot" /> Demo · answers from the help center</p>
+          <p><span className="assistant-dot" /> Answers from the help center</p>
         </div>
         <button className="icon-button" aria-label="Minimise chat" onClick={() => setMinimised(true)}><Minus size={16} /></button>
         <button className="icon-button" aria-label="Close chat" onClick={onClose}><X size={16} /></button>

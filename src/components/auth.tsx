@@ -30,7 +30,8 @@ import {
   Wallet,
 } from "@phosphor-icons/react";
 import { useApp } from "./provider";
-import { AnimatedValue, money } from "./ui";
+import { AnimatedValue } from "./ui";
+import { formatCount, formatUsdCompact } from "@/domain/format";
 import { safeReturnPath } from "@/domain/access";
 import {
   createAccount,
@@ -67,11 +68,11 @@ const countryCodes = [
 ];
 const dtfFeatures = [
   { icon: Stack, title: "Three strategy types", body: "Index for passive diversification, Spot for active management, Perpetual for leveraged trades." },
-  { icon: Globe, title: "100% on-chain", body: "Every allocation, trade and withdrawal is recorded on Base and visible to everyone." },
+  { icon: Globe, title: "Base and Solana", body: "DTFs run on Base or Solana, with allocations and withdrawals recorded on-chain." },
   { icon: CurrencyCircleDollar, title: "USDC settlement", body: "Deposit and withdraw in USDC. Earn in DTF shares and withdraw the upside." },
   { icon: Clock, title: "No lockups", body: "Withdraw anytime, subject to each fund's liquidity and settlement period." },
-  { icon: Medal, title: "Professional managers", body: "Expert strategists run each DTF within transparent, onchain-enforced limits." },
-  { icon: ShieldCheck, title: "Security audited", body: "Smart contracts reviewed by Hacken. Non-custodial: only you control your funds." },
+  { icon: Medal, title: "Accountable managers", body: "Each Manager runs a DTF within published fee and risk limits." },
+  { icon: ShieldCheck, title: "Non-custodial", body: "Only you control your funds. You approve every deposit and withdrawal." },
 ];
 
 type View =
@@ -259,7 +260,7 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
   } else if (view === "login") {
     body = (
       <form className="auth-step centered" onSubmit={submitLogin} noValidate>
-        <h1>Welcome back <span aria-hidden>👋</span></h1>
+        <h1>Welcome back</h1>
         <p className="auth-sub">Sign in to your Dexponent workspace.</p>
         <div className="auth-tabs" role="tablist" aria-label="Sign in with">
           {(["email", "mobile"] as const).map((m) => (
@@ -282,7 +283,7 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
         <Divider>or continue with</Divider>
         <WalletButton />
         <p className="auth-switch">New to Dexponent? <Link href={withNext("/signup/")}>Create an account</Link></p>
-        <Link href={DASHBOARD} className="auth-demo">Explore the demo workspace <ArrowRight size={13} /></Link>
+        <Link href={DASHBOARD} className="auth-demo">Continue without signing in <ArrowRight size={13} /></Link>
       </form>
     );
   } else if (view === "login-otp" || view === "mobile-otp") {
@@ -334,7 +335,7 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
     const canSubmit = name.trim().length > 1 && isValidEmail(email) && isStrongPassword(password);
     body = (
       <form className="auth-step centered" onSubmit={submitSignup} noValidate>
-        <h1>Welcome to Dexponent <span aria-hidden>👋</span></h1>
+        <h1>Welcome to Dexponent</h1>
         <p className="auth-sub">We just need a few details to set up your account.</p>
         <FloatInput label="Full legal name" autoComplete="name" value={name} onChange={setName} helper="Full name as it appears on your identification document" />
         <FloatInput label="Email address" type="email" autoComplete="email" value={email} onChange={setEmail} helper="For example 'you@company.com'" />
@@ -369,7 +370,7 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
     body = (
       <section className="auth-step centered">
         <span className="auth-badge success"><SealCheck size={28} weight="duotone" /></span>
-        <h2>Great! You&apos;re all set, {firstName(name)}!</h2>
+        <h2>You&apos;re all set, {firstName(name)}</h2>
         <p className="auth-sub">Your account is ready to go.</p>
         <button type="button" className="auth-primary" onClick={() => go("profile")}>Continue</button>
       </section>
@@ -397,7 +398,7 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
     body = (
       <section className="auth-step">
         <h1>Activate your account</h1>
-        <p className="auth-sub">Connect a wallet on Base to deposit USDC into DTFs or launch your own strategy.</p>
+        <p className="auth-sub">Connect a wallet on Base or Solana to deposit into DTFs or launch your own.</p>
         <div className="auth-info-card">
           <div className="auth-info-head">
             <span className="auth-info-icon"><ShieldCheck size={20} /></span>
@@ -408,13 +409,13 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
           </div>
           <ul>
             <li><span className="auth-info-icon sm"><CurrencyCircleDollar size={17} /></span><div><strong>Deposit and withdraw in USDC</strong><p>Earn in DTF shares and withdraw anytime, subject to fund liquidity.</p></div></li>
-            <li><span className="auth-info-icon sm"><Globe size={17} /></span><div><strong>Settled on Base</strong><p>Low-cost, Ethereum-secured settlement with every action on-chain.</p></div></li>
-            <li><span className="auth-info-icon sm"><SealCheck size={17} /></span><div><strong>Audited smart contracts</strong><p>Contracts reviewed by Hacken before going live.</p></div></li>
+            <li><span className="auth-info-icon sm"><Globe size={17} /></span><div><strong>Base and Solana</strong><p>Low-cost settlement on both supported networks.</p></div></li>
+            <li><span className="auth-info-icon sm"><SealCheck size={17} /></span><div><strong>Transparent strategy rules</strong><p>Every DTF publishes its strategy, fees and risk limits.</p></div></li>
           </ul>
           <button type="button" className="auth-info-why" aria-expanded={showWhy} onClick={() => setShowWhy((v) => !v)}>
             Why is this needed? <CaretDown size={13} className={showWhy ? "open" : ""} />
           </button>
-          {showWhy && <p className="auth-info-why-body">Your wallet is your account on-chain. DTF shares are minted to it when you deposit, and Farm deployments are signed by it when you launch. Connecting only shares your public address. It never requests your keys.</p>}
+          {showWhy && <p className="auth-info-why-body">Your wallet is your account on-chain. DTF shares are minted to it when you deposit, and DTF deployments are signed by it when you launch. Connecting only shares your public address. It never requests your keys.</p>}
         </div>
         {app.walletError && <p role="alert" className="auth-error">{app.walletError}</p>}
         {app.wallet ? (
@@ -438,7 +439,7 @@ export function AuthPage({ mode }: { mode: "login" | "signup" }) {
         {onboarding ? <OnboardingPanel step={step} /> : <MarketingPanel />}
         <footer className="auth-panel-foot">
           <span>© {new Date().getFullYear()} Dexponent</span>
-          <span>Non-custodial · Audited by Hacken · Built on Base</span>
+          <span>Non-custodial · Base and Solana</span>
         </footer>
       </aside>
       <section className="auth-main">
@@ -478,10 +479,10 @@ function MarketingPanel() {
     const apy = tvl ? live.reduce((sum, f) => sum + f.apy * f.tvl, 0) / tvl : 0;
     const lps = live.reduce((sum, f) => sum + (Number(f.values.activeLps) || 0), 0);
     return [
-      { value: money(tvl, true), label: "Total TVL" },
-      { value: String(live.length), label: "Live DTFs" },
+      { value: formatUsdCompact(tvl), label: "TVL" },
+      { value: formatCount(live.length), label: "Active DTFs" },
       { value: `${apy.toFixed(1)}%`, label: "Avg. APY" },
-      { value: lps.toLocaleString("en-US"), label: "Active LPs" },
+      { value: formatCount(lps), label: "Total LPs" },
     ];
   }, [app.farms]);
   const [active, setActive] = useState(0);
@@ -495,8 +496,8 @@ function MarketingPanel() {
   return (
     <div className="auth-panel-content">
       <h2>Launch and invest in onchain funds</h2>
-      <p>Index, Spot and Perpetual DTFs, live in beta on Base. Managers launch strategies in minutes; LPs deposit USDC in one click.</p>
-      <div className="auth-live"><span className="auth-live-dot" /> Live workspace stats</div>
+      <p>Index, Spot and Perpetual DTFs on Base and Solana. Managers launch strategies; LPs deposit USDC.</p>
+      <div className="auth-live"><span className="auth-live-dot" /> Platform stats</div>
       <div className="auth-stats">
         {stats.map((s) => (
           <div key={s.label} className="auth-stat">
@@ -534,7 +535,7 @@ function OnboardingPanel({ step }: { step: number }) {
   return (
     <div className="auth-panel-content">
       <h2>Set up your Dexponent account in a few steps</h2>
-      <p>A secure, guided setup to get you investing in or launching DTFs on Base.</p>
+      <p>Invest in or launch DTFs on Base and Solana.</p>
       <ol className="auth-stepper">
         {steps.map((label, i) => {
           const n = i + 1;
@@ -712,7 +713,7 @@ function OtpStep({ title, target, otp, setOtp, code, sentAt, error, busy, onRese
       <p className="auth-expiry">{expires > 0 ? `Code expires in ${Math.floor(expires / 60)}:${String(expires % 60).padStart(2, "0")}` : "Code expired. Request a new one."}</p>
       <OtpBoxes value={otp} onChange={setOtp} />
       <p className="auth-demo-code">
-        {anyCode ? <>Demo mode: no message is sent. Enter any code to continue.</> : <>Demo mode: no message is sent. Use code <strong>{code}</strong></>}
+        {anyCode ? <>Preview: enter any 6-digit code</> : <>Preview: use code <strong>{code}</strong></>}
       </p>
       <ErrorText error={error} />
       <SubmitButton disabled={!anyCode && otp.length !== 6} busy={busy}>Verify OTP</SubmitButton>

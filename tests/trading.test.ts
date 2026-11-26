@@ -34,7 +34,7 @@ test("placing a demo order records the Perpetual position", () => {
   });
   assert.equal(updated.values.demoTradeSide, "Long");
   assert.equal(updated.values.demoTradeSize, 2_500);
-  assert.match(updated.events.at(-1) || "", /demo order filled/);
+  assert.match(updated.events.at(-1) || "", /order filled/);
 });
 
 test("market search matches symbols, quotes, and groups", () => {
@@ -101,7 +101,7 @@ test("demo trades require an active Perpetual Farm", () => {
         leverage: 2,
         price: 3_700,
       }),
-    /Resume this Farm/,
+    /Resume this DTF/,
   );
 });
 

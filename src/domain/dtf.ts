@@ -38,7 +38,7 @@ export type PublicDtf = {
   /** Target weights when known (workspace Farms); otherwise derived for the demo. */
   weights?: { asset: string; weight: number }[];
   description: string;
-  /** Security review, when one exists. Demo catalogue auditors are fictional. */
+  /** Security review entered by the manager. Catalogue DTFs have none, so their audit reads Pending. */
   audit?: { by: string; date: string };
   /** Present when the DTF is a Farm in this workspace. */
   farmId?: string;
@@ -56,17 +56,17 @@ const describe = (type: StrategyType, manager: string, network: string, base: st
 type CatalogueRow = Omit<PublicDtf, "description">;
 
 const catalogue: CatalogueRow[] = [
-  { id: "dtf-l1-majors", name: "L1 Majors Index", symbol: "L1MAJ", type: "INDEX", manager: "Northbeam Capital", network: "Base", baseAsset: "USDC", tvl: 4_820_000, targetApr: 12, bufferPct: 10, lockupDays: 0, apy7d: 11.4, change30d: 6.2, risk: "MEDIUM", assets: ["BTC", "ETH", "SOL", "AVAX"], lps: 412, launchedAt: "2026-03-14", trending: 98, managementFee: 1, performanceFee: 10, audit: { by: "Sentinel Audits", date: "2026-02-28" } },
-  { id: "dtf-funding-harvest", name: "Funding Harvest", symbol: "FHRV", type: "PERPETUAL", manager: "Kestrel Labs", network: "Solana", baseAsset: "USDC", tvl: 3_150_000, targetApr: 15, bufferPct: 10, lockupDays: 15, apy7d: 16.9, change30d: 2.1, risk: "HIGH", assets: ["USDC", "ETH", "BTC"], lps: 238, launchedAt: "2026-05-02", trending: 94, managementFee: 1.5, performanceFee: 15, audit: { by: "Arcbridge Security", date: "2026-04-17" } },
-  { id: "dtf-defi-bluechip", name: "DeFi Blue Chip", symbol: "DEFIBC", type: "INDEX", manager: "Orbit Research", network: "Base", baseAsset: "USDC", tvl: 2_460_000, targetApr: 10, bufferPct: 10, lockupDays: 0, apy7d: 9.8, change30d: 8.7, risk: "HIGH", assets: ["UNI", "AAVE", "LINK", "ETH", "ARB", "OP"], lps: 305, launchedAt: "2026-02-20", trending: 90, managementFee: 1, performanceFee: 10, audit: { by: "Sentinel Audits", date: "2026-02-05" } },
-  { id: "dtf-stable-lending", name: "Stable Lending Plus", symbol: "SLP", type: "SPOT", manager: "Harbor Yield", network: "Base", baseAsset: "USDC", tvl: 6_210_000, targetApr: 6.5, bufferPct: 10, lockupDays: 0, apy7d: 6.4, change30d: 0.52, risk: "LOW", assets: ["USDC", "USDT", "DAI"], lps: 688, launchedAt: "2025-12-08", trending: 86, managementFee: 0.5, performanceFee: 10, audit: { by: "Northlock Labs", date: "2025-11-20" } },
-  { id: "dtf-eth-basis", name: "ETH Basis Trade", symbol: "ETHB", type: "PERPETUAL", manager: "Kestrel Labs", network: "Base", baseAsset: "USDC", tvl: 1_980_000, targetApr: 12, bufferPct: 10, lockupDays: 7, apy7d: 13.2, change30d: 1.6, risk: "MEDIUM", assets: ["ETH", "USDC"], lps: 171, launchedAt: "2026-06-11", trending: 81, managementFee: 1.5, performanceFee: 15, audit: { by: "Arcbridge Security", date: "2026-05-29" } },
-  { id: "dtf-btc-eth-5050", name: "BTC / ETH 50-50", symbol: "BE50", type: "INDEX", manager: "Northbeam Capital", network: "Solana", baseAsset: "USDC", tvl: 3_740_000, targetApr: 9, bufferPct: 10, lockupDays: 0, apy7d: 8.9, change30d: 4.9, risk: "MEDIUM", assets: ["WBTC", "ETH"], lps: 356, launchedAt: "2026-01-17", trending: 77, managementFee: 0.75, performanceFee: 10, weights: [{ asset: "WBTC", weight: 50 }, { asset: "ETH", weight: 50 }], audit: { by: "Northlock Labs", date: "2026-01-02" } },
+  { id: "dtf-l1-majors", name: "L1 Majors Index", symbol: "L1MAJ", type: "INDEX", manager: "Northbeam Capital", network: "Base", baseAsset: "USDC", tvl: 4_820_000, targetApr: 12, bufferPct: 10, lockupDays: 0, apy7d: 11.4, change30d: 6.2, risk: "MEDIUM", assets: ["BTC", "ETH", "SOL", "AVAX"], lps: 412, launchedAt: "2026-03-14", trending: 98, managementFee: 1, performanceFee: 10 },
+  { id: "dtf-funding-harvest", name: "Funding Harvest", symbol: "FHRV", type: "PERPETUAL", manager: "Kestrel Labs", network: "Solana", baseAsset: "USDC", tvl: 3_150_000, targetApr: 15, bufferPct: 10, lockupDays: 15, apy7d: 16.9, change30d: 2.1, risk: "HIGH", assets: ["USDC", "ETH", "BTC"], lps: 238, launchedAt: "2026-05-02", trending: 94, managementFee: 1.5, performanceFee: 15 },
+  { id: "dtf-defi-bluechip", name: "DeFi Blue Chip", symbol: "DEFIBC", type: "INDEX", manager: "Orbit Research", network: "Base", baseAsset: "USDC", tvl: 2_460_000, targetApr: 10, bufferPct: 10, lockupDays: 0, apy7d: 9.8, change30d: 8.7, risk: "HIGH", assets: ["UNI", "AAVE", "LINK", "ETH", "ARB", "OP"], lps: 305, launchedAt: "2026-02-20", trending: 90, managementFee: 1, performanceFee: 10 },
+  { id: "dtf-stable-lending", name: "Stable Lending Plus", symbol: "SLP", type: "SPOT", manager: "Harbor Yield", network: "Base", baseAsset: "USDC", tvl: 6_210_000, targetApr: 6.5, bufferPct: 10, lockupDays: 0, apy7d: 6.4, change30d: 0.52, risk: "LOW", assets: ["USDC", "USDT", "DAI"], lps: 688, launchedAt: "2025-12-08", trending: 86, managementFee: 0.5, performanceFee: 10 },
+  { id: "dtf-eth-basis", name: "ETH Basis Trade", symbol: "ETHB", type: "PERPETUAL", manager: "Kestrel Labs", network: "Base", baseAsset: "USDC", tvl: 1_980_000, targetApr: 12, bufferPct: 10, lockupDays: 7, apy7d: 13.2, change30d: 1.6, risk: "MEDIUM", assets: ["ETH", "USDC"], lps: 171, launchedAt: "2026-06-11", trending: 81, managementFee: 1.5, performanceFee: 15 },
+  { id: "dtf-btc-eth-5050", name: "BTC / ETH 50-50", symbol: "BE50", type: "INDEX", manager: "Northbeam Capital", network: "Solana", baseAsset: "USDC", tvl: 3_740_000, targetApr: 9, bufferPct: 10, lockupDays: 0, apy7d: 8.9, change30d: 4.9, risk: "MEDIUM", assets: ["WBTC", "ETH"], lps: 356, launchedAt: "2026-01-17", trending: 77, managementFee: 0.75, performanceFee: 10, weights: [{ asset: "WBTC", weight: 50 }, { asset: "ETH", weight: 50 }] },
   { id: "dtf-sol-momentum", name: "SOL Momentum", symbol: "SOLM", type: "PERPETUAL", manager: "Vela Quant", network: "Solana", baseAsset: "USDC", tvl: 640_000, targetApr: 25, bufferPct: 10, lockupDays: 30, apy7d: -12.6, change30d: -4.3, risk: "CRITICAL", assets: ["SOL", "USDC"], lps: 64, launchedAt: "2026-08-03", trending: 72, managementFee: 2, performanceFee: 20, directional: true },
-  { id: "dtf-l2-ecosystem", name: "L2 Ecosystem", symbol: "L2E", type: "INDEX", manager: "Orbit Research", network: "Base", baseAsset: "USDC", tvl: 890_000, targetApr: 10, bufferPct: 10, lockupDays: 0, apy7d: 7.3, change30d: -1.8, risk: "HIGH", assets: ["ARB", "OP", "ETH", "LINK"], lps: 48, launchedAt: "2026-10-22", trending: 69, managementFee: 1, performanceFee: 10, audit: { by: "Sentinel Audits", date: "2026-10-08" } },
-  { id: "dtf-conservative-usdt", name: "Conservative USDT", symbol: "CUSDT", type: "SPOT", manager: "Harbor Yield", network: "Solana", baseAsset: "USDT", tvl: 2_120_000, targetApr: 5, bufferPct: 10, lockupDays: 0, apy7d: 5.1, change30d: 0.41, risk: "LOW", assets: ["USDT", "USDC"], lps: 254, launchedAt: "2026-04-05", trending: 61, managementFee: 0.5, performanceFee: 5, audit: { by: "Northlock Labs", date: "2026-03-19" } },
-  { id: "dtf-market-neutral", name: "Market Neutral Core", symbol: "MNC", type: "PERPETUAL", manager: "Vela Quant", network: "Solana", baseAsset: "USDC", tvl: 1_310_000, targetApr: 11, bufferPct: 10, lockupDays: 15, apy7d: 10.7, change30d: 0.93, risk: "MEDIUM", assets: ["BTC", "ETH", "SOL", "USDC"], lps: 133, launchedAt: "2026-07-19", trending: 55, managementFee: 1.5, performanceFee: 15, audit: { by: "Arcbridge Security", date: "2026-07-01" } },
-  { id: "dtf-lp-yield", name: "Blue Chip LP Yield", symbol: "BCLP", type: "SPOT", manager: "Meridian Partners", network: "Base", baseAsset: "USDC", tvl: 1_050_000, targetApr: 8, bufferPct: 10, lockupDays: 0, apy7d: 7.9, change30d: 1.2, risk: "MEDIUM", assets: ["ETH", "USDC", "WBTC"], lps: 119, launchedAt: "2026-05-28", trending: 48, managementFee: 1, performanceFee: 10, audit: { by: "Northlock Labs", date: "2026-05-12" } },
+  { id: "dtf-l2-ecosystem", name: "L2 Ecosystem", symbol: "L2E", type: "INDEX", manager: "Orbit Research", network: "Base", baseAsset: "USDC", tvl: 890_000, targetApr: 10, bufferPct: 10, lockupDays: 0, apy7d: 7.3, change30d: -1.8, risk: "HIGH", assets: ["ARB", "OP", "ETH", "LINK"], lps: 48, launchedAt: "2026-10-22", trending: 69, managementFee: 1, performanceFee: 10 },
+  { id: "dtf-conservative-usdt", name: "Conservative USDT", symbol: "CUSDT", type: "SPOT", manager: "Harbor Yield", network: "Solana", baseAsset: "USDT", tvl: 2_120_000, targetApr: 5, bufferPct: 10, lockupDays: 0, apy7d: 5.1, change30d: 0.41, risk: "LOW", assets: ["USDT", "USDC"], lps: 254, launchedAt: "2026-04-05", trending: 61, managementFee: 0.5, performanceFee: 5 },
+  { id: "dtf-market-neutral", name: "Market Neutral Core", symbol: "MNC", type: "PERPETUAL", manager: "Vela Quant", network: "Solana", baseAsset: "USDC", tvl: 1_310_000, targetApr: 11, bufferPct: 10, lockupDays: 15, apy7d: 10.7, change30d: 0.93, risk: "MEDIUM", assets: ["BTC", "ETH", "SOL", "USDC"], lps: 133, launchedAt: "2026-07-19", trending: 55, managementFee: 1.5, performanceFee: 15 },
+  { id: "dtf-lp-yield", name: "Blue Chip LP Yield", symbol: "BCLP", type: "SPOT", manager: "Meridian Partners", network: "Base", baseAsset: "USDC", tvl: 1_050_000, targetApr: 8, bufferPct: 10, lockupDays: 0, apy7d: 7.9, change30d: 1.2, risk: "MEDIUM", assets: ["ETH", "USDC", "WBTC"], lps: 119, launchedAt: "2026-05-28", trending: 48, managementFee: 1, performanceFee: 10 },
   { id: "dtf-alt-basket", name: "Large Cap Alt Basket", symbol: "LCALT", type: "INDEX", manager: "Meridian Partners", network: "Solana", baseAsset: "USDC", tvl: 520_000, targetApr: 14, bufferPct: 10, lockupDays: 0, apy7d: null, change30d: 1.1, risk: "HIGH", assets: ["SOL", "AVAX", "LINK", "DOGE", "UNI", "AAVE", "ARB", "OP"], lps: 37, launchedAt: "2026-11-19", trending: 42, managementFee: 1, performanceFee: 10 },
 ];
 
@@ -236,7 +236,8 @@ export function managerSummary(dtfs: PublicDtf[], manager: string) {
     tvl: own.reduce((sum, d) => sum + d.tvl, 0),
     count: own.length,
     since: profile?.since ?? (Number.isFinite(earliest) ? earliest : new Date().getFullYear()),
-    bio: profile?.bio ?? "Farm Manager on Dexponent. This profile is managed from your workspace settings.",
+    /** Public profile text, when the manager has published one. */
+    bio: profile?.bio as string | undefined,
   };
 }
 
@@ -282,7 +283,7 @@ function demoBase58(seed: string, length: number) {
 }
 
 /** Demo address in the network's format: base58 on Solana, 0x hex on EVM chains. */
-const demoAddress = (network: string, seed: string) => (network === "Solana" ? demoBase58(seed, 44) : demoHash(seed, 40));
+export const demoAddress = (network: string, seed: string) => (network === "Solana" ? demoBase58(seed, 44) : demoHash(seed, 40));
 /** Demo transaction id in the network's format: an 88-character signature on Solana, a 0x hash on EVM chains. */
 const demoTxId = (network: string, seed: string) => (network === "Solana" ? demoBase58(seed, 88) : demoHash(seed));
 
@@ -393,12 +394,13 @@ export function dtfAllocation(dtf: PublicDtf): AllocationRow[] {
 }
 
 export type DtfMetric = "return" | "tvl" | "apy";
-export type DtfRange = "24H" | "7D" | "30D" | "90D";
-export const DTF_RANGES: DtfRange[] = ["24H", "7D", "30D", "90D"];
-const rangeHours: Record<DtfRange, number> = { "24H": 24, "7D": 168, "30D": 720, "90D": 2160 };
-const rangeStep: Record<DtfRange, number> = { "24H": 1, "7D": 4, "30D": 12, "90D": 24 };
+export type DtfRange = "24H" | "7D" | "30D" | "ALL";
+export const DTF_RANGES: DtfRange[] = ["24H", "7D", "30D", "ALL"];
 const HOUR = 3_600_000;
 const HISTORY_HOURS = 2160 + 168;
+/** "ALL" covers the whole simulated history; points before launch are dropped by dtfSeries. */
+const rangeHours: Record<DtfRange, number> = { "24H": 24, "7D": 168, "30D": 720, ALL: HISTORY_HOURS };
+const rangeStep: Record<DtfRange, number> = { "24H": 1, "7D": 4, "30D": 12, ALL: 24 };
 const volatility: Record<RiskLevel, number> = { LOW: 0.00004, MEDIUM: 0.0012, HIGH: 0.0024, CRITICAL: 0.0045 };
 /** How far the trailing APY wanders around its current value, in percentage points. */
 const apySwing: Record<RiskLevel, number> = { LOW: 0.8, MEDIUM: 3, HIGH: 6, CRITICAL: 12 };
@@ -453,15 +455,17 @@ export const targetPace24h = (targetApr: number) => targetApr / 365;
 
 export function dtfSeries(history: ReturnType<typeof dtfHistory>, metric: DtfMetric, range: DtfRange): SeriesPoint[] {
   const step = rangeStep[range];
-  const startIndex = history.length - 1 - rangeHours[range];
+  const startIndex = Math.max(0, history.length - 1 - rangeHours[range]);
   const out: SeriesPoint[] = [];
   let anchor: number | null = null;
   for (let i = startIndex; i < history.length; i += 1) {
     const point = history[i];
-    if (!point.live || (history.length - 1 - i) % step !== 0) continue;
+    if (!point.live) continue;
+    // Anchor returns on the first live point in range (launch for "ALL"), even if sampling skips it.
+    if (metric === "return") anchor ??= point.price;
+    if ((history.length - 1 - i) % step !== 0) continue;
     if (metric === "return") {
-      anchor ??= point.price;
-      out.push({ time: point.time, value: (point.price / anchor - 1) * 100 });
+      out.push({ time: point.time, value: (point.price / anchor! - 1) * 100 });
     } else if (metric === "tvl") {
       out.push({ time: point.time, value: point.tvl });
     } else {
@@ -507,4 +511,113 @@ export function dtfActivity(dtf: PublicDtf, now = Date.now(), count = 30): DtfAc
     time -= (1.5 + next() * 12) * HOUR;
   }
   return items;
+}
+
+/* ------------------------------------------------------------------ */
+/* Market view: one row per DTF token. All figures are simulated.      */
+/* ------------------------------------------------------------------ */
+
+export type DtfMarketRow = {
+  dtf: PublicDtf;
+  /** Value of one DTF token in USD, starting from $1.00 at launch. */
+  price: number;
+  change24h: number;
+  change7d: number;
+  marketCap: number;
+  volume24h: number;
+  /** Deposits minus withdrawals over 24 hours, USD. */
+  netFlow24h: number;
+  /** Idle capital available to pay withdrawals, USD. */
+  liquidity: number;
+  holders: number;
+  holdersChange24h: number;
+  ageDays: number;
+  /** Hourly token price over the last 7 days, for sparklines. */
+  spark: number[];
+};
+
+export function dtfMarketRow(dtf: PublicDtf, now = Date.now()): DtfMarketRow {
+  const history = dtfHistory(dtf, now);
+  const last = history[history.length - 1];
+  const dayAgo = history[history.length - 25];
+  const weekAgo = history[history.length - 169];
+  const launch = history.find((p) => p.live) ?? history[0];
+  const next = rng(`${dtf.id}:market`);
+  const ageDays = Math.max(1, ageInDays(dtf.launchedAt, now));
+  const volume24h = Math.round((dtfVolume(dtf, now) / ageDays) * (0.6 + next() * 0.8));
+  const netFlow24h = Math.round(last.tvl - dayAgo.tvl);
+  const holdersChange24h = Math.round((netFlow24h / Math.max(1, dtf.tvl)) * 100 * 4 * 100 + (next() - 0.5) * 60) / 100;
+  return {
+    dtf,
+    price: last.price / launch.price,
+    change24h: (last.price / dayAgo.price - 1) * 100,
+    change7d: weekAgo.live ? (last.price / weekAgo.price - 1) * 100 : (last.price / launch.price - 1) * 100,
+    marketCap: dtf.tvl,
+    volume24h,
+    netFlow24h,
+    liquidity: Math.round(((100 - dtfUtilization(dtf)) / 100) * dtf.tvl),
+    holders: dtf.lps,
+    holdersChange24h,
+    ageDays,
+    spark: history.slice(-169).filter((p) => p.live).map((p) => p.price),
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Per-DTF figures used by Positions and the detail page (simulated).  */
+/* ------------------------------------------------------------------ */
+
+export type DtfStats = {
+  /** Value of one share in USD, starting at $1.00 at launch. Null if the price cannot be read. */
+  nav: number | null;
+  ageDays: number;
+  change24hPct: number | null;
+  sinceLaunchPct: number | null;
+  /** Largest peak-to-trough fall in NAV since launch, as a positive percent. */
+  maxDrawdownPct: number | null;
+  tvl: number;
+  tvl24hAgo: number;
+  tvl30dAgo: number;
+  return30dPct: number;
+  /** Positive and negative yield earned on LP capital since launch, USD. */
+  yieldGenerated: number;
+};
+
+const statsCache = new Map<string, DtfStats>();
+
+export function dtfStats(dtf: PublicDtf, now = Date.now()): DtfStats {
+  const key = `${dtf.id}:${dtf.tvl}:${dtf.apy7d}:${dtf.launchedAt}:${Math.floor(now / HOUR)}`;
+  const cached = statsCache.get(key);
+  if (cached) return cached;
+  const history = dtfHistory(dtf, now);
+  const live = history.filter((p) => p.live);
+  const last = history[history.length - 1];
+  const at = (hoursAgo: number) => history[Math.max(0, history.length - 1 - hoursAgo)];
+  const launch = live[0] ?? history[0];
+  const nav = last.price / launch.price;
+  let peak = 0;
+  let drawdown = 0;
+  let generated = 0;
+  for (let i = 0; i < live.length; i += 1) {
+    peak = Math.max(peak, live[i].price);
+    drawdown = Math.max(drawdown, 1 - live[i].price / peak);
+    if (i > 0) generated += live[i - 1].tvl * (live[i].price / live[i - 1].price - 1);
+  }
+  const day = at(24);
+  const month = at(720);
+  const stats: DtfStats = {
+    nav: Number.isFinite(nav) && nav > 0 ? nav : null,
+    ageDays: ageInDays(dtf.launchedAt, now),
+    change24hPct: day.live ? (last.price / day.price - 1) * 100 : (last.price / launch.price - 1) * 100,
+    sinceLaunchPct: (last.price / launch.price - 1) * 100,
+    maxDrawdownPct: live.length > 1 ? drawdown * 100 : null,
+    tvl: last.tvl,
+    tvl24hAgo: day.live ? day.tvl : 0,
+    tvl30dAgo: month.live ? month.tvl : 0,
+    return30dPct: month.live ? (last.price / month.price - 1) * 100 : (last.price / launch.price - 1) * 100,
+    yieldGenerated: generated,
+  };
+  if (statsCache.size > 500) statsCache.clear();
+  statsCache.set(key, stats);
+  return stats;
 }

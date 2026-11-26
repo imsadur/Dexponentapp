@@ -1,14 +1,15 @@
 "use client";
 import { useId } from "react";
-import { ArrowDownRight, ArrowUpRight } from "@phosphor-icons/react";
 import { ageInDays, dtfUtilization, targetPace24h, type PublicDtf } from "@/domain/dtf";
+import { formatPct, formatSignedPct, MISSING, toneOf } from "@/domain/format";
+import type { ReturnMetric } from "@/domain/position-metrics";
 import type { StrategyType } from "@/domain/strategy";
 import { useApp } from "./provider";
 import { AssetIcon } from "./ui";
 
 export const typeLabel: Record<StrategyType, string> = { INDEX: "Index", SPOT: "Spot", PERPETUAL: "Perpetual" };
 
-export const signedPct = (value: number, digits = 2) => `${value > 0 ? "+" : ""}${value.toFixed(digits)}%`;
+export const signedPct = (value: number, digits = 2) => `${value > 0 ? "+" : value < 0 && Number(Math.abs(value).toFixed(digits)) !== 0 ? "−" : ""}${Math.abs(value).toFixed(digits)}%`;
 
 export const usd = (value: number, digits = 2) =>
   value.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: digits, maximumFractionDigits: digits });
@@ -38,13 +39,6 @@ export function AssetStack({ assets, max = 5, size = 22 }: { assets: string[]; m
   );
 }
 
-/** 7D APY, or a clear "new" state while there is less than a week of history. */
-export function Apy7d({ apy, className = "" }: { apy: number | null; className?: string }) {
-  if (apy === null)
-    return <span className={`dtf-apy new ${className}`} title="Less than 7 days of history">New</span>;
-  return <span className={`dtf-apy ${apy < 0 ? "negative" : "positive"} ${className}`}>{apy.toFixed(2)}%</span>;
-}
-
 export const daysLabel = (days: number) => (days < 1 ? "Under 1 day" : `${days} day${days === 1 ? "" : "s"}`);
 
 /** How old the DTF is: days since its launch date. */
@@ -57,14 +51,20 @@ export function DtfAge({ launchedAt, now }: { launchedAt: string; now?: number }
   );
 }
 
-/** Signed 24H return with an arrow, so direction is not shown by colour alone. */
-export function Return24h({ value, className = "" }: { value: number; className?: string }) {
-  const down = value < 0;
-  const Icon = down ? ArrowDownRight : ArrowUpRight;
+/** "APY" for DTFs 90+ days old, "Return since launch" for younger ones. */
+export const returnLabel = (ret: ReturnMetric) => (ret.kind === "apy" ? "APY" : "Return since launch");
+
+/** Headline return (APY, or signed return since launch) with the last 24h change beside it. */
+export function ReturnFigure({ ret, change24h }: { ret: ReturnMetric; change24h: number | null }) {
+  const main = ret.value === null ? MISSING : ret.kind === "apy" ? formatPct(ret.value) : formatSignedPct(ret.value);
   return (
-    <span className={`dtf-return ${down ? "negative" : "positive"} ${className}`}>
-      <Icon size={14} weight="bold" aria-hidden="true" />
-      {signedPct(value)}
+    <span className="dtf-retfig">
+      <strong className={ret.kind === "apy" ? "" : toneOf(ret.value) ?? ""}>{main}</strong>
+      {change24h !== null && (
+        <small className={toneOf(change24h) ?? ""} aria-label={`${formatSignedPct(change24h)} in the last 24 hours`}>
+          {formatSignedPct(change24h)} <span>24h</span>
+        </small>
+      )}
     </span>
   );
 }

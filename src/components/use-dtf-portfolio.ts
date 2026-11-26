@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { emptyPortfolio, parsePortfolio, portfolioKey, type DtfPortfolio } from "@/domain/dtf-portfolio";
 import { useApp } from "./provider";
 
-/** The signed-in user's simulated DTF positions, synced across tabs. */
+/** The signed-in user's DTF positions, synced across tabs. */
 export function useDtfPortfolio() {
   const { session, ready } = useApp();
   const key = session ? portfolioKey(session.identifier) : null;
@@ -33,7 +33,7 @@ export function useDtfPortfolio() {
   /** Persists first, so a failed write never shows as a recorded position. */
   const save = useCallback(
     (next: DtfPortfolio) => {
-      if (!key) throw new Error("Sign in to keep a demo position.");
+      if (!key) throw new Error("Sign in to keep a position.");
       localStorage.setItem(key, JSON.stringify(next));
       setPortfolio(next);
     },

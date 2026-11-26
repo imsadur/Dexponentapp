@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { formatSignedPct, formatUsdCompact } from "@/domain/format";
 import {
   AreaSeries,
   ColorType,
@@ -13,8 +14,8 @@ import {
 
 type ChartPoint = { time: UTCTimestamp; value: number };
 
-function chartData(points: number[], days: number): ChartPoint[] {
-  const end = Date.UTC(2026, 8, 18) / 1000;
+function chartData(points: number[], days: number, endTime: number): ChartPoint[] {
+  const end = Math.floor(endTime / 1000);
   const step = Math.max(1, Math.round(days / Math.max(1, points.length - 1))) * 86_400;
   return points.map((value, index) => ({
     time: (end - (points.length - 1 - index) * step) as UTCTimestamp,
@@ -25,9 +26,14 @@ function chartData(points: number[], days: number): ChartPoint[] {
 export function TradingViewPerformanceChart({
   points,
   days,
+  label = "Value",
+  endTime,
 }: {
   points: number[];
   days: number;
+  label?: string;
+  /** Time of the last point, epoch ms. Defaults to now. */
+  endTime?: number;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState(points.at(-1) || 0);
@@ -58,6 +64,7 @@ export function TradingViewPerformanceChart({
         horzLines: { color: border, style: 2 },
       },
       crosshair: { mode: CrosshairMode.Magnet },
+      localization: { priceFormatter: (price: number) => formatUsdCompact(price) },
       rightPriceScale: {
         borderColor: border,
         scaleMargins: { top: 0.14, bottom: 0.12 },
@@ -85,7 +92,7 @@ export function TradingViewPerformanceChart({
       crosshairMarkerBackgroundColor: "#6fd8a7",
       priceFormat: { type: "price", precision: 2, minMove: 0.01 },
     });
-    series.setData(chartData(points, days));
+    series.setData(chartData(points, days, endTime ?? Date.now()));
     chart.timeScale().fitContent();
     chart.subscribeCrosshairMove((param) => {
       if (!series) return;
@@ -94,15 +101,15 @@ export function TradingViewPerformanceChart({
       else setHovered(points.at(-1) || 0);
     });
     return () => chart?.remove();
-  }, [days, points]);
+  }, [days, points, endTime]);
 
   return (
     <div className="tv-performance-chart">
       <div className="tv-chart-legend" aria-live="polite">
-        <span>Simulated portfolio value</span>
-        <strong>${hovered.toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong>
+        <span>{label}</span>
+        <strong>{formatUsdCompact(hovered)}</strong>
         <small className={change >= 0 ? "positive" : "negative"}>
-          {change >= 0 ? "+" : ""}{change.toFixed(2)}%
+          {formatSignedPct(change)}
         </small>
       </div>
       <div ref={container} className="tv-chart-canvas" aria-label="Interactive performance history chart" />

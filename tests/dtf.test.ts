@@ -10,6 +10,7 @@ import {
   dtfContract,
   dtfDocuments,
   dtfHistory,
+  dtfMarketRow,
   explorerUrl,
   maskAddress,
   txExplorerUrl,
@@ -117,7 +118,7 @@ test("simulated history agrees with the listed 7D APY and starts at launch", () 
   const young = demoDtfCatalogue.find((d) => d.apy7d === null)!;
   const youngHistory = dtfHistory(young, now);
   const launch = Date.parse(`${young.launchedAt}T00:00:00Z`);
-  assert.ok(dtfSeries(youngHistory, "return", "90D").every((p) => p.time >= launch));
+  assert.ok(dtfSeries(youngHistory, "return", "ALL").every((p) => p.time >= launch));
   assert.equal(dtfSeries(youngHistory, "apy", "7D").length, 0);
 });
 
@@ -162,12 +163,11 @@ test("contract addresses match the network and link to its explorer", () => {
   assert.equal(explorerUrl("Nowhere", "x"), null);
 });
 
-test("documents: audited demo DTFs include the audit report; Farms use their uploads", () => {
-  const audited = demoDtfCatalogue.find((d) => d.audit)!;
-  const unaudited = demoDtfCatalogue.find((d) => !d.audit)!;
-  assert.ok(dtfDocuments(audited).some((d) => d.name.includes(audited.audit!.by) && d.type === "PDF"));
-  assert.ok(!dtfDocuments(unaudited).some((d) => /audit/i.test(d.name)));
-  assert.ok(dtfDocuments(audited).every((d) => d.demo));
+test("documents: catalogue DTFs carry no fictional audit; Farms use their uploads", () => {
+  assert.ok(demoDtfCatalogue.every((d) => !d.audit));
+  const listed = demoDtfCatalogue[0];
+  assert.ok(!dtfDocuments(listed).some((d) => /audit/i.test(d.name)));
+  assert.ok(dtfDocuments(listed).every((d) => d.demo));
   const farm = dtfFromFarm(seedFarms()[1], "A");
   assert.deepEqual(dtfDocuments(farm, [{ name: "Deck.pptx", size: 2048, type: "" }]), [{ name: "Deck.pptx", type: "PPTX", size: 2048, demo: false }]);
   assert.deepEqual(dtfDocuments(farm), []);
@@ -186,4 +186,16 @@ test("LP activity uses network-format ids, links transactions, and masks wallets
   assert.equal(txExplorerUrl("Base", b.hash), `https://basescan.org/tx/${b.hash}`);
   assert.equal(txExplorerUrl("Solana", s.hash), `https://solscan.io/tx/${s.hash}`);
   assert.equal(maskAddress("0x1234567890abcdef"), "0x12…cdef");
+});
+
+test("DTF market rows: price starts at $1, flows and liquidity are consistent", () => {
+  const now = Date.UTC(2026, 10, 23, 12);
+  for (const d of demoDtfCatalogue) {
+    const r = dtfMarketRow(d, now);
+    assert.ok(r.price > 0.5 && r.price < 2, `${d.id} price ${r.price}`);
+    assert.equal(r.marketCap, d.tvl);
+    assert.ok(r.liquidity > 0 && r.liquidity < r.marketCap);
+    assert.ok(r.volume24h > 0 && r.spark.length > 1);
+    assert.ok(Math.abs(r.change24h - dtfReturn24h(d, now)) < 1e-9);
+  }
 });

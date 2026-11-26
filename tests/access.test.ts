@@ -4,6 +4,7 @@ import {
   emptyRecord,
   formatInviteCode,
   isInviteFormat,
+  parseAccessStatus,
   profileComplete,
   redeemInvite,
   requestErrors,
@@ -48,4 +49,13 @@ test("return paths stay inside the app", () => {
   assert.equal(safeReturnPath("/app//evil"), null);
   assert.equal(safeReturnPath("/login"), null);
   assert.equal(safeReturnPath(null), null);
+});
+
+test("access status reads granted and requested records and ignores anything else", () => {
+  assert.equal(parseAccessStatus(JSON.stringify({ status: "granted" })), "granted");
+  assert.equal(parseAccessStatus(JSON.stringify({ status: "requested" })), "requested");
+  assert.equal(parseAccessStatus(JSON.stringify({ status: "approved" })), "none");
+  assert.equal(parseAccessStatus("{not json"), "none");
+  assert.equal(parseAccessStatus(null), "none");
+  assert.deepEqual(redeemInvite("DTF-BETA-2026"), { ok: true });
 });

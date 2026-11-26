@@ -6,6 +6,7 @@ import {
   ArrowDown,
   ArrowRight,
   Check,
+  Info,
   Stack as Layers3,
   Graph as Network,
   Shield,
@@ -28,6 +29,16 @@ import {
   TokenUSDC,
   TokenUSDT,
   TokenWBTC,
+  TokenCRV,
+  TokenEURC,
+  TokenGHO,
+  TokenJUP,
+  TokenLDO,
+  TokenPENDLE,
+  TokenPYTH,
+  TokenPYUSD,
+  TokenRAY,
+  TokenUSDE,
 } from "@web3icons/react";
 import {
   type Allocation,
@@ -51,6 +62,16 @@ const TOKEN_LOGOS: Partial<Record<string, typeof TokenAAVE>> = {
   USDC: TokenUSDC,
   USDT: TokenUSDT,
   WBTC: TokenWBTC,
+  CRV: TokenCRV,
+  EURC: TokenEURC,
+  GHO: TokenGHO,
+  JUP: TokenJUP,
+  LDO: TokenLDO,
+  PENDLE: TokenPENDLE,
+  PYTH: TokenPYTH,
+  PYUSD: TokenPYUSD,
+  RAY: TokenRAY,
+  USDE: TokenUSDE,
 };
 
 export function Brand() {
@@ -182,7 +203,7 @@ export function EmptyState({
   title,
   description,
   href,
-  label = "Create farm",
+  label = "Create DTF",
 }: {
   title: string;
   description: string;
@@ -264,20 +285,67 @@ export function Metric({
   value,
   change,
   caption,
+  tone,
+  hint,
+  extra,
 }: {
-  label: string;
+  /** Plain text, or a LabelTip when the label needs an explanation. */
+  label: ReactNode;
   value: string;
   change?: string;
-  caption?: string;
+  caption?: ReactNode;
+  tone?: "positive" | "negative";
+  /** How the number is calculated; shown in a keyboard-reachable tooltip. */
+  hint?: string;
+  extra?: ReactNode;
 }) {
   return (
     <div className="metric">
-      <span>{label}</span>
-      <AnimatedValue value={value} />
+      <span>
+        {label}
+        {hint && <InfoTip label={typeof label === "string" ? `About ${label}` : "About this figure"}>{hint}</InfoTip>}
+      </span>
+      <AnimatedValue className={tone} value={value} />
       <small>
         {change && <b className="positive">{change}</b>} {caption}
       </small>
+      {extra && <div className="metric-extra">{extra}</div>}
     </div>
+  );
+}
+
+/** An info icon that reveals a short explanation on hover or keyboard focus. */
+export function InfoTip({ label, children }: { label: string; children: ReactNode }) {
+  const id = useId();
+  return (
+    <span className="tip">
+      <button type="button" className="tip-trigger" aria-label={label} aria-describedby={id}>
+        <Info size={12} aria-hidden="true" />
+      </button>
+      <span role="tooltip" id={id} className="tip-body">{children}</span>
+    </span>
+  );
+}
+
+/** A label with a dotted underline that explains itself in a small tooltip below, on hover or keyboard focus. */
+export function LabelTip({ label, children }: { label: ReactNode; children: ReactNode }) {
+  const id = useId();
+  return (
+    <span className="label-tip">
+      <span className="label-tip-text" tabIndex={0} aria-describedby={id}>{label}</span>
+      <span role="tooltip" id={id} className="label-tip-body">{children}</span>
+    </span>
+  );
+}
+
+/** Wraps a value so its tooltip opens on hover or focus, e.g. full precision behind a rounded number. */
+export function Tip({ tip, children, className = "" }: { tip: ReactNode; children: ReactNode; className?: string }) {
+  const id = useId();
+  return (
+    <span className={`tip tip-inline ${className}`}>
+      <span className="tip-target" tabIndex={0} aria-describedby={id}>{children}</span>
+      <span role="tooltip" id={id} className="tip-body">{tip}</span>
+    </span>
   );
 }
 export function AnimatedValue({
@@ -341,7 +409,7 @@ export function money(n: number, compact = false) {
 export function PerformanceChart({
   points,
   mini = false,
-  label = "Demo portfolio value",
+  label = "Portfolio value",
 }: {
   points: number[];
   mini?: boolean;
@@ -388,7 +456,7 @@ export function PerformanceChart({
         <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
           <stop
             offset="0%"
-            stopColor={up ? "#84d7b1" : "#eaa082"}
+            stopColor={up ? "#84d7b1" : "#c71b00"}
             stopOpacity="0.15"
           />
           <stop offset="100%" stopColor="#84d7b1" stopOpacity="0" />
@@ -414,7 +482,7 @@ export function PerformanceChart({
         className="chart-trace"
         points={line}
         fill="none"
-        stroke={up ? "#84d7b1" : "#eaa082"}
+        stroke={up ? "#84d7b1" : "#c71b00"}
         strokeWidth={mini ? 3 : 2}
         vectorEffect="non-scaling-stroke"
       />

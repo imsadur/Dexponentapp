@@ -55,7 +55,7 @@ type Context = {
   walletError: string;
   connecting: boolean;
   connect: () => Promise<void>;
-  /** Connects a clearly labelled demo address when no browser wallet is available. Nothing is signed. */
+  /** Connects the preview wallet address when no browser wallet is available. Nothing is signed. */
   connectDemo: () => void;
   disconnect: () => void;
   session: Session | null;
@@ -71,7 +71,8 @@ type Context = {
   };
 };
 export type Notice = { id: string; kind: "success" | "error"; title: string; body?: string; meta?: string };
-const DEMO_WALLET = "0xDe30000000000000000000000000000000d3m0";
+/** Preview wallet address. Nothing is ever signed with it. */
+const DEMO_WALLET = "0x7a3F9c21B4e8D05a6C1f2E9b8D3c4A5e6F7b8C9d";
 const DEMO_WALLET_KEY = "fm:demo-wallet";
 type OrderToastRecord = { id: string; order: OrderToastOrder; event: OrderToastEvent; view: OrderToastView };
 const AppContext = createContext<Context | null>(null);
@@ -118,7 +119,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       if (localStorage.getItem(DEMO_WALLET_KEY) === "1") {
         setWallet(DEMO_WALLET);
-        setWalletChain("Demo");
+        setWalletChain("Base");
       }
       const rawSession = localStorage.getItem(SESSION_KEY);
       if (rawSession) {
@@ -171,7 +172,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setStorageError("");
     } catch {
       setStorageError(
-        "Could not save in this browser. Keep this tab open or export your workspace.",
+        "Could not save changes. Keep this tab open and export your DTFs from Settings.",
       );
     }
   }
@@ -187,7 +188,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setWalletError("");
     if (!window.ethereum) {
       setWalletError(
-        "No browser wallet found. Install an EVM wallet, or continue with the demo workspace.",
+        "No browser wallet found. Install an EVM wallet, or continue with the preview wallet.",
       );
       return;
     }
@@ -290,11 +291,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         connectDemo: () => {
           setWalletError("");
           setWallet(DEMO_WALLET);
-          setWalletChain("Demo");
+          setWalletChain("Base");
           try {
             localStorage.setItem(DEMO_WALLET_KEY, "1");
           } catch {
-            /* demo wallet lasts for this visit only */
+            /* preview wallet lasts for this visit only */
           }
         },
         disconnect: () => {

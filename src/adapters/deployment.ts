@@ -34,14 +34,14 @@ export const deploymentAdapter: DeploymentAdapter = {
       );
     return {
       mode: "preview",
-      cost: "Unavailable until connected to contracts",
+      cost: "—",
       steps: [
         "Connect wallet",
         "Approve assets",
         "Deploy strategy",
-        "Initialize farm",
+        "Initialize DTF",
         "Verify contract",
-        "Activate farm",
+        "Activate DTF",
       ].map((label) => ({ label, state: "Waiting" })),
     };
   },

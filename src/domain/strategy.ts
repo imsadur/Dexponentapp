@@ -33,6 +33,7 @@ export type StrategyTemplate = {
   assets: string[];
   networks: string[];
   protocols: string[];
+  allocations?: Allocation[];
   defaults: Values;
   fields: Field[];
 };
@@ -111,13 +112,20 @@ const number = (
   kind: "number",
   step: 0.1,
 });
+/** Networks where DTFs can be created. */
+export const NETWORKS = ["Base", "Solana"] as const;
+const LEGACY_NETWORKS = new Set(["Arbitrum", "Ethereum"]);
+/** Saved drafts from older builds may reference networks that are no longer offered. */
+export function normalizeNetwork(network: string): string {
+  return LEGACY_NETWORKS.has(network) ? "Base" : network;
+}
 const common: Field[] = [
-  { key: "name", label: "Farm name", kind: "text" },
+  { key: "name", label: "DTF name", kind: "text" },
   {
     key: "description",
     label: "Short description",
     kind: "textarea",
-    help: "Explain the Farm’s objective and source of return in plain language.",
+    help: "The objective and source of return, in plain language.",
   },
   select("asset", "Base token", ["USDC", "ETH", "WBTC"]),
   number("capacity", "TVL capacity", 100, 100000000, "USD"),
@@ -126,6 +134,11 @@ const common: Field[] = [
   number("managementFee", "Management fee", 0, 10, "% / year", true),
   number("performanceFee", "Performance fee", 0, 50, "% of gains", true),
 ];
+const protocolOptions: Record<StrategyType, string[]> = {
+  INDEX: ["Uniswap", "Aerodrome", "Jupiter"],
+  SPOT: ["Aave", "Morpho", "Aerodrome", "Kamino"],
+  PERPETUAL: ["Hyperliquid", "Drift"],
+};
 const indexFields: Field[] = [
   select("allocationMethod", "Allocation method", [
     "Custom Weight",
@@ -140,13 +153,14 @@ const indexFields: Field[] = [
 const spotFields: Field[] = [
   select("pool", "Pool", [
     "USDC lending market",
+    "USDT lending market",
     "ETH lending market",
     "ETH / USDC",
+    "USDC / USDT",
   ]),
   select("strategy", "Strategy", [
     "Lending",
     "Liquidity Provision",
-    "Staking",
     "Auto Compound",
   ]),
   number("allocation", "Capital allocation", 1, 100, "%"),
@@ -159,7 +173,7 @@ const spotFields: Field[] = [
 const perpFields: Field[] = [
   select("underlying", "Base asset", ["ETH", "BTC", "SOL"]),
   select("quoteAsset", "Quote asset", ["USDC", "USDT"]),
-  select("venue", "Trading venue", ["Hyperliquid", "GMX", "dYdX"]),
+  select("venue", "Trading venue", ["Hyperliquid", "Drift"]),
   select("direction", "Direction", ["Delta Neutral", "Long", "Short"]),
   {
     key: "leverage",
@@ -201,169 +215,335 @@ export const families: {
   {
     type: "INDEX",
     title: "Index",
-    description: "Diversified exposure. One strategy.",
-    use: "Asset baskets & automated rebalancing",
+    description: "A basket of assets with scheduled rebalancing.",
+    use: "Asset baskets & rebalancing",
     risk: "MEDIUM",
   },
   {
     type: "SPOT",
     title: "Spot",
-    description: "Put your assets to work.",
+    description: "Lending and liquidity yield from spot markets.",
     use: "Lending, liquidity & compounding",
     risk: "LOW",
   },
   {
     type: "PERPETUAL",
     title: "Perpetual",
-    description: "Precision for advanced strategies.",
-    use: "Hedging, funding & leveraged positions",
+    description: "Hedged or directional positions on perpetual markets.",
+    use: "Hedging, funding & leverage",
     risk: "HIGH",
   },
 ];
-const names: Record<StrategyType, string[]> = {
-  INDEX: [
-    "Blue Chip Index",
-    "Stablecoin Index",
-    "DeFi Index",
-    "Market Cap Weighted Index",
-    "Equal Weight Index",
-    "Custom Index",
-  ],
-  SPOT: [
-    "Single Asset Yield",
-    "Lending Yield",
-    "LP Farming",
-    "Auto Compound",
-    "Stablecoin Yield",
-    "Delta Neutral Spot",
-  ],
-  PERPETUAL: [
-    "Delta Neutral",
-    "Funding Rate Capture",
-    "Market Neutral",
-    "Long/Short",
-    "Leveraged Long",
-    "Leveraged Short",
-    "Basis Trade",
-  ],
+
+/** Shared defaults; each template overrides what defines it. */
+const baseDefaults: Values = {
+  asset: "USDC",
+  capacity: 1000000,
+  risk: "Balanced",
+  managementFee: 1,
+  performanceFee: 10,
+  allocationMethod: "Custom Weight",
+  rebalance: "Monthly",
+  minWeight: 5,
+  maxWeight: 60,
+  pool: "USDC lending market",
+  strategy: "Lending",
+  allocation: 100,
+  minApy: 3,
+  slippage: 0.5,
+  harvest: "Daily",
+  maxExposure: 100,
+  rebalanceThreshold: 5,
+  underlying: "ETH",
+  quoteAsset: "USDC",
+  venue: "Hyperliquid",
+  direction: "Delta Neutral",
+  leverage: 2,
+  margin: 10000,
+  entry: "Manual activation",
+  exit: "Risk limit reached",
+  fundingThreshold: 0.01,
+  stopLoss: 5,
+  takeProfit: 15,
+  maxDrawdown: 10,
 };
-const descriptions: Record<StrategyType, string> = {
-  INDEX:
-    "Build a diversified basket with transparent weights and scheduled rebalancing.",
-  SPOT: "Allocate capital to a yield strategy with configurable harvest and exposure limits.",
-  PERPETUAL:
-    "Configure directional or hedged exposure with explicit margin and risk controls.",
+
+type TemplateSpec = {
+  id: string;
+  name: string;
+  type: StrategyType;
+  description: string;
+  risk: RiskLevel;
+  assets: string[];
+  protocols: string[];
+  allocations?: Allocation[];
+  defaults: Values;
 };
-export const templates: StrategyTemplate[] = (
-  Object.keys(names) as StrategyType[]
-).flatMap((type) =>
-  names[type].map((name, i) => ({
-    id: name.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-"),
-    name,
-    type,
-    description: descriptions[type],
-    risk: type === "PERPETUAL" ? "HIGH" : type === "SPOT" ? "LOW" : "MEDIUM",
-    complexity: type === "PERPETUAL" ? "Advanced" : "Standard",
-    assets:
-      type === "INDEX"
-        ? ["WBTC", "ETH", "USDC"]
-        : type === "SPOT"
-          ? ["USDC", "ETH"]
-          : ["ETH", "BTC"],
-    networks:
-      type === "PERPETUAL" ? ["Arbitrum"] : ["Arbitrum", "Base", "Ethereum"],
-    protocols:
-      type === "INDEX"
-        ? ["Uniswap"]
-        : type === "SPOT"
-          ? ["Aave", "Uniswap", "Lido"]
-          : ["GMX"],
-    defaults: {
-      name,
-      description: descriptions[type],
-      asset: "USDC",
-      capacity: 1000000,
-      risk: "Balanced",
-      assumedApr: type === "INDEX" ? 12 : type === "SPOT" ? 6 : 14,
-      managementFee: 1,
-      performanceFee: 10,
-      protocol: type === "INDEX" ? "Uniswap" : type === "SPOT" ? "Aave" : "GMX",
-      allocationMethod:
-        name === "Equal Weight Index"
-          ? "Equal Weight"
-          : name === "Market Cap Weighted Index"
-            ? "Market Cap"
-            : "Custom Weight",
-      rebalance: "Weekly",
-      minWeight: 0,
-      maxWeight: 100,
-      pool: "USDC lending market",
-      strategy:
-        i === 2 ? "Liquidity Provision" : i === 3 ? "Auto Compound" : "Lending",
-      allocation: 100,
-      minApy: 3,
-      slippage: 0.5,
-      harvest: "Daily",
-      maxExposure: 100,
-      rebalanceThreshold: 5,
-      underlying: "ETH",
-      quoteAsset: "USDC",
-      venue: "Hyperliquid",
-      direction:
-        name === "Leveraged Long"
-          ? "Long"
-          : name === "Leveraged Short"
-            ? "Short"
-            : "Delta Neutral",
-      leverage: name.startsWith("Leveraged") ? 3 : 2,
-      margin: 10000,
-      entry: "Manual activation",
-      exit: "Risk limit reached",
-      fundingThreshold: 0.01,
-      stopLoss: 5,
-      takeProfit: 15,
-      maxDrawdown: 10,
-    },
-    fields: [
-      ...common.slice(0, 3),
-      select(
-        "protocol",
-        "Protocol",
-        type === "INDEX"
-          ? ["Uniswap"]
-          : type === "SPOT"
-            ? ["Aave", "Uniswap", "Lido"]
-            : ["GMX"],
-      ),
-      ...(type === "INDEX"
-        ? indexFields
-        : type === "SPOT"
-          ? spotFields
-          : perpFields),
-      ...common.slice(3),
+
+const specs: TemplateSpec[] = [
+  {
+    id: "blue-chip-index",
+    name: "Blue Chip Index",
+    type: "INDEX",
+    description: "Core exposure to BTC, ETH and SOL, rebalanced monthly.",
+    risk: "MEDIUM",
+    assets: ["WBTC", "ETH", "SOL"],
+    protocols: ["Uniswap"],
+    allocations: [
+      { asset: "WBTC", weight: 45 },
+      { asset: "ETH", weight: 35 },
+      { asset: "SOL", weight: 20 },
     ],
-  })),
-);
-export const templateById = (id: string) => templates.find((t) => t.id === id);
+    defaults: { assumedApr: 12, protocol: "Uniswap", rebalance: "Monthly" },
+  },
+  {
+    id: "large-cap-defi-index",
+    name: "Large Cap DeFi Index",
+    type: "INDEX",
+    description: "Governance tokens of the largest lending, exchange and staking protocols.",
+    risk: "HIGH",
+    assets: ["AAVE", "UNI", "LDO", "JUP"],
+    protocols: ["Uniswap", "Jupiter"],
+    allocations: [
+      { asset: "AAVE", weight: 30 },
+      { asset: "UNI", weight: 25 },
+      { asset: "LDO", weight: 25 },
+      { asset: "JUP", weight: 20 },
+    ],
+    defaults: {
+      assumedApr: 16,
+      protocol: "Uniswap",
+      risk: "Aggressive",
+      rebalance: "Weekly",
+      maxWeight: 40,
+      managementFee: 1.5,
+      performanceFee: 15,
+    },
+  },
+  {
+    id: "balanced-crypto-index",
+    name: "Balanced Crypto Index",
+    type: "INDEX",
+    description: "Majors paired with a stablecoin sleeve to soften drawdowns.",
+    risk: "MEDIUM",
+    assets: ["WBTC", "ETH", "SOL", "USDC"],
+    protocols: ["Aerodrome"],
+    allocations: [
+      { asset: "WBTC", weight: 30 },
+      { asset: "ETH", weight: 30 },
+      { asset: "SOL", weight: 10 },
+      { asset: "USDC", weight: 30 },
+    ],
+    defaults: { assumedApr: 9, protocol: "Aerodrome", maxWeight: 50 },
+  },
+  {
+    id: "stablecoin-index",
+    name: "Stablecoin Index",
+    type: "INDEX",
+    description: "Spread across major stablecoins to limit single-issuer risk.",
+    risk: "LOW",
+    assets: ["USDC", "USDT", "DAI"],
+    protocols: ["Uniswap"],
+    allocations: [
+      { asset: "USDC", weight: 50 },
+      { asset: "USDT", weight: 30 },
+      { asset: "DAI", weight: 20 },
+    ],
+    defaults: {
+      assumedApr: 4,
+      protocol: "Uniswap",
+      risk: "Conservative",
+      minWeight: 10,
+      managementFee: 0.5,
+      performanceFee: 5,
+    },
+  },
+  {
+    id: "stablecoin-yield",
+    name: "Stablecoin Yield",
+    type: "SPOT",
+    description: "USDC supplied to established lending markets for variable interest.",
+    risk: "LOW",
+    assets: ["USDC"],
+    protocols: ["Aave"],
+    defaults: { assumedApr: 6, protocol: "Aave", risk: "Conservative" },
+  },
+  {
+    id: "lending-optimizer",
+    name: "Lending Optimizer",
+    type: "SPOT",
+    description: "Moves stablecoins to the best lending rate within set exposure limits.",
+    risk: "MEDIUM",
+    assets: ["USDC", "USDT"],
+    protocols: ["Morpho", "Aave"],
+    defaults: {
+      assumedApr: 8,
+      protocol: "Morpho",
+      strategy: "Auto Compound",
+      rebalanceThreshold: 2,
+      minApy: 4,
+    },
+  },
+  {
+    id: "liquidity-yield",
+    name: "Liquidity Yield",
+    type: "SPOT",
+    description: "Trading fees from a concentrated ETH/USDC liquidity position.",
+    risk: "MEDIUM",
+    assets: ["ETH", "USDC"],
+    protocols: ["Aerodrome"],
+    defaults: {
+      assumedApr: 14,
+      protocol: "Aerodrome",
+      pool: "ETH / USDC",
+      strategy: "Liquidity Provision",
+      rebalanceThreshold: 10,
+      performanceFee: 15,
+    },
+  },
+  {
+    id: "conservative-yield",
+    name: "Conservative Yield",
+    type: "SPOT",
+    description: "Stablecoin lending with tight exposure caps and weekly harvests.",
+    risk: "LOW",
+    assets: ["USDC", "USDT"],
+    protocols: ["Aave"],
+    defaults: {
+      assumedApr: 4.5,
+      protocol: "Aave",
+      risk: "Conservative",
+      allocation: 80,
+      maxExposure: 80,
+      harvest: "Weekly",
+      minApy: 2,
+      managementFee: 0.5,
+      performanceFee: 5,
+    },
+  },
+  {
+    id: "delta-neutral",
+    name: "Delta Neutral",
+    type: "PERPETUAL",
+    description: "Long spot ETH, short ETH perp; earns funding with little price exposure.",
+    risk: "HIGH",
+    assets: ["ETH", "USDC"],
+    protocols: ["Hyperliquid"],
+    defaults: { assumedApr: 14, protocol: "Hyperliquid" },
+  },
+  {
+    id: "funding-capture",
+    name: "Funding Capture",
+    type: "PERPETUAL",
+    description: "Hedged BTC position opened only while funding rates stay elevated.",
+    risk: "HIGH",
+    assets: ["BTC", "USDC"],
+    protocols: ["Hyperliquid"],
+    defaults: {
+      assumedApr: 16,
+      protocol: "Hyperliquid",
+      underlying: "BTC",
+      entry: "Funding above threshold",
+      exit: "Funding below threshold",
+      fundingThreshold: 0.02,
+      performanceFee: 20,
+    },
+  },
+  {
+    id: "market-neutral",
+    name: "Market Neutral",
+    type: "PERPETUAL",
+    description: "Offsetting SOL long and short legs to isolate basis and funding.",
+    risk: "HIGH",
+    assets: ["SOL", "USDC"],
+    protocols: ["Drift"],
+    defaults: {
+      assumedApr: 11,
+      protocol: "Drift",
+      venue: "Drift",
+      underlying: "SOL",
+      maxDrawdown: 8,
+      performanceFee: 15,
+    },
+  },
+  {
+    id: "hedged-yield",
+    name: "Hedged Yield",
+    type: "PERPETUAL",
+    description: "ETH yield position with a partial perp hedge to limit drawdowns.",
+    risk: "MEDIUM",
+    assets: ["ETH", "USDC"],
+    protocols: ["Hyperliquid"],
+    defaults: {
+      assumedApr: 9,
+      protocol: "Hyperliquid",
+      direction: "Short",
+      leverage: 1,
+      stopLoss: 8,
+      maxDrawdown: 12,
+    },
+  },
+];
+
+export const templates: StrategyTemplate[] = specs.map((spec) => ({
+  id: spec.id,
+  name: spec.name,
+  type: spec.type,
+  description: spec.description,
+  risk: spec.risk,
+  complexity: spec.type === "PERPETUAL" ? "Advanced" : "Standard",
+  assets: spec.assets,
+  networks: [...NETWORKS],
+  protocols: spec.protocols,
+  allocations: spec.allocations,
+  defaults: {
+    ...baseDefaults,
+    name: spec.name,
+    description: spec.description,
+    ...spec.defaults,
+  },
+  fields: [
+    ...common.slice(0, 3),
+    select("protocol", "Protocol", protocolOptions[spec.type]),
+    ...(spec.type === "INDEX"
+      ? indexFields
+      : spec.type === "SPOT"
+        ? spotFields
+        : perpFields),
+    ...common.slice(3),
+  ],
+}));
+
+/** Template ids retired when the library was consolidated; saved DTFs keep resolving. */
+const legacyTemplateIds: Record<string, string> = {
+  "defi-index": "large-cap-defi-index",
+  "market-cap-weighted-index": "blue-chip-index",
+  "equal-weight-index": "balanced-crypto-index",
+  "custom-index": "blue-chip-index",
+  "single-asset-yield": "stablecoin-yield",
+  "lending-yield": "lending-optimizer",
+  "lp-farming": "liquidity-yield",
+  "auto-compound": "lending-optimizer",
+  "delta-neutral-spot": "conservative-yield",
+  "funding-rate-capture": "funding-capture",
+  "long-short": "market-neutral",
+  "leveraged-long": "hedged-yield",
+  "leveraged-short": "hedged-yield",
+  "basis-trade": "funding-capture",
+};
+export const templateById = (
+  id: string,
+  type?: StrategyType,
+): StrategyTemplate | undefined =>
+  templates.find((t) => t.id === id) ??
+  templates.find((t) => t.id === legacyTemplateIds[id]) ??
+  (type ? templates.find((t) => t.type === type) : undefined);
 export function defaultAllocations(template: StrategyTemplate): Allocation[] {
-  return template.name === "Stablecoin Index"
-    ? [
-        { asset: "USDC", weight: 50 },
-        { asset: "DAI", weight: 50 },
-      ]
-    : template.name === "Equal Weight Index"
-      ? [
-          { asset: "WBTC", weight: 25 },
-          { asset: "ETH", weight: 25 },
-          { asset: "UNI", weight: 25 },
-          { asset: "USDC", weight: 25 },
-        ]
-      : [
-          { asset: "WBTC", weight: 40 },
-          { asset: "ETH", weight: 35 },
-          { asset: "UNI", weight: 15 },
-          { asset: "USDC", weight: 10 },
-        ];
+  return (
+    template.allocations?.map((a) => ({ ...a })) ?? [
+      { asset: "USDC", weight: 100 },
+    ]
+  );
 }
 export function makeFarm(
   t: StrategyTemplate,
@@ -442,25 +622,12 @@ export function validateStrategy(
   )
     errors.maxExposure =
       "Protocol exposure must cover the selected allocation.";
-  if (
-    t.type === "SPOT" &&
-    values.protocol === "Lido" &&
-    (values.asset !== "ETH" ||
-      values.strategy !== "Staking" ||
-      network !== "Ethereum")
-  )
-    errors.protocol =
-      "This prototype models Lido only for ETH staking on Ethereum.";
   return errors;
 }
 export function riskFor(t: StrategyTemplate, v: Values): RiskLevel {
-  return t.type === "PERPETUAL"
-    ? Number(v.leverage) >= 5
-      ? "CRITICAL"
-      : "HIGH"
-    : v.risk === "Aggressive"
-      ? "HIGH"
-      : t.risk;
+  if (t.type === "PERPETUAL" && Number(v.leverage) >= 5) return "CRITICAL";
+  if (t.type === "PERPETUAL" && Number(v.leverage) >= 3) return "HIGH";
+  return v.risk === "Aggressive" && t.risk !== "CRITICAL" ? "HIGH" : t.risk;
 }
 export type Scenario = "Bull" | "Base" | "Bear" | "Stress";
 export type Simulation = {

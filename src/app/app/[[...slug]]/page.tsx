@@ -17,6 +17,7 @@ const staticRoutes = [
   ["positions"],
   ["strategies"],
   ["strategies", "view"],
+  ["market"],
   ["templates"],
   ["analytics"],
   ["settings"],
