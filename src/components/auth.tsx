@@ -13,19 +13,14 @@ import {
 } from "react";
 import {
   ArrowRight,
+  Briefcase,
   CaretLeft,
-  Clock,
-  CurrencyCircleDollar,
-  Globe,
-  Medal,
   SealCheck,
-  ShieldCheck,
+  RocketLaunch,
   SpinnerGap,
-  Stack,
   XLogo,
 } from "@phosphor-icons/react";
 import { useApp } from "./provider";
-import { AnimatedValue } from "./ui";
 import { formatCount, formatUsdCompact } from "@/domain/format";
 import { safeReturnPath } from "@/domain/access";
 import {
@@ -40,19 +35,18 @@ import {
 
 const DASHBOARD = "/app/dashboard/";
 const LEGAL = {
-  privacy: "https://dexponent.com/privacy",
   terms: "https://dexponent.com/terms",
+  risks: "https://docs.dexponent.com/beta-scope-and-risks",
+  fees: "https://docs.dexponent.com/fees-and-costs",
 };
 const RESEND_SECONDS = 30;
 const CODE_TTL_SECONDS = 300;
-const dtfFeatures = [
-  { icon: Stack, title: "Three strategy types", body: "Index for passive diversification, Spot for active management, Perpetual for leveraged trades." },
-  { icon: Globe, title: "Base and Solana", body: "DTFs run on Base or Solana, with allocations and withdrawals recorded on-chain." },
-  { icon: CurrencyCircleDollar, title: "USDC settlement", body: "Deposit and withdraw in USDC. Earn in DTF shares and withdraw the upside." },
-  { icon: Clock, title: "No lockups", body: "Withdraw anytime, subject to each fund's liquidity and settlement period." },
-  { icon: Medal, title: "Accountable managers", body: "Each Manager runs a DTF within published fee and risk limits." },
-  { icon: ShieldCheck, title: "Non-custodial", body: "Only you control your funds. You approve every deposit and withdrawal." },
+/** The two audiences, shown as cards that take turns being highlighted. */
+const audienceCards = [
+  { icon: Briefcase, title: "For LPs", body: "Deposit USDC into index, spot or perp DTFs. Withdraw anytime, in USDC." },
+  { icon: RocketLaunch, title: "For DTF managers", body: "Launch a fund on Base or Solana in minutes. Earn fees on performance." },
 ];
+const CARD_INTERVAL_MS = 4000;
 
 type View = "start" | "code";
 const firstName = (name: string) => name.trim().split(/\s+/)[0] || "there";
@@ -143,7 +137,7 @@ export function AuthPage(_props: { mode?: "login" | "signup" } = {}) {
     body = (
       <form className="auth-step centered" onSubmit={submitEmail} noValidate>
         <h1>Welcome to Dexponent</h1>
-        <p className="auth-sub">Sign in or create an account.</p>
+        <p className="auth-sub">Use your email or a social account. No password needed.</p>
         <div className="auth-social">
           <button type="button" className="auth-outline auth-social-btn" onClick={() => social("google")} disabled={!!busy}>
             {busy === "google" ? <SpinnerGap size={18} className="auth-spin" /> : <GoogleMark />} Continue with Google
@@ -157,8 +151,10 @@ export function AuthPage(_props: { mode?: "login" | "signup" } = {}) {
         <ErrorText error={error} />
         <SubmitButton disabled={!email.trim()} busy={busy === "email"}>Continue with email</SubmitButton>
         <p className="auth-fineprint center">
-          By continuing, you agree to the <a href={LEGAL.terms} target="_blank" rel="noreferrer">Terms</a> and acknowledge the{" "}
-          <a href="https://docs.dexponent.com/beta-scope-and-risks" target="_blank" rel="noreferrer">Risk Disclosure</a>.
+          By continuing, I confirm I&apos;ve read the{" "}
+          <a href={LEGAL.terms} target="_blank" rel="noopener noreferrer">Terms</a>,{" "}
+          <a href={LEGAL.risks} target="_blank" rel="noopener noreferrer">Risks</a>, and{" "}
+          <a href={LEGAL.fees} target="_blank" rel="noopener noreferrer">Fees</a>.
         </p>
         <p className="auth-demo-code">Preview: Google and X sign in to a preview account.</p>
       </form>
@@ -178,26 +174,28 @@ export function AuthPage(_props: { mode?: "login" | "signup" } = {}) {
   return (
     <main className="auth-shell">
       <aside className="auth-panel">
-        <AuthLogo />
+        <span className="auth-panel-bg" aria-hidden="true">
+          <img className="auth-panel-glow" src="/brand/auth/glow.svg" alt="" />
+          <img className="auth-panel-wave" src="/brand/auth/dot-wave.png" alt="" width={473} height={552} />
+        </span>
+        <Link href="/" className="auth-panel-logo" aria-label="Dexponent home">
+          <span className="auth-panel-mark"><img src="/brand/auth/logo-mark.svg" alt="" width={19.91} height={25.333} /></span>
+          <span>Dexponent</span>
+        </Link>
         <MarketingPanel />
         <footer className="auth-panel-foot">
           <span>© {new Date().getFullYear()} Dexponent</span>
-          <span>Non-custodial · Base and Solana</span>
+          <span>Non-custodial · Verifiable onchain</span>
         </footer>
       </aside>
       <section className="auth-main">
         <header className="auth-top">
           <span className="auth-mobile-logo"><AuthLogo /></span>
           <div className="auth-top-right">
-            <Link href={DASHBOARD} className="auth-skip">Continue without signing in <ArrowRight size={13} /></Link>
+            <Link href={DASHBOARD} className="auth-skip">Explore without an account <ArrowRight size={13} /></Link>
           </div>
         </header>
         <div className="auth-body" key={view}>{body}</div>
-        <footer className="auth-legal">
-          <a href={LEGAL.privacy} target="_blank" rel="noreferrer">Privacy Policy</a>
-          <span aria-hidden>·</span>
-          <a href={LEGAL.terms} target="_blank" rel="noreferrer">Terms and conditions</a>
-        </footer>
       </section>
     </main>
   );
@@ -232,57 +230,58 @@ function MarketingPanel() {
   const app = useApp();
   const stats = useMemo(() => {
     const live = app.farms.filter((f) => f.status === "ACTIVE");
-    const tvl = live.reduce((sum, f) => sum + f.tvl, 0);
-    const apy = tvl ? live.reduce((sum, f) => sum + f.apy * f.tvl, 0) / tvl : 0;
-    const lps = live.reduce((sum, f) => sum + (Number(f.values.activeLps) || 0), 0);
-    return [
-      { value: formatUsdCompact(tvl), label: "TVL" },
-      { value: formatCount(live.length), label: "Active DTFs" },
-      { value: `${apy.toFixed(1)}%`, label: "Avg. APY" },
-      { value: formatCount(lps), label: "Total LPs" },
-    ];
+    return {
+      tvl: formatUsdCompact(live.reduce((sum, f) => sum + f.tvl, 0)),
+      dtfs: formatCount(live.length),
+      lps: formatCount(live.reduce((sum, f) => sum + (Number(f.values.activeLps) || 0), 0)),
+    };
   }, [app.farms]);
   const [active, setActive] = useState(0);
   const [paused, setPaused] = useState(false);
   useEffect(() => {
-    if (paused) return;
-    const t = setInterval(() => setActive((i) => (i + 1) % dtfFeatures.length), 4500);
+    if (paused || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const t = setInterval(() => setActive((i) => (i + 1) % audienceCards.length), CARD_INTERVAL_MS);
     return () => clearInterval(t);
   }, [paused]);
 
   return (
     <div className="auth-panel-content">
-      <h2>Launch and invest in onchain funds</h2>
-      <p>Index, Spot and Perpetual DTFs on Base and Solana. Managers launch strategies; LPs deposit USDC.</p>
-      <div className="auth-live"><span className="auth-live-dot" /> Platform stats</div>
-      <div className="auth-stats">
-        {stats.map((s) => (
-          <div key={s.label} className="auth-stat">
-            {app.ready ? <AnimatedValue value={s.value} /> : <strong>{s.value}</strong>}
-            <span>{s.label}</span>
-          </div>
-        ))}
-      </div>
-      <div className="auth-feature-stack" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} aria-roledescription="carousel" aria-label="DTF features">
-        {dtfFeatures.map((f, i) => {
-          const offset = (i - active + dtfFeatures.length) % dtfFeatures.length;
-          const Icon = f.icon;
+      <h2>
+        Onchain funds,
+        <br />
+        <span>run in USDC</span>
+      </h2>
+      <p>DTF managers launch strategies. LPs deposit and earn. Everything settles onchain.</p>
+      {/* Stacked deck: the active card sits in front, the other peeks out behind it; they swap in turn. */}
+      <div
+        className="auth-audiences"
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+        onFocus={() => setPaused(true)}
+        onBlur={() => setPaused(false)}
+        onClick={() => setActive((i) => (i + 1) % audienceCards.length)}
+      >
+        {audienceCards.map((card, i) => {
+          const Icon = card.icon;
+          const front = i === active;
           return (
-            <article key={f.title} className="auth-feature" data-offset={offset > 2 ? "hidden" : offset} aria-hidden={offset !== 0}>
-              <span className="auth-feature-icon"><Icon size={20} weight="duotone" /></span>
-              <div>
-                <strong>{f.title}</strong>
-                <p>{f.body}</p>
-              </div>
+            <article key={card.title} className="auth-audience" data-pos={front ? "front" : "back"}>
+              <strong><Icon size={16} weight="bold" aria-hidden="true" /> {card.title}</strong>
+              <p>{card.body}</p>
             </article>
           );
         })}
       </div>
-      <div className="auth-feature-dots" role="tablist" aria-label="Choose feature">
-        {dtfFeatures.map((f, i) => (
-          <button key={f.title} type="button" role="tab" aria-selected={i === active} aria-label={f.title} className={i === active ? "active" : ""} onClick={() => setActive(i)} />
-        ))}
-      </div>
+      {/* TODO(backend): figures are sample data in this preview build; wire to live platform stats. */}
+      <p className="auth-panel-stats">
+        <img src="/brand/auth/live-dot.svg" alt="" width={5} height={5} />
+        <b>Live</b>
+        <span>{stats.tvl} <i>TVL</i></span>
+        <em aria-hidden="true">·</em>
+        <span>{stats.dtfs} <i>live DTFs</i></span>
+        <em aria-hidden="true">·</em>
+        <span>{stats.lps} <i>LPs</i></span>
+      </p>
     </div>
   );
 }
