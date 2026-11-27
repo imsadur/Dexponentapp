@@ -113,7 +113,6 @@ export function useNotifications() {
 
   const nudges = nudgesFor({
     signedIn,
-    positions: Object.keys(portfolio.positions).length,
     access,
     managedLive: live.length,
     drafts,
@@ -252,7 +251,9 @@ export function NotificationsPanel({ open, onClose, data }: { open: boolean; onC
             </div>
             {shown.length ? (
               <ul>
-                {shown.map((item) => (
+                {shown.map((item) => {
+                  const unreadItem = unreadOf(item);
+                  return (
                   <li key={item.id}>
                     <Link
                       href={item.href}
@@ -260,22 +261,26 @@ export function NotificationsPanel({ open, onClose, data }: { open: boolean; onC
                         markRead(item.id);
                         onClose();
                       }}
-                      className={unreadOf(item) ? "unread" : ""}
+                      className={unreadItem ? "unread" : "read"}
                     >
                       <span className={`ntf-icon ${item.kind}`} aria-hidden="true">
                         {item.kind === "deposit" ? <ArrowDownLeft size={14} /> : <ArrowUpRight size={14} />}
                       </span>
                       <span className="ntf-text">
-                        <strong>{item.title}</strong>
+                        <strong>
+                          <span>{item.title}</span>
+                          {unreadItem && <i className="ntf-dot" aria-hidden="true" />}
+                        </strong>
                         <small>
                           {item.detail} · {item.role === "lp" ? "Your position" : "Your DTF"}
                         </small>
                       </span>
                       <time dateTime={new Date(item.time).toISOString()}>{relativeTime(item.time, now)}</time>
-                      {unreadOf(item) && <span className="sr-only">Unread</span>}
+                      {unreadItem && <span className="sr-only">Unread</span>}
                     </Link>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             ) : (
               <p className="ntf-empty">No activity yet</p>

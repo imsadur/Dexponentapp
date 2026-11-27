@@ -82,6 +82,7 @@ export function PerpTradingChart({
     const text = styles.getPropertyValue("--text-muted").trim() || "#85858f";
     const border = styles.getPropertyValue("--border-soft").trim() || "#292932";
     const surface = styles.getPropertyValue("--surface").trim() || "#151519";
+    const down = styles.getPropertyValue("--danger").trim() || "#ff5f4f";
     let chart: IChartApi | undefined;
     let candleSeries: ISeriesApi<"Candlestick"> | undefined;
 
@@ -122,11 +123,11 @@ export function PerpTradingChart({
 
     candleSeries = chart.addSeries(CandlestickSeries, {
       upColor: "#52d3a2",
-      downColor: "#c71b00",
+      downColor: down,
       borderUpColor: "#52d3a2",
-      borderDownColor: "#c71b00",
+      borderDownColor: down,
       wickUpColor: "#7fe2bb",
-      wickDownColor: "#c71b00",
+      wickDownColor: down,
       priceLineColor: "#8b8dff",
       priceLineWidth: 1,
       lastValueVisible: true,

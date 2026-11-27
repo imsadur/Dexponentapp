@@ -31,11 +31,16 @@
 .ntf-activity li + li { border-top: 1px solid var(--border-soft, var(--border)); }
 .ntf-activity a { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 16px 8px; margin: 0 -8px; border-radius: 8px; color: inherit; text-decoration: none; }
 .ntf-activity a:hover { background: var(--accent-dim); }
-.ntf-activity a.unread::after { content: ""; position: absolute; top: 50%; left: -2px; width: 5px; height: 5px; margin-top: -2.5px; border-radius: 50%; background: var(--accent); }
 .ntf-icon { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--surface-elevated); color: var(--text-secondary); }
 .ntf-icon.deposit { color: var(--success); }
 .ntf-text { display: grid; gap: 3px; min-width: 0; }
-.ntf-text strong { overflow: hidden; font-size: 13px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.ntf-text strong { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; font-weight: 400; color: var(--text-secondary); }
+.ntf-text strong > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ntf-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+/* Unread: full-strength title in medium weight with a green dot. Read: regular weight, dimmed. */
+.ntf-activity a.unread .ntf-text strong { color: var(--text-primary); font-weight: 500; }
+.ntf-activity a.read { opacity: .8; }
+.ntf-activity a.read:hover { opacity: 1; }
 .ntf-text small { overflow: hidden; color: var(--text-muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .ntf-activity time { color: var(--text-muted); font-size: 11px; white-space: nowrap; }
 .ntf-empty { margin: 24px 0; color: var(--text-muted); font-size: 13px; text-align: center; }

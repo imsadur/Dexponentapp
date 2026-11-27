@@ -2,36 +2,27 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { nudgesFor, relativeTime, sortActivity, unreadCount, type ActivityItem } from "../src/domain/notifications";
 
-const base = { signedIn: true, positions: 0, access: "none" as const, managedLive: 0, drafts: 0 };
+const base = { signedIn: true, access: "none" as const, managedLive: 0, drafts: 0 };
 const ids = (input: Parameters<typeof nudgesFor>[0]) => nudgesFor(input).map((n) => n.id);
 
-test("visitors get the deposit nudge and a path to manager access through sign-in", () => {
-  const nudges = nudgesFor({ ...base, signedIn: false });
-  assert.deepEqual(nudges.map((n) => n.id), ["first-deposit", "manager-access"]);
-  assert.equal(nudges[1].cta?.href, "/login/?next=%2Fapp%2Faccess%2F");
-});
-
-test("LP-only user with no positions is nudged to deposit and to get manager access", () => {
-  assert.deepEqual(ids(base), ["first-deposit", "manager-access"]);
-});
-
-test("LP with positions only sees the manager access nudge", () => {
-  assert.deepEqual(ids({ ...base, positions: 2 }), ["manager-access"]);
+test("no promotional nudges: visitors and LPs without access get none", () => {
+  assert.deepEqual(ids({ ...base, signedIn: false }), []);
+  assert.deepEqual(ids(base), []);
 });
 
 test("pending request shows a status note without a CTA", () => {
-  const [, review] = nudgesFor({ ...base, access: "requested" });
+  const [review] = nudgesFor({ ...base, access: "requested" });
   assert.equal(review.id, "access-review");
   assert.equal(review.cta, undefined);
 });
 
 test("approved manager without a DTF is nudged to create one, or to finish a draft", () => {
-  assert.deepEqual(ids({ ...base, positions: 1, access: "granted" }), ["first-dtf"]);
-  assert.deepEqual(ids({ ...base, positions: 1, access: "granted", drafts: 2 }), ["continue-draft"]);
+  assert.deepEqual(ids({ ...base, access: "granted" }), ["first-dtf"]);
+  assert.deepEqual(ids({ ...base, access: "granted", drafts: 2 }), ["continue-draft"]);
 });
 
-test("an active manager with positions gets no nudges", () => {
-  assert.deepEqual(ids({ ...base, positions: 1, access: "granted", managedLive: 3 }), []);
+test("an active manager gets no nudges", () => {
+  assert.deepEqual(ids({ ...base, access: "granted", managedLive: 3 }), []);
 });
 
 test("activity sorts newest first and counts unread since last seen", () => {

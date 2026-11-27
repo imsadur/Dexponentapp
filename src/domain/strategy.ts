@@ -57,7 +57,8 @@ export type Farm = {
   source: "demo" | "local";
   events: string[];
   icon?: string;
-  documents?: { name: string; size: number; type: string }[];
+  /** `id` keys the file in browser storage; older drafts have metadata only. */
+  documents?: { id?: string; name: string; size: number; type: string }[];
   lpPositions?: { address: string; depositedUsd: number }[];
 };
 export type User = { name: string; workspace: string };
@@ -129,6 +130,7 @@ const common: Field[] = [
   },
   select("asset", "Base token", ["USDC", "ETH", "WBTC"]),
   number("capacity", "TVL capacity", 100, 100000000, "USD"),
+  { ...select("visibility", "Visibility", ["Public", "Private"]), help: "Shown to LPs on the DTF page." },
   select("risk", "Risk profile", ["Balanced", "Conservative", "Aggressive"]),
   number("assumedApr", "Assumed annual gross return", -80, 100, "%", true),
   number("managementFee", "Management fee", 0, 10, "% / year", true),
@@ -239,6 +241,7 @@ export const families: {
 const baseDefaults: Values = {
   asset: "USDC",
   capacity: 1000000,
+  visibility: "Public",
   risk: "Balanced",
   managementFee: 1,
   performanceFee: 10,
@@ -719,7 +722,7 @@ export const farmSchema = z.object({
   events: z.array(z.string()),
   icon: z.string().optional(),
   documents: z
-    .array(z.object({ name: z.string(), size: z.number(), type: z.string() }))
+    .array(z.object({ id: z.string().optional(), name: z.string(), size: z.number(), type: z.string() }))
     .optional(),
   lpPositions: z
     .array(z.object({ address: z.string(), depositedUsd: z.number() }))

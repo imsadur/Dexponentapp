@@ -123,6 +123,7 @@ import { Positions } from "./positions";
 import { DtfDetail } from "./dtf-detail";
 import { DtfAccess } from "./dtf-access";
 import { PriceTicker } from "./price-ticker";
+import { DocIcon, docExt } from "./doc-icons";
 import { DtfMarket } from "./dtf-market";
 import { TradingViewPerformanceChart } from "./tradingview-performance-chart";
 import {
@@ -605,14 +606,18 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
                 </select>
               </label>
             )}
-            <button className="button wallet-button" onClick={() => setModal("wallet")} aria-label={app.wallet ? `Wallet ${shortAddress(app.wallet)} on ${walletNetwork(app.walletChain)}` : "Connect wallet"}>
-              <Wallet size={16} />
+            <button
+              className={`button wallet-button ${app.wallet ? "connected" : ""}`}
+              onClick={() => setModal("wallet")}
+              aria-label={app.wallet ? `Wallet ${shortAddress(app.wallet)} on ${walletNetwork(app.walletChain)}` : "Connect wallet"}
+              aria-haspopup="dialog"
+            >
               {app.wallet ? (
                 <>
                   <span className="mono">{shortAddress(app.wallet)}</span>
-                  <span className="wallet-network-chip"><NetworkIcon network={walletNetwork(app.walletChain)} size={14} />{walletNetwork(app.walletChain)}</span>
+                  <ChevronDown size={14} aria-hidden="true" />
                 </>
-              ) : "Connect wallet"}
+              ) : "Connect"}
             </button>
             <button
               className="icon-button notification-button"
@@ -678,7 +683,7 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
         {isV2 && (section === "dashboard" || section === "market" || (section === "strategies" && !isStrategyView)) && <PriceTicker />}
         <main
           id="main"
-          className={isWizard ? "main-content wizard-content" : isTrade ? "main-content trade-content" : "main-content"}
+          className={isWizard ? "main-content wizard-content" : isTrade ? "main-content trade-content" : section === "farms" ? "main-content manage-content" : "main-content"}
         >
           {app.storageError && (
             <Notice tone="warning">
@@ -770,7 +775,6 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
                     disabled={app.connecting}
                     onClick={app.connect}
                   >
-                    <Wallet size={16} />
                     {app.connecting ? "Waiting for wallet…" : "Browser wallet"}
                   </button>
                 </>
@@ -2057,7 +2061,7 @@ function FarmDetail({ id, tab, enhanced }: { id: string; tab?: string; enhanced:
         <section className="panel">
           <div className="panel-heading"><div><h3>DTF documents</h3><p>Methodology and disclosures from the Manager.</p></div><FileText size={18} /></div>
           {(farm.documents || []).length ? farm.documents?.map((document) => (
-            <div className="document-row" key={document.name}><FileText size={17} /><div><strong>{document.name}</strong><small>{formatCount(Math.max(1, Math.round(document.size / 1024)))} KB</small></div><Badge>PDF</Badge></div>
+            <div className="document-row" key={document.id ?? document.name}><DocIcon type={docExt(document.name, document.type)} size={17} /><div><strong>{document.name}</strong><small>{formatCount(Math.max(1, Math.round(document.size / 1024)))} KB</small></div><Badge>{docExt(document.name, document.type)}</Badge></div>
           )) : (
             <EmptyState title="No documents published" description="The Manager has not attached a factsheet or methodology document yet." />
           )}
@@ -3202,7 +3206,6 @@ function WorkspaceSettings({ tab }: { tab?: string }) {
                   disabled={app.connecting}
                   onClick={app.connect}
                 >
-                  <Wallet size={16} />
                   {app.connecting ? "Waiting for wallet…" : "Connect wallet"}
                 </button>
               </>

@@ -27,53 +27,36 @@ export type ActivityItem = {
 
 export type NudgeInput = {
   signedIn: boolean;
-  /** Open LP positions. */
-  positions: number;
   access: AccessStatus;
   /** Live DTFs the user manages. */
   managedLive: number;
   drafts: number;
 };
 
-/** At most two nudges, most valuable first. */
+/**
+ * Status notes for people already on the manager path. Promotional nudges (deposit, get
+ * access) are not shown here; the notification center is for things that happened.
+ */
 export function nudgesFor(input: NudgeInput): Nudge[] {
-  // Depositing needs only a wallet, so visitors get the same LP nudge; launching needs an account.
-  const nudges: Nudge[] = [];
-  if (input.positions === 0)
-    nudges.push({
-      id: "first-deposit",
-      title: "Deposit and earn yield",
-      body: "Choose a DTF and start earning from its strategy.",
-      cta: { label: "Explore DTFs", href: "/app/strategies/" },
-    });
-
-  if (!input.signedIn || input.access === "none")
-    nudges.push({
-      id: "manager-access",
-      title: "Launch your own DTF",
-      body: "Get manager access to create and run a strategy.",
-      cta: { label: "Get access", href: input.signedIn ? "/app/access/" : "/login/?next=%2Fapp%2Faccess%2F" },
-    });
-  else if (input.access === "requested")
-    nudges.push({ id: "access-review", title: "Access request in review", body: "We'll email you once it's approved." });
-  else if (input.managedLive === 0)
-    nudges.push(
-      input.drafts > 0
-        ? {
-            id: "continue-draft",
-            title: "Finish your first DTF",
-            body: `${input.drafts} draft${input.drafts === 1 ? "" : "s"} ready to continue.`,
-            cta: { label: "Continue", href: "/app/farms/drafts/" },
-          }
-        : {
-            id: "first-dtf",
-            title: "Create and launch your first DTF",
-            body: "Start from a template. It takes a few minutes.",
-            cta: { label: "Create DTF", href: "/app/farms/new/" },
-          },
-    );
-
-  return nudges.slice(0, 2);
+  if (!input.signedIn) return [];
+  if (input.access === "requested")
+    return [{ id: "access-review", title: "Access request in review", body: "We'll email you once it's approved." }];
+  if (input.access !== "granted" || input.managedLive > 0) return [];
+  return [
+    input.drafts > 0
+      ? {
+          id: "continue-draft",
+          title: "Finish your first DTF",
+          body: `${input.drafts} draft${input.drafts === 1 ? "" : "s"} ready to continue.`,
+          cta: { label: "Continue", href: "/app/farms/drafts/" },
+        }
+      : {
+          id: "first-dtf",
+          title: "Create and launch your first DTF",
+          body: "Start from a template. It takes a few minutes.",
+          cta: { label: "Create DTF", href: "/app/farms/new/" },
+        },
+  ];
 }
 
 /** Newest first, capped. */

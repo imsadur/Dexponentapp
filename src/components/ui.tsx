@@ -204,16 +204,18 @@ export function EmptyState({
   description,
   href,
   label = "Create DTF",
+  icon,
 }: {
   title: string;
   description: string;
   href?: string;
   label?: string;
+  icon?: ReactNode;
 }) {
   return (
     <div className="empty-state">
-      <span className="icon-tile">
-        <Layers3 />
+      <span className="icon-tile" aria-hidden="true">
+        {icon ?? <Layers3 />}
       </span>
       <h3>{title}</h3>
       <p>{description}</p>
@@ -466,7 +468,7 @@ export function PerformanceChart({
         <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
           <stop
             offset="0%"
-            stopColor={up ? "#84d7b1" : "#c71b00"}
+            style={{ stopColor: up ? "#84d7b1" : "var(--danger)" }}
             stopOpacity="0.15"
           />
           <stop offset="100%" stopColor="#84d7b1" stopOpacity="0" />
@@ -492,7 +494,7 @@ export function PerformanceChart({
         className="chart-trace"
         points={line}
         fill="none"
-        stroke={up ? "#84d7b1" : "#c71b00"}
+        style={{ stroke: up ? "#84d7b1" : "var(--danger)" }}
         strokeWidth={mini ? 3 : 2}
         vectorEffect="non-scaling-stroke"
       />

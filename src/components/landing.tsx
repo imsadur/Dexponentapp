@@ -6,7 +6,6 @@ import {
   CheckCircle as CircleCheck,
   Stack as Layers3,
   Shield,
-  Wallet,
   Lightning as Zap,
 } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
@@ -193,7 +192,6 @@ export function Login({ signup = false }: { signup?: boolean }) {
           onClick={app.connect}
           disabled={app.connecting}
         >
-          <Wallet size={17} />
           {app.connecting
             ? "Check your wallet…"
             : app.wallet

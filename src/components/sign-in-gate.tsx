@@ -1,5 +1,5 @@
 "use client";
-import { ArrowRight, LockSimple, Wallet } from "@phosphor-icons/react";
+import { ArrowRight, LockSimple } from "@phosphor-icons/react";
 import Link from "next/link";
 import { type ReactNode } from "react";
 import { useApp } from "./provider";
@@ -61,7 +61,7 @@ export function ConnectWalletButton({ className = "button primary", label = "Con
   return (
     <span className="connect-wallet">
       <button type="button" className={className} onClick={() => app.connect()} disabled={app.connecting}>
-        <Wallet size={16} /> {app.connecting ? "Check your wallet…" : label}
+        {app.connecting ? "Check your wallet…" : label}
       </button>
       {app.walletError && (
         <small className="connect-wallet-error" role="alert">

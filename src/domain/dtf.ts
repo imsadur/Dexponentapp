@@ -42,6 +42,8 @@ export type PublicDtf = {
   audit?: { by: string; date: string };
   /** Present when the DTF is a Farm in this workspace. */
   farmId?: string;
+  /** Set by the manager. Catalogue DTFs are public. */
+  visibility?: "Public" | "Private";
 };
 
 export type DtfSort = "trending" | "top";
@@ -164,6 +166,7 @@ export function dtfFromFarm(farm: Farm, manager: string): PublicDtf {
         : undefined,
     description: describe(farm.type, manager, farm.network, String(farm.values.asset || "USDC")),
     farmId: farm.id,
+    visibility: farm.values.visibility === "Private" ? "Private" : "Public",
   };
 }
 
@@ -310,12 +313,12 @@ export const txExplorerUrl = (network: string, hash: string) => txExplorers[netw
 /** Shows only the ends of a wallet address, e.g. 0x85…e90b. */
 export const maskAddress = (address: string) => `${address.slice(0, 4)}…${address.slice(-4)}`;
 
-export type DtfDocument = { name: string; type: string; size: number; demo: boolean };
+export type DtfDocument = { id?: string; name: string; type: string; size: number; demo: boolean };
 
 /** Documents the manager published. Workspace Farms use their uploads; the demo catalogue gets sample titles. */
-export function dtfDocuments(dtf: PublicDtf, uploads?: { name: string; size: number; type: string }[]): DtfDocument[] {
+export function dtfDocuments(dtf: PublicDtf, uploads?: { id?: string; name: string; size: number; type: string }[]): DtfDocument[] {
   const ext = (name: string, type: string) => (name.split(".").pop() || type.split("/").pop() || "file").toUpperCase();
-  if (dtf.farmId) return (uploads ?? []).map((d) => ({ name: d.name, type: ext(d.name, d.type), size: d.size, demo: false }));
+  if (dtf.farmId) return (uploads ?? []).map((d) => ({ ...(d.id ? { id: d.id } : {}), name: d.name, type: ext(d.name, d.type), size: d.size, demo: false }));
   const next = rng(`${dtf.id}:docs`);
   const kb = (min: number, max: number) => Math.round((min + next() * (max - min)) * 1024);
   const docs: DtfDocument[] = [

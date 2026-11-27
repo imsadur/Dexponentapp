@@ -5,9 +5,9 @@ import {
   ArrowUp,
   CaretRight,
   Copy,
+  DownloadSimple,
+  Eye,
   Info,
-  SealCheck,
-  SealWarning,
   LinkSimple,
   ShareNetwork,
   TelegramLogo,
@@ -38,6 +38,7 @@ import {
   txExplorerUrl,
   managerSummary,
   similarDtfs,
+  type DtfDocument,
   type DtfMetric,
   type DtfRange,
   type PublicDtf,
@@ -68,6 +69,8 @@ import {
 import { isManagedFarm, lpRow, type LpRow } from "@/domain/positions";
 import { farmDetailHref, strategyHref } from "@/domain/routes";
 import { DtfChart } from "./dtf-chart";
+import { DocIcon } from "./doc-icons";
+import { docKey, isPreviewable, openDocFile } from "./doc-store";
 import {
   AssetStack,
   DtfLogo,
@@ -79,8 +82,8 @@ import {
 } from "./dtf-shared";
 import { useApp } from "./provider";
 import { useDtfPortfolio } from "./use-dtf-portfolio";
-import { Missing, Pct, ReturnCell, Signed } from "./positions";
-import { AssetIcon, EmptyState, InfoTip, LabelTip, NetworkIcon, Tip } from "./ui";
+import { Missing, Pct } from "./positions";
+import { AssetIcon, EmptyState, LabelTip, NetworkIcon, Tip } from "./ui";
 
 const withdrawHelp = (dtf: PublicDtf) =>
   `${dtf.lockupDays > 0 ? `Each deposit unlocks ${dtf.lockupDays} days after it is made; a new deposit restarts the lock. ` : ""}Paid from the ${dtf.bufferPct}% buffer. Larger requests are paid as the manager unwinds positions.`;
@@ -237,7 +240,6 @@ function DtfProfile({ dtf, dtfs }: { dtf: PublicDtf; dtfs: PublicDtf[] }) {
                 <dt><LabelTip label="NAV">Value of one ${dtf.symbol} share in USD. Started at $1.00 at launch.</LabelTip></dt>
                 <dd className="dtfd-nav">{stats.nav === null ? MISSING : `$${stats.nav.toFixed(4)}`}</dd>
               </div>
-              <div className="dtfd-updated"><UpdatedAgo at={now} /></div>
             </dl>
           </header>
 
@@ -336,6 +338,27 @@ function PerformanceSection({ dtf, history }: { dtf: PublicDtf; history: ReturnT
   const [range, setRange] = useState<DtfRange>(() => (ageInDays(dtf.launchedAt) < 90 ? "ALL" : "30D"));
   const [hover, setHover] = useState<SeriesPoint | null>(null);
   const points = useMemo(() => dtfSeries(history, metric, range), [history, metric, range]);
+  /** Ranges with at least two points for this metric; the rest show a flat placeholder. */
+  const hasData = useMemo(
+    () => new Map(DTF_RANGES.map((r) => [r, dtfSeries(history, metric, r).length > 1])),
+    [history, metric],
+  );
+  const empty = !(points.length > 1);
+  // A brand-new DTF opens on the longest range that already has history, not an empty one.
+  const pickedRange = useRef(false);
+  useEffect(() => {
+    if (pickedRange.current) return;
+    pickedRange.current = true;
+    if (hasData.get(range)) return;
+    const fallback = (["ALL", "30D", "7D", "24H"] as DtfRange[]).find((r) => hasData.get(r));
+    if (fallback) setRange(fallback);
+  }, [hasData, range]);
+  // Flat line across the selected range so the chart keeps its shape while history builds up.
+  const placeholder = useMemo(() => {
+    const end = Date.now();
+    const span = range === "24H" ? 86_400_000 : range === "7D" ? 7 * 86_400_000 : 30 * 86_400_000;
+    return Array.from({ length: 24 }, (_, i) => ({ time: end - span + (span * i) / 23, value: 0 }));
+  }, [range]);
   const last = points.at(-1);
   const first = points[0];
   const target = useMemo(() => {
@@ -372,11 +395,19 @@ function PerformanceSection({ dtf, history }: { dtf: PublicDtf; history: ReturnT
           </div>
           <div className="segmented" role="group" aria-label="Time range">
             {DTF_RANGES.map((value) => (
-              <button key={value} className={range === value ? "active" : ""} aria-pressed={range === value} onClick={() => setRange(value)}>{value === "ALL" ? "All" : value}</button>
+              <button
+                key={value}
+                className={`${range === value ? "active" : ""} ${hasData.get(value) ? "" : "no-data"}`}
+                aria-pressed={range === value}
+                title={hasData.get(value) ? undefined : "Not enough history yet"}
+                onClick={() => setRange(value)}
+              >
+                {value === "ALL" ? "All" : value}
+              </button>
             ))}
           </div>
         </div>
-        {points.length > 1 && shown ? (
+        {!empty && shown ? (
           <>
             <div className="dtfd-chart-head" aria-live="polite">
               <span>{metric === "return" ? "Return" : metric === "tvl" ? "TVL" : "APY"}</span>
@@ -397,10 +428,12 @@ function PerformanceSection({ dtf, history }: { dtf: PublicDtf; history: ReturnT
             />
           </>
         ) : (
-          <div className="dtfd-chart-empty">
-            <Info size={18} />
-            <strong>Not enough history yet</strong>
-            <span>{metric === "apy" ? "APY needs 7 days of history." : "This DTF launched recently. Try a shorter range."}</span>
+          <div className="dtfd-chart-placeholder">
+            <DtfChart points={placeholder} tone="muted" format={format} intraday={false} label="No history for this range yet" onHover={setHover} />
+            <div className="dtfd-chart-empty" role="status">
+              <strong>Not enough history for {range === "ALL" ? "All" : range} yet</strong>
+              {metric === "apy" && <span>APY needs 7 days of history.</span>}
+            </div>
           </div>
         )}
       </div>
@@ -484,6 +517,56 @@ function ContractLink({ network, address, start = 6, end = 4 }: { network: strin
   );
 }
 
+/** One document: type icon, name and size, plus View (or Download for Office files). */
+/** Placeholder files behind the example DTFs' documents; each says it is a sample. */
+const SAMPLE_FILES: Record<string, string> = { PDF: "/samples/sample.pdf", DOCX: "/samples/sample.docx", DOC: "/samples/sample.docx", PPTX: "/samples/sample.pptx", PPT: "/samples/sample.pptx" };
+
+/** One document: type icon, name and size, plus View (or Download for Office files). */
+function DocumentRow({ doc, farmId }: { doc: DtfDocument; farmId?: string }) {
+  const [state, setState] = useState<"idle" | "opening" | "missing">("idle");
+  const sample = doc.demo ? SAMPLE_FILES[doc.type.toUpperCase()] : undefined;
+  const stored = Boolean(farmId && doc.id);
+  const label = isPreviewable(doc.type) ? "View" : "Download";
+  const open = async () => {
+    if (sample) {
+      if (label === "View") window.open(sample, "_blank", "noopener");
+      else {
+        const link = document.createElement("a");
+        link.href = sample;
+        link.download = doc.name;
+        link.click();
+      }
+      return;
+    }
+    if (!farmId || !doc.id) return;
+    setState("opening");
+    const ok = await openDocFile(docKey(farmId, doc.id), doc.name, doc.type);
+    setState(ok ? "idle" : "missing");
+  };
+  const unavailable = (!sample && !stored) || state === "missing";
+  const why = state === "missing" || stored ? "This file isn't stored in this browser. Ask the manager to upload it again." : "No file is attached to this document.";
+  return (
+    <li>
+      <span className={`dtfd-doc-type ${doc.type.toLowerCase()}`}><DocIcon type={doc.type} size={20} /></span>
+      <span>
+        <strong>{doc.name}</strong>
+        <small>{doc.type} · {docSize(doc.size)}{sample ? " · Sample file" : ""}</small>
+      </span>
+      <button
+        type="button"
+        className="button small dtfd-doc-view"
+        onClick={open}
+        disabled={unavailable || state === "opening"}
+        title={unavailable ? why : undefined}
+        aria-label={`${label} ${doc.name}`}
+      >
+        {label === "View" ? <Eye size={14} aria-hidden="true" /> : <DownloadSimple size={14} aria-hidden="true" />}
+        {state === "opening" ? "Opening…" : label}
+      </button>
+    </li>
+  );
+}
+
 function DetailsSection({ dtf, contract, now }: { dtf: PublicDtf; contract: string; now: number }) {
   const app = useApp();
   const copy = useCopy();
@@ -510,6 +593,7 @@ function DetailsSection({ dtf, contract, now }: { dtf: PublicDtf; contract: stri
           <div id="dtf-fees"><dt><LabelTip label="Management fee">Charged yearly on TVL.</LabelTip></dt><dd>{formatPct(dtf.managementFee, dtf.managementFee % 1 ? 2 : 0)} / year</dd></div>
           <div><dt><LabelTip label="Performance fee">Share of positive yield taken by the manager. Returns shown are after fees.</LabelTip></dt><dd>{formatPct(dtf.performanceFee, dtf.performanceFee % 1 ? 2 : 0)} of gains</dd></div>
           <div><dt>Minimum deposit</dt><dd>{formatCount(MIN_DEPOSIT)} {dtf.baseAsset}</dd></div>
+          <div><dt><LabelTip label="Visibility">Set by the manager. Public DTFs are open to any LP; private DTFs are shared by the manager.</LabelTip></dt><dd>{dtf.visibility ?? "Public"}</dd></div>
         </DetailGroup>
         <DetailGroup title="Liquidity">
           <div>
@@ -520,19 +604,8 @@ function DetailsSection({ dtf, contract, now }: { dtf: PublicDtf; contract: stri
           <div><dt>Deposits</dt><dd>Open · no cap</dd></div>
         </DetailGroup>
         <DetailGroup title="Trust">
-          <div>
-            <dt>Audit</dt>
-            <dd>
-              {dtf.audit ? (
-                <span className="dtfd-audit"><SealCheck size={15} weight="fill" aria-hidden="true" /> {dtf.audit.by}</span>
-              ) : (
-                <span className="dtfd-audit none"><SealWarning size={15} aria-hidden="true" /> Pending</span>
-              )}
-            </dd>
-          </div>
           <div><dt>Total LPs</dt><dd>{formatCount(dtf.lps)}</dd></div>
           <div><dt>Age</dt><dd><Tip tip={`Launched ${dateLabel(dtf.launchedAt)}`}><DtfAge launchedAt={dtf.launchedAt} now={now} /></Tip></dd></div>
-          <div><dt>Documents</dt><dd>{docs.length ? <a className="text-link" href="#dtf-docs">{formatCount(docs.length)} file{docs.length === 1 ? "" : "s"}</a> : MISSING}</dd></div>
         </DetailGroup>
       </div>
       <div className="dtfd-docs-block" id="dtf-risks">
@@ -540,10 +613,7 @@ function DetailsSection({ dtf, contract, now }: { dtf: PublicDtf; contract: stri
         {docs.length ? (
           <ul className="dtfd-docs">
             {docs.map((doc) => (
-              <li key={doc.name}>
-                <span className={`dtfd-doc-type ${doc.type.toLowerCase()}`}>{doc.type}</span>
-                <span><strong>{doc.name}</strong><small>{docSize(doc.size)}</small></span>
-              </li>
+              <DocumentRow key={doc.id ?? doc.name} doc={doc} farmId={dtf.farmId} />
             ))}
           </ul>
         ) : (
@@ -562,19 +632,6 @@ function DetailGroup({ title, children }: { title: string; children: ReactNode }
       <dl>{children}</dl>
     </section>
   );
-}
-
-/** "Updated just now" / "Updated 4m ago", ticking while the page is open. */
-function UpdatedAgo({ at }: { at: number }) {
-  const [clock, setClock] = useState(at);
-  useEffect(() => {
-    setClock(Date.now());
-    const id = window.setInterval(() => setClock(Date.now()), 30_000);
-    return () => window.clearInterval(id);
-  }, [at]);
-  const minutes = Math.floor(Math.max(0, clock - at) / 60_000);
-  const text = minutes < 1 ? "just now" : minutes < 60 ? `${minutes}m ago` : `${Math.floor(minutes / 60)}h ago`;
-  return <span className="dtfd-updated-text">Updated {text}</span>;
 }
 
 /* -------------------------------- Activity -------------------------------- */
@@ -667,34 +724,46 @@ function PositionCard({ dtf, row }: { dtf: PublicDtf; row: LpRow }) {
   return (
     <section className="dtfd-card dtfd-position" aria-labelledby="dtf-position">
       <div className="dtfd-card-head">
-        <h2 id="dtf-position" className="eyebrow">YOUR POSITION</h2>
+        <h2 id="dtf-position" className="dtfd-card-title">Your Position</h2>
       </div>
       <div className="dtfd-position-top">
-        <strong className="dtfd-position-value">
-          {row.value === null ? (
-            <Missing />
-          ) : (
-            <Tip tip={row.shares !== null && row.nav !== null ? `${row.shares.toLocaleString("en-US", { maximumFractionDigits: 6 })} shares × ${formatUsdPrecise(row.nav)} NAV` : formatUsdPrecise(row.value)}>
-              {formatUsd(row.value)}
-            </Tip>
+        <div>
+          <span><LabelTip label="Value">Shares × current NAV per share. The % is the change over the last 24 hours.</LabelTip></span>
+          <strong className="dtfd-position-value">
+            {row.value === null ? (
+              <Missing />
+            ) : (
+              <Tip tip={row.shares !== null && row.nav !== null ? `${row.shares.toLocaleString("en-US", { maximumFractionDigits: 6 })} shares × ${formatUsdPrecise(row.nav)} NAV` : formatUsdPrecise(row.value)}>
+                {formatUsd(row.value)}
+              </Tip>
+            )}
+          </strong>
+          {!row.closed && (
+            <small>
+              <Pct value={row.change24hPct} /> <i>(24h)</i>
+            </small>
           )}
-        </strong>
-        {!row.closed && (
+        </div>
+        <div>
+          <span>
+            <LabelTip label="P&L">
+              Value + withdrawn − deposited. The % is over total deposits. Realised {formatSignedUsd(row.realizedPnl)} · unrealised {formatSignedUsd(row.unrealizedPnl)}.
+            </LabelTip>
+          </span>
+          <strong className={`dtfd-position-value ${toneOf(row.totalPnl) ?? ""}`}>{formatSignedUsd(row.totalPnl)}</strong>
           <small>
-            <Signed value={row.change24hUsd} /> <Pct value={row.change24hPct} /> 24h
+            <Pct value={row.totalPnlPct} /> <i>(all time)</i>
           </small>
-        )}
+        </div>
       </div>
       <dl>
         <div>
-          <dt>Net deposited <InfoTip label="About net deposited">Deposited {formatUsd(row.deposited)} − withdrawn {formatUsd(row.withdrawn)}</InfoTip></dt>
+          <dt><LabelTip label="Net deposited">Deposited {formatUsd(row.deposited)} − withdrawn {formatUsd(row.withdrawn)}, in USD at the time of each transaction.</LabelTip></dt>
           <dd>{formatUsd(row.netDeposited)}</dd>
         </div>
         <div>
-          <dt>Total P&amp;L <InfoTip label="About total P&L">Value + withdrawn − deposited. Realised {formatSignedUsd(row.realizedPnl)} · unrealised {formatSignedUsd(row.unrealizedPnl)}</InfoTip></dt>
-          <dd className={toneOf(row.totalPnl) ?? ""}>
-            {formatSignedUsd(row.totalPnl)} <small>{formatSignedPct(row.totalPnlPct)}</small>
-          </dd>
+          <dt><LabelTip label="DTF share">Your value as a share of this DTF&apos;s TVL.</LabelTip></dt>
+          <dd>{row.shareOfDtf === null ? MISSING : `${row.shareOfDtf < 0.01 ? "<0.01" : row.shareOfDtf.toFixed(2)}%`}</dd>
         </div>
         {withdrawableDiffers && (
           <div>
@@ -702,14 +771,6 @@ function PositionCard({ dtf, row }: { dtf: PublicDtf; row: LpRow }) {
             <dd>{formatUsd(0)} · unlocks {formatDate(row.lockedUntil!)}</dd>
           </div>
         )}
-        <div>
-          <dt>Share of DTF</dt>
-          <dd>{row.shareOfDtf === null ? MISSING : `${row.shareOfDtf < 0.01 ? "<0.01" : row.shareOfDtf.toFixed(2)}%`}</dd>
-        </div>
-        <div>
-          <dt>Return</dt>
-          <dd><ReturnCell ret={row.ret} /></dd>
-        </div>
       </dl>
     </section>
   );
@@ -927,7 +988,7 @@ function ManagerCard({ dtfs, manager, manageHref }: { dtfs: PublicDtf[]; manager
   return (
     <section className="dtfd-card" aria-labelledby="dtf-manager">
       <div className="dtfd-card-head">
-        <span className="eyebrow">MANAGED BY</span>
+        <h2 className="dtfd-card-title">Managed by</h2>
         {manageHref && (
           <Link className="button small dtfd-manage-link" href={manageHref}>
             Manage

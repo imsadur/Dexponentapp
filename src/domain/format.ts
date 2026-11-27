@@ -36,8 +36,10 @@ export function formatUsdCompact(value: number | null | undefined): string {
 /** Signed USD: +$1.22 / −$1.22. Zero reads +$0.00. */
 export function formatSignedUsd(value: number | null | undefined, compact = false): string {
   if (!isNum(value)) return MISSING;
-  const body = (compact ? formatUsdCompact : formatUsd)(Math.abs(value));
-  return `${value < 0 ? MINUS : "+"}${body}`;
+  const abs = Math.abs(value);
+  // Gains and losses are money amounts: under $1 they read in cents (+$0.01), not 4 significant digits.
+  const body = abs < 1 ? `$${abs.toFixed(2)}` : (compact ? formatUsdCompact : formatUsd)(abs);
+  return `${value < 0 && body !== "$0.00" ? MINUS : "+"}${body}`;
 }
 
 /** Signed percent: +2.56% / −3.24%. */

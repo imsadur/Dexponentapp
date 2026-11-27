@@ -40,8 +40,13 @@ import { deployDemoFarm } from "@/domain/farm-actions";
 import { formatUsdCompact } from "@/domain/format";
 import { farmDetailHref } from "@/domain/routes";
 import { useApp } from "./provider";
+import { DOC_ACCEPT, DocIcon, docExt } from "./doc-icons";
+import { deleteDocFile, docKey, saveDocFile } from "./doc-store";
 import { LaunchGate, readyToLaunch } from "./launch-gate";
 import { useAccessStatus } from "./notifications-panel";
+
+const MAX_DOCS = 10;
+const MAX_DOC_MB = 10;
 import {
   Badge,
   AssetIcon,
@@ -569,43 +574,59 @@ export function Wizard({ farmId }: { farmId?: string }) {
                   <div className="document-upload-field">
                     <div>
                       <strong>Supporting documents</strong>
-                      <p>Factsheet, methodology or risk disclosure for LPs.</p>
+                      <p>Factsheet, methodology, deck or risk disclosure for LPs. PDF, Word, PowerPoint, Excel, CSV or images; up to {MAX_DOCS} files, {MAX_DOC_MB} MB each.</p>
                     </div>
-                    <label className="button small upload-button">
-                      <FileText size={14} /> Add PDF
+                    <label className={`button small upload-button ${(farm.documents || []).length >= MAX_DOCS ? "disabled" : ""}`}>
+                      <FileText size={14} /> Add documents
                       <input
                         type="file"
-                        accept="application/pdf"
+                        accept={DOC_ACCEPT}
                         multiple
-                        onChange={(event) => {
-                          const files = Array.from(event.target.files || []);
-                          const tooLarge = files.find((file) => file.size > 5 * 1024 * 1024);
+                        disabled={(farm.documents || []).length >= MAX_DOCS}
+                        onChange={async (event) => {
+                          const input = event.target;
+                          const files = Array.from(input.files || []);
+                          input.value = "";
+                          if (!files.length) return;
+                          const tooLarge = files.find((file) => file.size > MAX_DOC_MB * 1024 * 1024);
                           if (tooLarge) {
-                            setErrors({ documents: `${tooLarge.name} is larger than 5 MB.` });
+                            setErrors({ documents: `${tooLarge.name} is larger than ${MAX_DOC_MB} MB.` });
                             return;
                           }
-                          change({
-                            documents: [
-                              ...(farm.documents || []),
-                              ...files.map((file) => ({ name: file.name, size: file.size, type: file.type })),
-                            ].slice(0, 5),
-                          });
-                          event.target.value = "";
+                          const existing = farm.documents || [];
+                          const room = MAX_DOCS - existing.length;
+                          const accepted = files.slice(0, room);
+                          const added: NonNullable<Farm["documents"]> = [];
+                          for (const file of accepted) {
+                            const id = crypto.randomUUID();
+                            try {
+                              await saveDocFile(docKey(farm.id, id), file);
+                              added.push({ id, name: file.name, size: file.size, type: file.type });
+                            } catch {
+                              setErrors({ documents: `Couldn't save ${file.name} in this browser. Try again or use a smaller file.` });
+                              return;
+                            }
+                          }
+                          change({ documents: [...existing, ...added] });
+                          setErrors(files.length > room ? { documents: `Only ${MAX_DOCS} documents per DTF. ${files.length - room} not added.` } : {});
                         }}
                       />
                     </label>
                     {(farm.documents || []).length > 0 && (
                       <div className="uploaded-documents">
                         {farm.documents?.map((document, index) => (
-                          <div key={`${document.name}-${index}`}>
-                            <FileText size={14} />
+                          <div key={`${document.id ?? document.name}-${index}`}>
+                            <DocIcon type={docExt(document.name, document.type)} size={16} />
                             <span>{document.name}</span>
                             <small>{Math.max(1, Math.round(document.size / 1024))} KB</small>
                             <button
                               type="button"
                               className="icon-button"
                               aria-label={`Remove ${document.name}`}
-                              onClick={() => change({ documents: farm.documents?.filter((_, itemIndex) => itemIndex !== index) })}
+                              onClick={() => {
+                                if (document.id) deleteDocFile(docKey(farm.id, document.id)).catch(() => undefined);
+                                change({ documents: farm.documents?.filter((_, itemIndex) => itemIndex !== index) });
+                              }}
                             >
                               <Trash2 size={13} />
                             </button>
@@ -1105,6 +1126,10 @@ export function Wizard({ farmId }: { farmId?: string }) {
                   <div>
                     <span>TVL capacity</span>
                     <strong>{money(Number(values.capacity), true)}</strong>
+                  </div>
+                  <div>
+                    <span>Visibility</span>
+                    <strong>{values.visibility === "Private" ? "Private" : "Public"}</strong>
                   </div>
                   <div>
                     <span>Risk profile</span>

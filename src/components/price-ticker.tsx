@@ -18,7 +18,7 @@ function Items({ hidden = false }: { hidden?: boolean }) {
     <ul className="price-ticker-list" aria-hidden={hidden || undefined}>
       {tickers.map((t) => (
         <li key={t.symbol}>
-          <AssetIcon symbol={t.symbol} size={18} />
+          <AssetIcon symbol={t.symbol} size={15} />
           <strong>{t.symbol}</strong>
           <span className="price-ticker-price">{priceText(t.price)}</span>
           <span className={`price-ticker-change ${t.change < 0 ? "negative" : "positive"}`}>{changeText(t.change)}</span>

@@ -1,6 +1,6 @@
 "use client";
 import { useId } from "react";
-import { ageInDays, dtfUtilization, targetPace24h, type PublicDtf } from "@/domain/dtf";
+import { ageInDays, dtfUtilization, type PublicDtf } from "@/domain/dtf";
 import { formatPct, formatSignedPct, MISSING, toneOf } from "@/domain/format";
 import type { ReturnMetric } from "@/domain/position-metrics";
 import type { StrategyType } from "@/domain/strategy";
@@ -52,8 +52,6 @@ export function DtfAge({ launchedAt, now }: { launchedAt: string; now?: number }
 }
 
 /** "APY" for DTFs 90+ days old, "Return since launch" for younger ones. */
-export const returnLabel = (ret: ReturnMetric) => (ret.kind === "apy" ? "APY" : "Return since launch");
-
 /** Headline return (APY, or signed return since launch) with the last 24h change beside it. */
 export function ReturnFigure({ ret, change24h }: { ret: ReturnMetric; change24h: number | null }) {
   const main = ret.value === null ? MISSING : ret.kind === "apy" ? formatPct(ret.value) : formatSignedPct(ret.value);
@@ -65,17 +63,6 @@ export function ReturnFigure({ ret, change24h }: { ret: ReturnMetric; change24h:
           {formatSignedPct(change24h)} <span>24h</span>
         </small>
       )}
-    </span>
-  );
-}
-
-/** Compares a 24H return with the 24H return needed to stay on the target APR. */
-export function TargetPace({ ret, targetApr }: { ret: number; targetApr: number }) {
-  const pace = targetPace24h(targetApr);
-  const ahead = ret >= pace;
-  return (
-    <span className={`dtf-pace ${ahead ? "ahead" : "behind"}`} title={`Target pace: ${signedPct(pace, 3)} per day`}>
-      {ahead ? "Above" : "Below"} target pace
     </span>
   );
 }

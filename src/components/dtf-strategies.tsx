@@ -1,5 +1,5 @@
 "use client";
-import { ArrowRight, CaretRight, ListBullets, MagnifyingGlass, SquaresFour, Wallet } from "@phosphor-icons/react";
+import { CaretRight, ListBullets, MagnifyingGlass, SquaresFour, Wallet } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -19,10 +19,10 @@ import type { ReturnMetric } from "@/domain/position-metrics";
 import { dtfReturn } from "@/domain/positions";
 import { strategyHref } from "@/domain/routes";
 import type { StrategyType } from "@/domain/strategy";
-import { DtfLogo, DtfAge, ReturnFigure, TargetPace, returnLabel, typeLabel } from "./dtf-shared";
+import { DtfLogo, DtfAge, ReturnFigure, typeLabel } from "./dtf-shared";
 import { useApp } from "./provider";
 import { useDtfPortfolio } from "./use-dtf-portfolio";
-import { EmptyState, NetworkIcon, PageHeading } from "./ui";
+import { EmptyState, LabelTip, Metric, NetworkIcon, PageHeading } from "./ui";
 
 const typeFilters: (StrategyType | "ALL")[] = ["ALL", "INDEX", "SPOT", "PERPETUAL"];
 const VIEW_KEY = "fm:strategies-view";
@@ -79,6 +79,12 @@ export function DtfStrategies({ network }: { network: string }) {
   const totals = dtfTotals(onNetwork, now);
   const summary = useMemo(() => portfolioSummary(portfolio, all, now), [portfolio, all, now]);
   const shown = results.slice(0, visible);
+  /** Value-weighted 24h change across open positions, percent. */
+  const change24hPct = useMemo(() => {
+    const held = summary.rows.filter((r) => r.value > 0);
+    const total = held.reduce((sum, r) => sum + r.value, 0);
+    return total > 0 ? held.reduce((sum, r) => sum + r.value * (perf.get(r.dtf.id)?.change24h ?? 0), 0) / total : 0;
+  }, [summary.rows, perf]);
 
   useEffect(() => setVisible(DTF_PAGE_SIZE), [query, type, sort, network, mine]);
 
@@ -86,35 +92,42 @@ export function DtfStrategies({ network }: { network: string }) {
     <>
       <PageHeading title="Dexponent DTFs" description="Strategies run by independent managers." />
       <div className={`dtf-overview ${summary.rows.length ? "with-yours" : ""}`}>
-        <section className="dtf-stats" aria-labelledby="dtf-stats-title">
-          <header>
-            <h2 id="dtf-stats-title" className="panel-kicker">Stats</h2>
-          </header>
-          <dl>
-            <div><dt>TVL</dt><dd>{formatUsdCompact(totals.tvl)}</dd></div>
-            <div><dt>Active DTFs</dt><dd>{formatCount(totals.count)}</dd></div>
-            <div><dt>Managers</dt><dd>{formatCount(totals.managers)}</dd></div>
-          </dl>
-          {network !== "All Chains" && <p>{network}</p>}
+        <section className="overview-metrics capital-metrics positions-metrics dtf-stats-card" aria-labelledby="dtf-stats-title">
+          <h2 id="dtf-stats-title" className="dtf-card-heading">Stats</h2>
+          <Metric
+            label={<LabelTip label="TVL">Total value locked across all live DTFs{network === "All Chains" ? "" : ` on ${network}`}.</LabelTip>}
+            value={formatUsdCompact(totals.tvl)}
+            caption={network === "All Chains" ? "All chains" : network}
+          />
+          <Metric
+            label={<LabelTip label="Active DTFs">DTFs currently open for deposits.</LabelTip>}
+            value={formatCount(totals.count)}
+            caption="Open for deposits"
+          />
+          <Metric
+            label={<LabelTip label="Managers">Independent managers running at least one live DTF.</LabelTip>}
+            value={formatCount(totals.managers)}
+            caption="Running live DTFs"
+          />
         </section>
         {summary.rows.length > 0 && (
-          <section className="dtf-yours" aria-labelledby="dtf-yours-title">
-            <header>
-              <h2 id="dtf-yours-title" className="panel-kicker">Your positions <span>{summary.rows.length}</span></h2>
-              <Link className="dtf-yours-link" href="/app/positions/" aria-label="View your positions">
-                <ArrowRight size={16} />
+          <section className="overview-metrics capital-metrics positions-metrics dtf-yours-card" aria-labelledby="dtf-yours-title">
+            <h2 id="dtf-yours-title" className="dtf-card-heading">
+              <Link className="dtf-yours-title-link" href="/app/positions/" aria-label={`Your Position, ${summary.rows.length} open. View all positions`}>
+                Your Position <span className="dtf-yours-count" aria-hidden="true">{summary.rows.length}</span>
+                <CaretRight size={14} weight="bold" aria-hidden="true" />
               </Link>
-            </header>
-            <dl>
-              <div><dt>Value</dt><dd>{formatUsd(summary.value)}</dd></div>
-              <div><dt>Total yield</dt><dd className={toneOf(cents(summary.totalYield)) ?? ""}>{formatSignedUsd(cents(summary.totalYield))}</dd></div>
-              <div>
-                <dt>P&amp;L</dt>
-                <dd className={toneOf(cents(summary.pnl)) ?? ""}>
-                  {formatSignedUsd(cents(summary.pnl))} <small>{formatSignedPct(summary.pnlPct)}</small>
-                </dd>
-              </div>
-            </dl>
+            </h2>
+            <Metric
+              label={<LabelTip label="Net value">Current value of your open positions, at each DTF&apos;s latest NAV. The % is the value-weighted change over the last 24 hours.</LabelTip>}
+              value={formatUsd(summary.value)}
+              caption={<>{formatSignedPct(change24hPct)} <span className="dtf-yours-period">(24h)</span></>}
+            />
+            <Metric
+              label={<LabelTip label="P&L">Change in value of your open positions versus what you paid for them. The % is over that cost, since your first deposit.</LabelTip>}
+              value={formatSignedUsd(cents(summary.pnl))}
+              caption={<>{formatSignedPct(summary.pnlPct)} <span className="dtf-yours-period">(all time)</span></>}
+            />
           </section>
         )}
       </div>
@@ -173,8 +186,9 @@ export function DtfStrategies({ network }: { network: string }) {
         <EmptyState title="No positions yet" description="Deposit into a DTF to track it here." />
       ) : (
         <EmptyState
-          title="No strategies match"
-          description={network === "All Chains" ? "Try another token, manager, or strategy type." : `No DTFs match on ${network}. Try All Chains or another search.`}
+          icon={<MagnifyingGlass size={22} />}
+          title="No DTFs found"
+          description="Check the spelling, or search by a token, manager name or DTF name."
         />
       )}
       {results.length > 0 && (
@@ -219,13 +233,16 @@ function DtfCard({ dtf, perf, now, holding }: { dtf: PublicDtf; perf: Perf; now:
       </header>
       <div className="dtf-card-apy">
         <div>
-          <span>{returnLabel(perf.ret)}</span>
+          <span>
+            <LabelTip label="Return">
+              {perf.ret.kind === "apy" ? "APY: annualised yield after fees." : "Return since launch, after fees. Switches to APY once the DTF is 90 days old."}
+            </LabelTip>
+          </span>
           <ReturnFigure ret={perf.ret} change24h={perf.change24h} />
         </div>
         <div className="dtf-card-target">
           <span>Target APR</span>
           <strong>{formatPct(dtf.targetApr)}</strong>
-          <TargetPace ret={perf.change24h} targetApr={dtf.targetApr} />
         </div>
       </div>
       <dl className="dtf-card-rows">

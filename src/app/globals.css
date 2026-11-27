@@ -14,7 +14,7 @@
   --pink: #f472b6;
   --success: #3dc486;
   --warning: #d9be82;
-  --danger: #c71b00;
+  --danger: #ff5f4f; /* 5.9:1 on --surface, close to green; #c71b00 read too dark here */
   --purple: #b4b9e2;
   --shadow: 0 15px 45px #0002;
   color-scheme: dark;
@@ -6973,29 +6973,6 @@ textarea:focus-visible {
 
 /* DTF strategies directory (LP) */
 .dtf-overview { display: grid; gap: 16px; margin-bottom: 28px; }
-.dtf-overview.with-yours { grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr); }
-.dtf-stats, .dtf-yours { display: grid; align-content: space-between; gap: 14px; padding: 20px 22px; border-radius: 12px; background: var(--surface); }
-.dtf-stats dl, .dtf-yours dl { display: grid; gap: 16px; margin: 0; }
-.dtf-stats dl { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.dtf-yours dl { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.dtf-stats dl > div + div { padding-left: 16px; border-left: 1px solid var(--border); }
-.dtf-stats dl div, .dtf-yours dl div { display: grid; gap: 6px; min-width: 0; }
-.dtf-stats dt, .dtf-yours dt { color: var(--text-muted); font-size: 12px; }
-.dtf-stats dd, .dtf-yours dd { margin: 0; color: var(--text-primary); font-size: 22px; font-weight: 600; letter-spacing: -.015em; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.dtf-yours dd { font-size: 17px; }
-.dtf-yours dd small { display: block; margin-top: 2px; font-size: 12px; font-weight: 500; }
-.dtf-yours dd.positive { color: var(--success); }
-.dtf-yours dd.negative { color: var(--danger); }
-.dtf-stats > p, .dtf-yours > p { margin: 0; color: var(--text-muted); font-size: 11px; }
-.dtf-yours { background: linear-gradient(var(--accent-dim), var(--accent-dim)), var(--surface); }
-.dtf-yours header, .dtf-stats header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; }
-.dtf-stats h2 { margin: 0; font-size: 14px; font-weight: 600; }
-.dtf-yours h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; font-weight: 600; }
-.dtf-yours h2 span { display: grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: var(--background); font-size: 11px; font-weight: 700; }
-.dtf-yours-link { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: var(--surface-elevated); color: var(--text-primary); }
-.dtf-yours-link:hover { background: var(--accent); color: var(--background); }
-.dtf-yours-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-:root[data-theme="light"] :is(.dtf-stats, .dtf-yours) { box-shadow: 0 1px 2px rgb(16 24 40 / .05), 0 6px 20px rgb(16 24 40 / .05); }
 .dtf-positions { margin-bottom: 32px; scroll-margin-top: 90px; }
 .dtf-positions-totals { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 0 0 14px; }
 .dtf-positions-totals div { display: grid; gap: 6px; padding: 14px 16px; border-radius: 12px; background: var(--surface); }
@@ -7061,14 +7038,9 @@ textarea:focus-visible {
 .dtf-row-link { padding: 0; border: 0; background: none; color: var(--text-primary); font: inherit; font-weight: 600; text-align: left; }
 .dtf-row-link:hover { color: var(--accent); }
 .dtf-row-caret { width: 32px; color: var(--text-muted); }
-@media (max-width: 1180px) { .dtf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .dtf-overview.with-yours { grid-template-columns: 1fr; } }
+@media (max-width: 1180px) { .dtf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 720px) {
   .dtf-grid { grid-template-columns: 1fr; }
-  .dtf-stats dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .dtf-stats dl > div:nth-child(3) { padding-left: 0; border-left: 0; }
-  .dtf-stats dd { font-size: 19px; }
-  .dtf-yours dl { grid-template-columns: 1fr 1fr; }
-  .dtf-yours dl > div:first-child { grid-column: 1 / -1; }
 }
 @media (prefers-reduced-motion: reduce) { .dtf-card { transition: none; } .dtf-card:hover { transform: none; } }
 
@@ -7208,11 +7180,6 @@ textarea:focus-visible {
 .dtf-return { display: inline-flex; align-items: center; gap: 3px; font-variant-numeric: tabular-nums; }
 .dtf-return.positive { color: var(--success); }
 .dtf-return.negative { color: var(--danger); }
-.dtf-pace { display: inline-flex; align-items: center; gap: 6px; justify-self: start; width: fit-content; font-size: 11px; font-weight: 500; color: var(--text-secondary); }
-.dtf-pace::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.dtf-pace.ahead::before { background: var(--success); }
-.dtf-pace.behind::before { background: var(--warning); }
-.dtf-card > .dtf-pace { margin-top: -8px; }
 .dtf-util { display: grid; gap: 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
 .dtf-util-legend { display: flex; justify-content: space-between; gap: 10px; color: var(--text-muted); }
 .dtf-util-hit { position: relative; z-index: 1; display: block; padding: 6px 0; margin: -6px 0; border-radius: 4px; cursor: help; }
@@ -7333,9 +7300,6 @@ a.dtfd-ca svg { color: var(--text-muted); }
 a.dtfd-ca:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 .dtfd-meta dt { white-space: nowrap; }
 .dtfd-section > .dtfd-desc { margin-bottom: 4px; }
-.dtfd-audit { display: inline-flex; align-items: center; gap: 6px; }
-.dtfd-audit svg { color: var(--success); }
-.dtfd-audit.none svg { color: var(--warning); }
 .dtfd-docs-block { display: grid; gap: 10px; margin-top: 6px; }
 .dtfd-docs-block h3 { margin: 0; font-size: 14px; font-weight: 600; }
 .dtfd-doc-type { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 8px; background: var(--surface-elevated); color: var(--text-secondary); font-size: 10px; font-weight: 700; letter-spacing: .03em; }
@@ -7365,7 +7329,7 @@ a.dtfd-ca:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px;
 .dtfd-trade-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 10px; background: var(--background); }
 .dtfd-trade-tabs button { min-height: 38px; border: 0; border-radius: 8px; background: transparent; color: var(--text-muted); font-size: 13px; font-weight: 600; }
 .dtfd-trade-tabs button:hover:not(:disabled) { color: var(--text-primary); }
-.dtfd-trade-tabs button[aria-selected="true"] { background: var(--accent-dim); color: var(--accent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent); }
+.dtfd-trade-tabs button[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); box-shadow: none; }
 .dtfd-trade-body { display: grid; gap: 14px; padding: 18px 14px 0; }
 .dtfd-amount-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .dtfd-amount-top label { color: var(--text-secondary); font-size: 12px; font-weight: 500; }
@@ -7413,7 +7377,6 @@ a.dtfd-ca:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px;
 .dtfd-util dt { color: var(--text-muted); font-size: 11px; }
 .dtfd-util dd { margin: 2px 0 0; color: var(--text-primary); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .dtfd-util .dtfd-note { margin: 0; }
-.dtfd-stats small .dtf-pace { font-size: 11px; }
 .dtfd-stats .dtf-return svg { width: 18px; height: 18px; }
 .dtfd-similar-apy { display: grid; justify-items: end; gap: 1px; font-size: 13px; font-weight: 600; }
 .dtfd-similar svg { color: var(--text-muted); }
@@ -7476,8 +7439,6 @@ a.dtfd-ca:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px;
 .dtf-mine:hover { color: var(--text-primary); }
 .dtf-mine[aria-pressed="true"] { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); background: var(--accent-dim); color: var(--accent); }
 .dtf-mine span { display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--accent); color: var(--background); font-size: 10px; font-weight: 700; }
-.dtf-stats h2.panel-kicker, .dtf-yours h2.panel-kicker { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 11px; font-weight: 600; }
-.dtfd-position h2.eyebrow { margin: 0; font-size: 11px; font-weight: 700; line-height: 1.4; }
 :is(.dtf-stats, .dtf-yours, .dtf-positions-totals, .dtfd-stats, .dtfd-util, .dtfd-terms) dt,
 .dtf-table th,
 .dtfd-table th {
@@ -7500,13 +7461,13 @@ a.dtfd-ca:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px;
 .dtfd-activity a.dtfd-ca code { color: var(--text-primary); }
 
 /* Price ticker under the top bar */
-.price-ticker { display: flex; align-items: center; gap: 14px; height: 40px; padding-left: 35px; border-bottom: 1px solid var(--border); overflow: hidden; }
+.price-ticker { display: flex; align-items: center; gap: 14px; height: 34px; padding-left: 35px; border-bottom: 1px solid var(--border); overflow: hidden; }
 .price-ticker-tag { flex: none; color: var(--text-muted); font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; }
 .price-ticker-track { flex: 1; min-width: 0; overflow: hidden; mask-image: linear-gradient(90deg, transparent, #000 32px, #000 calc(100% - 48px), transparent); }
 .price-ticker-run { display: flex; width: max-content; animation: price-ticker 40s linear infinite; }
 .price-ticker:hover .price-ticker-run { animation-play-state: paused; }
 .price-ticker-list { display: flex; gap: 32px; margin: 0; padding: 0 32px 0 0; list-style: none; }
-.price-ticker-list li { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.price-ticker-list li { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .price-ticker-list strong { color: var(--text-primary); font-weight: 600; }
 .price-ticker-price { color: var(--text-secondary); }
 .price-ticker-change.positive { color: var(--success); }
@@ -7777,7 +7738,6 @@ a.dtfd-ca:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px;
 .label-tip:hover > .label-tip-body, .label-tip:focus-within > .label-tip-body { display: block; }
 
 /* === Workstream B: Explore DTFs, DTF detail, Positions === */
-.dtf-stats dl { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .dtf-footnote { display: block; }
 .dtf-card-title .dtf-card-network { display: inline-flex; flex: none; }
 .dtf-retfig { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -7788,12 +7748,10 @@ a.dtfd-ca:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px;
 .dtf-retfig .negative { color: var(--danger); }
 .dtf-card-apy { align-items: flex-start; }
 .dtf-card-apy .dtf-retfig strong { font-size: 28px; letter-spacing: -.02em; line-height: 1.1; }
-.dtf-card-target .dtf-pace { margin-top: 2px; }
 .dtf-row-return { display: inline-grid; justify-items: end; gap: 2px; }
 .dtf-row-return > small { color: var(--text-muted); font-size: 11px; }
 .dtf-row-return .dtf-retfig small { font-size: 11px; }
 .dtfd-nav { font-variant-numeric: tabular-nums; font-weight: 600; }
-.dtfd-meta .dtfd-updated { color: var(--text-muted); font-size: 12px; }
 .dtfd-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .dtfd-group { display: grid; align-content: start; gap: 6px; padding: 14px 16px 8px; border-radius: 12px; background: var(--surface); }
 .dtfd-group h3 { margin: 0 0 2px; color: var(--text-muted); font: 600 10px/1.4 "SFMono-Regular", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
@@ -7805,9 +7763,6 @@ a.dtfd-ca:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px;
 .dtfd-group code { font: 12px/1.4 "SFMono-Regular", Consolas, monospace; }
 :root[data-theme="light"] .dtfd-group { box-shadow: 0 1px 2px rgb(16 24 40 / .05), 0 6px 20px rgb(16 24 40 / .05); }
 @media (max-width: 720px) {
-  .dtf-stats dl { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .dtf-stats dl > div:nth-child(3) { padding-left: 12px; border-left: 1px solid var(--border); }
-  .dtf-stats dl > div + div { padding-left: 12px; }
   .dtfd-groups { grid-template-columns: 1fr; }
 }
 
@@ -7877,7 +7832,6 @@ a.dtfd-ca:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px;
   .topbar .breadcrumb { min-width: 0; overflow: hidden; }
   .topbar .breadcrumb strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .topbar-actions { min-width: 0; flex-shrink: 1; }
-  .topbar .wallet-button .wallet-network-chip { display: none; }
   .topbar .wallet-button > svg { display: none; }
   .preview-badge .label-tip-text { min-height: 22px; padding: 0 7px; font-size: 10px; }
   .list-toolbar .dtf-segment { overflow-x: auto; max-width: 100%; }
@@ -7973,3 +7927,144 @@ a.dtfd-ca:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px;
 .connect-wallet-error .text-link { padding: 0; border: 0; background: none; color: var(--accent); cursor: pointer; font-size: 12px; }
 .positions-wallet { margin: 0 0 12px; color: var(--text-muted); font-size: 12px; }
 .positions-wallet .mono { color: var(--text-secondary); }
+
+/* === Top bar: outlined wallet CTA, filled utility buttons === */
+/* Connect: same as other primary CTAs (Create DTF, Deposit, Sign in): solid green, dark text, slightly lighter on hover. */
+.topbar .wallet-button { border: 1px solid var(--accent); background: var(--accent); color: #071317; font-size: 13px; font-weight: 600; padding: 7px 16px; transition: background-color .15s ease, border-color .15s ease; }
+.topbar .wallet-button:hover:not(:disabled) { border-color: var(--accent-hover); background: var(--accent-hover); color: #071317; }
+[data-theme="light"] .topbar .wallet-button:not(.connected),
+[data-theme="light"] .topbar .wallet-button:not(.connected):hover:not(:disabled) { color: #fff; }
+/* Connected: same fill as the bell and menu buttons, address plus a small caret. */
+.topbar .wallet-button.connected { gap: 8px; padding: 7px 12px; border-color: transparent; background: var(--surface-elevated); color: var(--text-primary); font-size: 12px; font-weight: 500; }
+.topbar .wallet-button.connected svg { color: var(--text-secondary); transition: color .15s ease; }
+.topbar .wallet-button.connected:hover:not(:disabled) { border-color: transparent; background: var(--surface-elevated); color: var(--text-primary); }
+.topbar .wallet-button.connected:hover:not(:disabled) svg { color: var(--text-primary); }
+/* Network, bell and menu sit on the hover fill by default; hover only brightens the icon. */
+.topbar-actions > .icon-button,
+.utility-account > .icon-button,
+.topbar .chain-trigger { border: 1px solid transparent; background: var(--surface-elevated); color: var(--text-secondary); transition: color .15s ease; }
+.topbar-actions > .icon-button:hover,
+.utility-account > .icon-button:hover,
+.topbar .chain-trigger:hover,
+.topbar .chain-trigger[aria-expanded="true"] { border-color: transparent; background: var(--surface-elevated); color: var(--text-primary); }
+.topbar .chain-trigger { width: auto; min-width: 66px; gap: 8px; padding: 6px 12px; }
+.topbar .notification-button > span { top: 7px; right: 8px; width: 9px; height: 9px; border: 2px solid var(--surface-elevated); }
+
+/* === Explore DTFs: stats and position cards match Overview === */
+.dtf-overview .overview-metrics { margin-bottom: 0; border-color: transparent; }
+.dtf-overview .overview-metrics .metric { border-left: 0 !important; border-top: 0 !important; }
+.dtf-overview .dtf-stats-card { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.dtf-overview .dtf-yours-card { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* Position card spans one DTF card column; stats take the other two. */
+.dtf-overview.with-yours { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.dtf-overview.with-yours .dtf-stats-card { grid-column: span 2; }
+.dtf-yours-card .metric > strong { font-size: 22px; }
+.dtf-yours-card .metric { padding-left: 20px; padding-right: 16px; }
+.dtf-overview .dtf-card-heading { grid-column: 1 / -1; margin: 0; padding: 20px 24px 0; color: var(--text-primary); font-size: 14px; font-weight: 600; }
+.dtf-yours-card .dtf-card-heading { padding-left: 20px; }
+.dtf-overview .capital-metrics { align-content: start; }
+@media (max-width: 720px) { .dtf-stats-card .dtf-card-heading { padding-left: 12px; } }
+.dtf-overview .capital-metrics .metric { min-height: 0; padding-top: 14px; padding-bottom: 22px; }
+@media (max-width: 1180px) {
+  .dtf-overview.with-yours { grid-template-columns: 1fr; }
+  .dtf-overview.with-yours .dtf-stats-card { grid-column: auto; }
+}
+@media (max-width: 720px) {
+  .dtf-overview .dtf-stats-card { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .dtf-overview .dtf-stats-card .metric { padding: 16px 12px; min-height: 0; }
+  .dtf-overview .dtf-stats-card .metric > strong { font-size: 18px; }
+  .dtf-overview .dtf-yours-card { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+/* Right-most stat tooltips open leftward so they stay inside the card. */
+.dtf-overview .metric:last-child .label-tip-body { left: auto; right: 0; }
+.dtf-overview .metric:last-child .label-tip-body::before { left: auto; right: 8px; }
+/* Let tooltips escape the card; the corner glow moves into the background so nothing spills out. */
+.dtf-overview .capital-metrics {
+  overflow: visible;
+  background:
+    radial-gradient(circle at calc(100% - 52px) 27px, #f472b61c, transparent 125px),
+    linear-gradient(100deg, color-mix(in srgb, var(--accent) 5%, transparent), transparent 55%),
+    var(--surface);
+}
+.dtf-overview .capital-metrics::after { display: none; }
+@media (max-width: 720px) {
+  .topbar .wallet-button, .topbar .wallet-button.connected { padding: 6px 9px; font-size: 11px; }
+}
+@media (max-width: 760px) {
+  .topbar .utility-account > .icon-button { width: 32px; height: 32px; min-width: 32px; }
+  .topbar .topbar-actions { gap: 6px; }
+}
+/* Very narrow phones: the footer carries the preview disclosure, so the badge yields its space. */
+@media (max-width: 379px) {
+  .topbar-actions > .preview-badge { display: none; }
+}
+
+/* === Explore DTFs: green position card; card Return and Target APR share one size, top-aligned === */
+/* Brand green fill with dark text, like a primary CTA. Light theme uses white text, as primary buttons do. */
+.dtf-overview .dtf-yours-card {
+  --on-accent: #071317;
+  /* Logo gradient: deep green (#098C60) to bright mint (#42FBA6). */
+  background: linear-gradient(125deg, #098c60 0%, #23a874 42%, #3dc486 72%, #42fba6 120%);
+  border-color: transparent;
+  box-shadow: 0 16px 40px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+[data-theme="light"] .dtf-overview .dtf-yours-card { --on-accent: #071317; }
+.dtf-yours-card .dtf-card-heading { display: flex; align-items: center; gap: 8px; color: var(--on-accent); }
+.dtf-yours-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--on-accent); color: var(--accent); font-size: 11px; font-weight: 700; }
+.dtf-yours-card .metric > span,
+.dtf-yours-card .metric > span .label-tip-text { color: color-mix(in srgb, var(--on-accent) 72%, transparent); }
+.dtf-yours-card .metric > strong { color: var(--on-accent); }
+.dtf-yours-card .metric > small { color: color-mix(in srgb, var(--on-accent) 80%, transparent); font-weight: 500; }
+.dtf-yours-card .dtf-yours-period { opacity: .75; font-weight: 400; }
+.dtf-card .dtf-card-apy { align-items: flex-start; }
+.dtf-card .dtf-card-apy > div:first-child,
+.dtf-card .dtf-card-target { align-content: start; gap: 6px; }
+.dtf-card .dtf-card-apy .dtf-retfig { display: grid; justify-items: start; gap: 4px; }
+.dtf-card .dtf-card-apy .dtf-retfig strong,
+.dtf-card .dtf-card-target strong { font-size: 24px; letter-spacing: -.02em; line-height: 1.15; }
+.dtf-card .dtf-card-apy .dtf-retfig small { font-size: 12px; }
+
+/* === Managed DTFs (list, drafts, DTF workspace): borderless cards, as on Overview === */
+.manage-content :is(.panel, .farm-detail-hero, .overview-metrics, .farm-table-wrap, .tv-chart-canvas, .demo-position-summary),
+.manage-content :is(.panel, .farm-detail-hero, .overview-metrics, .farm-table-wrap):hover { border-color: transparent; }
+.manage-content .overview-metrics .metric { border-left: 0 !important; border-top: 0 !important; }
+
+/* === DTF page chart: flat muted placeholder when a range has no history === */
+.dtfd-chart-placeholder { position: relative; margin-top: 10px; }
+.dtfd-chart-placeholder .dtfd-chart-canvas { height: 212px; }
+.dtfd-chart-placeholder .dtfd-chart-empty { position: absolute; inset: 0 0 50% 0; display: grid; place-content: end center; justify-items: center; gap: 4px; padding: 0 16px; pointer-events: none; }
+.dtfd-chart-placeholder .dtfd-chart-empty strong { color: var(--text-secondary); font-size: 13px; font-weight: 500; }
+.dtfd-chart-placeholder .dtfd-chart-empty span { color: var(--text-muted); font-size: 12px; }
+.dtfd-chart-top .segmented button.no-data { color: var(--text-muted); opacity: .6; }
+.dtfd-chart-top .segmented button.no-data.active { background: color-mix(in srgb, var(--text-muted) 18%, transparent); color: var(--text-muted); opacity: 1; }
+
+.dtf-yours-title-link { display: inline-flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; }
+.dtf-yours-title-link svg { transition: transform .15s ease; }
+.dtf-yours-title-link:hover svg { transform: translateX(2px); }
+.dtf-yours-title-link:focus-visible { outline: 2px solid var(--on-accent); outline-offset: 3px; border-radius: 4px; }
+
+/* === DTF page documents: type icon, name, View / Download === */
+.dtfd-doc-type svg { display: block; }
+.dtfd-docs li > span:nth-child(2) { flex: 1; min-width: 0; }
+.dtfd-doc-view { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; font-size: 12px; }
+.dtfd-doc-view:disabled { opacity: .45; cursor: not-allowed; }
+.dtfd-doc-type:is(.png, .jpg, .jpeg, .webp, .gif, .svg) { color: var(--purple, #a78bfa); background: color-mix(in srgb, var(--purple, #a78bfa) 14%, var(--surface-elevated)); }
+.upload-button.disabled { opacity: .5; pointer-events: none; }
+.uploaded-documents svg { flex: none; color: var(--text-secondary); }
+@media (max-width: 520px) { .dtfd-doc-view { padding: 0 10px; } }
+
+/* === DTF page: Your Position card. Value and P&L side by side, details below === */
+.dtfd-card-head .dtfd-card-title { color: var(--text-primary); }
+.dtfd-position .dtfd-position-top { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.dtfd-position .dtfd-position-top > div { display: grid; align-content: start; gap: 6px; min-width: 0; }
+.dtfd-position .dtfd-position-top > div:last-child { justify-items: end; text-align: right; }
+.dtfd-position .dtfd-position-top > div:last-child .label-tip-body { left: auto; right: 0; }
+.dtfd-position .dtfd-position-top > div:last-child .label-tip-body::before { left: auto; right: 8px; }
+.dtfd-position .dtfd-position-top > div > span { color: var(--text-muted); font: 500 10px/1.4 "SFMono-Regular", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
+.dtfd-position .dtfd-position-value { font-size: 24px; line-height: 1.15; white-space: nowrap; }
+.dtfd-position .dtfd-position-value.positive { color: var(--success); }
+.dtfd-position .dtfd-position-value.negative { color: var(--danger); }
+.dtfd-position .dtfd-position-top small { font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.dtfd-position .dtfd-position-top small i { color: var(--text-muted); font-style: normal; font-weight: 400; }
+.dtfd-position dl { padding-top: 14px; border-top: 1px solid var(--border-soft, var(--border)); }
+.dtfd-position dl div { font-size: 13px; }
