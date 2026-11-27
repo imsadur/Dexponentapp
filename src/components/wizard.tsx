@@ -74,6 +74,8 @@ const stages = [
   { label: "Deploy", step: 5 },
 ];
 const stageOf = (step: number) => (step >= 5 ? 3 : step >= 3 ? 2 : step >= 1 ? 1 : 0);
+/** "Step 2 of 4" for a saved draft, in the same four stages the builder shows. */
+export const draftProgress = (step: number) => ({ stage: stageOf(step) + 1, of: stages.length });
 const normalizeStep = (step: number) => stages[stageOf(step)].step;
 /** Fields shown in the "Risk & fees" group; everything else marked advanced is collapsed. */
 const riskFeeKeys = new Set(["risk", "managementFee", "performanceFee"]);
@@ -314,7 +316,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
     return (
       <EmptyState
         title="DTF not found"
-        description="Check the link or open Managed DTFs."
+        description="Check the link or open My DTFs."
         href="/app/farms"
         label="View DTFs"
       />
@@ -328,7 +330,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
         <Badge tone="mint">ACTIVE</Badge>
         <h1>DTF created</h1>
         <p>
-          <strong>{farm.name}</strong> now appears in Managed DTFs.
+          <strong>{farm.name}</strong> now appears in My DTFs.
         </p>
         {app.storageError && <Notice tone="warning">{app.storageError}</Notice>}
         <div className="hero-actions">
@@ -378,7 +380,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
     <div className="wizard">
       <div className="wizard-top">
         <Link href="/app/farms" className="back-link">
-          <ArrowLeft size={15} /> Managed DTFs
+          <ArrowLeft size={15} /> My DTFs
         </Link>
         <span className="save-status">
           <Save size={13} />

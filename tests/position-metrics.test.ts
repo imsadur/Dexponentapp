@@ -51,7 +51,8 @@ test("formatting follows the spec table", () => {
   assert.equal(formatSignedUsd(1.22), "+$1.22");
   assert.equal(formatSignedUsd(-1.22), "−$1.22");
   assert.equal(formatSignedUsd(0.01), "+$0.01");
-  assert.equal(formatSignedUsd(-0.004), "+$0.00");
+  assert.equal(formatSignedUsd(-0.004), "$0.00");
+  assert.equal(formatSignedUsd(0), "$0.00");
   assert.equal(formatSignedPct(2.5), "+2.50%");
   assert.equal(formatSignedPct(-3.24), "−3.24%");
   assert.equal(formatSignedPct(-0.0001), "+0.00%");

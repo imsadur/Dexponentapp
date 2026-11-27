@@ -59,6 +59,8 @@ export type Farm = {
   icon?: string;
   /** `id` keys the file in browser storage; older drafts have metadata only. */
   documents?: { id?: string; name: string; size: number; type: string }[];
+  /** Wallet that built or launched this DTF. Sample DTFs have none and belong to the preview wallet. */
+  owner?: string;
   lpPositions?: { address: string; depositedUsd: number }[];
 };
 export type User = { name: string; workspace: string };
@@ -721,6 +723,7 @@ export const farmSchema = z.object({
   updatedAt: z.string(),
   events: z.array(z.string()),
   icon: z.string().optional(),
+  owner: z.string().optional(),
   documents: z
     .array(z.object({ id: z.string().optional(), name: z.string(), size: z.number(), type: z.string() }))
     .optional(),
@@ -728,3 +731,14 @@ export const farmSchema = z.object({
     .array(z.object({ address: z.string(), depositedUsd: z.number() }))
     .optional(),
 });
+
+/**
+ * Whether `wallet` manages `farm`. A recorded owner must match; sample DTFs belong to the preview
+ * wallet; DTFs built in this browser before any wallet was connected go to whoever connects.
+ */
+export function ownsFarm(farm: Farm, wallet: string, previewWallet: string): boolean {
+  if (!wallet) return false;
+  if (farm.owner) return farm.owner.toLowerCase() === wallet.toLowerCase();
+  if (farm.source === "demo") return wallet.toLowerCase() === previewWallet.toLowerCase();
+  return true;
+}

@@ -49,7 +49,7 @@ export function useAccessStatus(identifier: string | undefined): AccessStatus {
 /** Nudges, activity and unread state for the signed-in user. */
 export function useNotifications() {
   const app = useApp();
-  // LP activity follows the wallet; manager activity follows the sign-in.
+  // LP and manager activity both follow the wallet; access nudges follow the sign-in.
   const { portfolio, connected } = useDtfPortfolio();
   const signedIn = Boolean(app.session);
   const identifier = app.session?.identifier;
@@ -82,8 +82,8 @@ export function useNotifications() {
     [identifier],
   );
 
-  const live = useMemo(() => app.farms.filter((f) => f.status === "ACTIVE"), [app.farms]);
-  const drafts = app.farms.filter((f) => f.status === "DRAFT" || f.status === "SIMULATION").length;
+  const live = useMemo(() => app.myFarms.filter((f) => f.status === "ACTIVE"), [app.myFarms]);
+  const drafts = app.myFarms.filter((f) => f.status === "DRAFT" || f.status === "SIMULATION").length;
 
   const items = useMemo(() => {
     const names = new Map(dtfDirectory(app.farms, app.profile.name).map((d) => [d.id, d.name]));
@@ -96,7 +96,8 @@ export function useNotifications() {
       detail: formatUsd(e.usd),
       href: strategyHref(e.dtfId),
     }));
-    const flows: ActivityItem[] = (signedIn ? live : []).flatMap((farm) => {
+    // Manager activity follows the connected wallet, like the manager pages.
+    const flows: ActivityItem[] = (connected ? live : []).flatMap((farm) => {
       const dtf = dtfFromFarm(farm, app.profile.name);
       return dtfActivity(dtf, now, FLOWS_PER_DTF).map((a) => ({
         id: `mgr-${a.id}`,
@@ -109,7 +110,7 @@ export function useNotifications() {
       }));
     });
     return sortActivity([...own, ...flows]);
-  }, [signedIn, connected, portfolio.ledger, live, app.farms, app.profile.name, now]);
+  }, [connected, portfolio.ledger, live, app.farms, app.profile.name, now]);
 
   const nudges = nudgesFor({
     signedIn,
@@ -147,7 +148,7 @@ export function useNotifications() {
     refresh: () => setNow(Date.now()),
     markAllRead,
     markRead,
-    hasManagerActivity: signedIn && live.length > 0,
+    hasManagerActivity: connected && live.length > 0,
   };
 }
 

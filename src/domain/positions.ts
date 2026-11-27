@@ -16,7 +16,7 @@ import {
 } from "./position-metrics";
 import type { Farm, FarmStatus } from "./strategy";
 
-/** Farms a manager has taken past drafting. Drafts and simulations stay on the Managed DTFs page. */
+/** Farms a manager has taken past drafting. Drafts and simulations stay on the My DTFs page. */
 export const MANAGED_STATUSES: FarmStatus[] = ["READY", "DEPLOYING", "ACTIVE", "PAUSED", "FAILED"];
 export const isManagedFarm = (farm: Farm) => MANAGED_STATUSES.includes(farm.status);
 const isLive = (farm: Farm) => farm.status === "ACTIVE" || farm.status === "PAUSED";

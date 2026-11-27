@@ -672,7 +672,7 @@ select {
   font-size: 17px;
 }
 .empty-state p {
-  max-width: 380px;
+  max-width: 480px;
   color: var(--text-muted);
   font-size: 12px;
   margin-bottom: 10px;
@@ -7905,11 +7905,11 @@ a.dtfd-ca:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px;
 .visitor-template .strategy-tag.perpetual { border-color: #3dc48666; color: #3dc486; }
 .positions-nudge-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 @media (max-width: 900px) { .visitor-templates { grid-template-columns: 1fr; } }
-.sidebar-signin { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; color: inherit; text-decoration: none; }
-.sidebar-signin:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.sidebar-signin { color: inherit; text-decoration: none; }
 .sidebar-signin:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.sidebar-signin .profile-copy { display: grid; gap: 2px; }
-.sidebar-signin strong { color: var(--accent); }
+/* Signed-out row mirrors the signed-in profile row: brand mark in place of initials. */
+.avatar.avatar-brand { background: var(--surface-elevated); border-color: var(--border); }
+.avatar.avatar-brand img { display: block; width: 20px; height: 20px; }
 /* Launch gate: onboarding check at the last builder step */
 .launch-gate { padding-top: 36px; }
 .launch-gate-close { position: absolute; top: 14px; right: 14px; display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text-secondary); cursor: pointer; }
@@ -8068,3 +8068,100 @@ a.dtfd-ca:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px;
 .dtfd-position .dtfd-position-top small i { color: var(--text-muted); font-style: normal; font-weight: 400; }
 .dtfd-position dl { padding-top: 14px; border-top: 1px solid var(--border-soft, var(--border)); }
 .dtfd-position dl div { font-size: 13px; }
+
+/* Search fields: focus ring on the whole box, not the inner input (matches Explore DTFs search). */
+.search-input:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+.search-input input, .search-input input:hover, .search-input input:focus, .search-input input:focus-visible { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; box-shadow: none; }
+
+/* Empty tables keep their header; the nudge sits where rows would be. */
+.positions-empty-table tbody tr, .positions-empty-table tbody tr:hover { background: none; cursor: default; }
+.positions-empty-table tbody td { padding: 14px; border-bottom: 0; white-space: normal; text-align: left; }
+.positions-empty-table .positions-nudge { margin: 0; }
+.farm-table-wrap > .positions-nudge { margin: 14px; }
+
+/* === Manager empty state: one flat card, next action left, path to a live DTF right === */
+.manager-empty {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; align-items: center;
+  padding: 28px; border-radius: 16px;
+  background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 55%), var(--surface);
+}
+.manager-empty-copy { display: grid; justify-items: start; gap: 10px; }
+.manager-empty-copy h3 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -.01em; }
+.manager-empty-copy p { max-width: 440px; margin: 0 0 6px; color: var(--text-secondary); font-size: 13px; line-height: 1.55; }
+.manager-steps { position: relative; display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.manager-steps li { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: start; gap: 12px; padding: 10px 12px; border-radius: 10px; }
+/* Connector between step marks. */
+.manager-steps li:not(:last-child)::after { content: ""; position: absolute; left: 25px; top: 40px; bottom: -6px; width: 1px; background: var(--border); }
+.manager-steps li.done:not(:last-child)::after { background: color-mix(in srgb, var(--accent) 55%, transparent); }
+.manager-steps li.current { background: var(--surface-elevated); }
+.manager-step-mark { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 50%; color: var(--text-muted); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; background: var(--surface); }
+.manager-steps li.current .manager-step-mark { border-color: var(--accent); color: var(--accent); }
+.manager-steps li.done .manager-step-mark { border-color: var(--accent); background: var(--accent); color: #071317; }
+.manager-steps li > span:nth-child(2) { display: grid; gap: 2px; padding-top: 4px; min-width: 0; }
+.manager-steps strong { color: var(--text-primary); font-size: 13px; font-weight: 500; }
+.manager-steps li.todo strong { color: var(--text-secondary); }
+.manager-steps small { color: var(--text-muted); font-size: 12px; line-height: 1.4; }
+.manager-steps li.done small { color: var(--text-secondary); }
+/* Inside a table (Positions → Manager), the card sits flush with the table instead of nesting. */
+.positions-empty-table .manager-empty { padding: 14px; background: none; }
+@media (max-width: 900px) { .manager-empty { grid-template-columns: 1fr; gap: 20px; padding: 20px; } }
+
+/* Centered "connect your wallet" state inside empty Positions tables. */
+.connect-empty { display: grid; justify-items: center; gap: 10px; padding: 40px 20px 44px; text-align: center; }
+.connect-empty-icon { display: grid; place-items: center; width: 48px; height: 48px; margin-bottom: 6px; border: 1px solid var(--border); border-radius: 50%; background: var(--surface-elevated); color: var(--accent); }
+.connect-empty h3 { margin: 0; color: var(--text-primary); font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
+.connect-empty p { max-width: 480px; margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
+.connect-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 10px; }
+.connect-empty-actions .button { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Empty-state action pairs: both buttons share one width (the wider of the two). */
+:is(.connect-empty-actions, .positions-nudge-actions, .signin-gate-actions) {
+  display: inline-grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 10px;
+}
+:is(.connect-empty-actions, .positions-nudge-actions, .signin-gate-actions) > .button,
+:is(.connect-empty-actions, .positions-nudge-actions, .signin-gate-actions) > .connect-wallet,
+:is(.connect-empty-actions, .positions-nudge-actions, .signin-gate-actions) > .connect-wallet > .button { width: 100%; min-width: 148px; justify-content: center; }
+:is(.connect-empty-actions, .positions-nudge-actions, .signin-gate-actions) > .connect-wallet { justify-items: stretch; }
+@media (max-width: 480px) {
+  :is(.connect-empty-actions, .positions-nudge-actions, .signin-gate-actions) { grid-auto-flow: row; width: 100%; }
+}
+
+/* === My DTFs empty states (no wallet / nothing built / drafts only) === */
+.empty-panel { display: grid; justify-items: center; gap: 10px; padding: 64px 24px; border-radius: 16px; background: var(--surface); text-align: center; }
+.empty-panel + .empty-panel, .draft-resume + .empty-panel { margin-top: 24px; }
+.empty-panel-icon { display: grid; place-items: center; width: 48px; height: 48px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--background); color: var(--accent); }
+.empty-panel h2 { margin: 0; color: var(--text-primary); font-size: 20px; font-weight: 600; letter-spacing: -.01em; }
+.empty-panel p { max-width: 460px; margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
+.empty-panel .connect-empty-actions { margin-top: 12px; }
+.empty-panel > small { margin-top: 4px; color: var(--text-muted); font-size: 12px; }
+
+.draft-resume { border-radius: 16px; background: var(--surface); }
+.draft-resume > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 22px; border-bottom: 1px solid var(--border-soft, var(--border)); }
+.draft-resume h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.draft-resume header p { margin: 4px 0 0; color: var(--text-muted); font-size: 12px; }
+.draft-resume header .text-link { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; text-decoration: none; }
+.draft-resume ul { margin: 0; padding: 0; list-style: none; }
+.draft-resume li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 14px; padding: 14px 22px; }
+.draft-resume li + li { border-top: 1px solid var(--border-soft, var(--border)); }
+.draft-resume-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; background: var(--surface-elevated); color: var(--text-secondary); }
+.draft-resume-name { display: grid; gap: 3px; min-width: 0; }
+.draft-resume-name strong { overflow: hidden; font-size: 13px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.draft-resume-name small { color: var(--text-muted); font-size: 11px; }
+.draft-resume-type { padding: 3px 7px; border-radius: 4px; background: var(--surface-elevated); color: var(--text-secondary); font: 600 10px/1.3 "SFMono-Regular", Consolas, monospace; letter-spacing: .06em; }
+.draft-resume li .button { min-height: 36px; padding: 0 14px; font-size: 12px; }
+@media (max-width: 600px) {
+  .draft-resume > header { flex-direction: column; align-items: flex-start; }
+  .draft-resume li { grid-template-columns: auto minmax(0, 1fr); }
+  .draft-resume-type { justify-self: start; grid-column: 2; }
+  .draft-resume li .button { grid-column: 1 / -1; width: 100%; }
+}
+
+/* Overview → My DTFs without a wallet: template prompt under the empty table. */
+.template-prompt { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-top: 16px; padding: 22px 24px; border-radius: 16px; background: var(--surface); }
+.template-prompt h3 { margin: 0; font-size: 16px; font-weight: 600; }
+.template-prompt p { margin: 4px 0 0; color: var(--text-secondary); font-size: 13px; }
+.template-prompt .button { flex: none; min-width: 148px; }
+.positions-empty-table .connect-empty .empty-panel-icon { margin-bottom: 8px; }
+.positions-empty-table .connect-empty h3 { max-width: 420px; }
+@media (max-width: 600px) { .template-prompt { flex-direction: column; align-items: flex-start; } .template-prompt .button { width: 100%; } }
+.positions-empty-table > table { table-layout: fixed; width: 100%; }

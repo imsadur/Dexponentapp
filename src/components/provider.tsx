@@ -9,6 +9,7 @@ import {
   XCircle,
 } from "@phosphor-icons/react";
 import {
+  useMemo,
   createContext,
   useCallback,
   useContext,
@@ -17,7 +18,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { type Farm, type User } from "@/domain/strategy";
+import { ownsFarm, type Farm, type User } from "@/domain/strategy";
 import { localDataAdapter, seedFarms } from "@/adapters/data";
 import { SESSION_KEY, type Session } from "@/adapters/auth";
 import {
@@ -39,6 +40,8 @@ declare global {
 }
 type Context = {
   farms: Farm[];
+  /** DTFs the connected wallet manages (empty without a wallet). */
+  myFarms: Farm[];
   ready: boolean;
   storageError: string;
   saveFarm: (farm: Farm) => void;
@@ -74,6 +77,8 @@ export type Notice = { id: string; kind: "success" | "error"; title: string; bod
 /** Preview wallet address. Nothing is ever signed with it. */
 const DEMO_WALLET = "0x7a3F9c21B4e8D05a6C1f2E9b8D3c4A5e6F7b8C9d";
 const DEMO_WALLET_KEY = "fm:demo-wallet";
+/** Set after the user connects a browser wallet, so a reload can restore it without a prompt. */
+const BROWSER_WALLET_KEY = "fm:wallet-connected";
 type OrderToastRecord = { id: string; order: OrderToastOrder; event: OrderToastEvent; view: OrderToastView };
 const AppContext = createContext<Context | null>(null);
 export function useApp() {
@@ -158,6 +163,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setWallet(a[0] || "");
     };
     const chain = (value: unknown) => setWalletChain(String(value));
+    // Restore a previously connected browser wallet silently (eth_accounts never prompts).
+    let remembered = false;
+    try {
+      remembered = localStorage.getItem(BROWSER_WALLET_KEY) === "1";
+    } catch {
+      /* storage blocked: user reconnects */
+    }
+    if (remembered)
+      Promise.all([provider.request({ method: "eth_accounts" }), provider.request({ method: "eth_chainId" })])
+        .then(([list, id]) => {
+          const address = (list as string[])[0];
+          if (!address) return;
+          setWallet(address);
+          setWalletChain(String(id));
+        })
+        .catch(() => {
+          /* wallet locked or unavailable: stay disconnected */
+        });
     provider.on?.("accountsChanged", accounts);
     provider.on?.("chainChanged", chain);
     return () => {
@@ -176,7 +199,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       );
     }
   }
-  function saveFarm(farm: Farm) {
+  function saveFarm(input: Farm) {
+    // The connected wallet becomes the owner the first time it saves a DTF it builds.
+    const farm = wallet && !input.owner && input.source !== "demo" ? { ...input, owner: wallet } : input;
     const index = farms.findIndex((f) => f.id === farm.id);
     persist(
       index === -1
@@ -200,6 +225,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const chain = await window.ethereum.request({ method: "eth_chainId" });
       setWallet(accounts[0] || "");
       setWalletChain(String(chain));
+      try {
+        localStorage.setItem(BROWSER_WALLET_KEY, "1");
+      } catch {
+        /* restored only for this visit */
+      }
     } catch (e) {
       const code = (e as { code?: number }).code;
       setWalletError(
@@ -268,10 +298,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (event.rawError) console.error("Order submission failed", event.rawError);
     setOrderToasts((items) => items.map((item) => item.id === id ? { ...item, event, view: mapOrderEvent(item.order, event) } : item));
   }, []);
+  const myFarms = useMemo(() => farms.filter((farm) => ownsFarm(farm, wallet, DEMO_WALLET)), [farms, wallet]);
   return (
     <AppContext.Provider
       value={{
         farms,
+        myFarms,
         ready,
         storageError,
         saveFarm,
@@ -303,6 +335,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setWalletChain("");
           try {
             localStorage.removeItem(DEMO_WALLET_KEY);
+            localStorage.removeItem(BROWSER_WALLET_KEY);
           } catch {
             /* nothing stored */
           }

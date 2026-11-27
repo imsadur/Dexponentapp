@@ -199,9 +199,9 @@ function DtfProfile({ dtf, dtfs }: { dtf: PublicDtf; dtfs: PublicDtf[] }) {
   const stats = useMemo(() => dtfStats(dtf, now), [dtf, now]);
   const contract = dtfContract(dtf);
   const ret24h = useMemo(() => dtfReturn24h(dtf, now), [dtf, now]);
-  const managedIds = useMemo(() => new Set(app.farms.filter(isManagedFarm).map((f) => f.id)), [app.farms]);
-  // Manager data is gated on this workspace owning the DTF, never on the URL.
-  const farm = dtf.farmId ? app.farms.find((f) => f.id === dtf.farmId && isManagedFarm(f)) : undefined;
+  const managedIds = useMemo(() => new Set(app.myFarms.filter(isManagedFarm).map((f) => f.id)), [app.myFarms]);
+  // Manager data is gated on the connected wallet owning the DTF, never on the URL.
+  const farm = dtf.farmId ? app.myFarms.find((f) => f.id === dtf.farmId && isManagedFarm(f)) : undefined;
   const lp = useMemo(() => lpRow(dtf, portfolio, now, managedIds), [dtf, portfolio, now, managedIds]);
   const isLP = connected && (Boolean(portfolio.positions[dtf.id]) || lp.entries.length > 0);
   const [params, setParams] = useState<{ view: Panel | null; action: Mode | null }>({ view: null, action: null });

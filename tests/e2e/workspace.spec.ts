@@ -36,7 +36,7 @@ test("dbv3 navigation and complete demo Farm lifecycle stay isolated", async ({ 
     ["Positions", /\/dbv3\/positions\/?$/],
     ["Explore Farms", /\/dbv3\/explore\/?$/],
     ["Managed Farms", /\/dbv3\/farms\/?$/],
-    ["Templates", /\/dbv3\/templates\/?$/],
+    ["DTF Templates", /\/dbv3\/templates\/?$/],
     ["Analytics", /\/dbv3\/analytics\/?$/],
   ] as const) {
     await page.getByRole("link", { name: label, exact: true }).click();
