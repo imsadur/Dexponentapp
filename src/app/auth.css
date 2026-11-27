@@ -684,3 +684,11 @@
   .auth-body, .auth-live-dot, .auth-spin { animation: none; }
   .auth-feature { transition: none; }
 }
+
+/* Passwordless sign-in: social first, then email */
+.auth-social { display: grid; gap: 10px; width: 100%; }
+.auth-social-btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; }
+.auth-social-btn svg { flex: none; }
+.auth-top-right .auth-skip { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 13px; text-decoration: none; }
+.auth-top-right .auth-skip:hover { color: var(--text-primary); }
+.auth-skip:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }

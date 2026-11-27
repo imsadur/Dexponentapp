@@ -190,7 +190,7 @@ function readParams() {
 
 function DtfProfile({ dtf, dtfs }: { dtf: PublicDtf; dtfs: PublicDtf[] }) {
   const app = useApp();
-  const { portfolio, save, signedIn, loaded } = useDtfPortfolio();
+  const { portfolio, save, connected, loaded } = useDtfPortfolio();
   const [now, setNow] = useState(() => Date.now());
   const history = useMemo(() => dtfHistory(dtf, now), [dtf, now]);
   const stats = useMemo(() => dtfStats(dtf, now), [dtf, now]);
@@ -200,7 +200,7 @@ function DtfProfile({ dtf, dtfs }: { dtf: PublicDtf; dtfs: PublicDtf[] }) {
   // Manager data is gated on this workspace owning the DTF, never on the URL.
   const farm = dtf.farmId ? app.farms.find((f) => f.id === dtf.farmId && isManagedFarm(f)) : undefined;
   const lp = useMemo(() => lpRow(dtf, portfolio, now, managedIds), [dtf, portfolio, now, managedIds]);
-  const isLP = signedIn && (Boolean(portfolio.positions[dtf.id]) || lp.entries.length > 0);
+  const isLP = connected && (Boolean(portfolio.positions[dtf.id]) || lp.entries.length > 0);
   const [params, setParams] = useState<{ view: Panel | null; action: Mode | null }>({ view: null, action: null });
   useEffect(() => setParams(readParams()), []);
 
@@ -288,7 +288,7 @@ function DtfProfile({ dtf, dtfs }: { dtf: PublicDtf; dtfs: PublicDtf[] }) {
                   nav={stats.nav}
                   held={lp.value}
                   initialMode={params.action ?? "deposit"}
-                  signedIn={signedIn}
+                  connected={connected}
                   loaded={loaded}
                   portfolio={portfolio}
                   save={save}
@@ -724,7 +724,7 @@ function TradeCard({
   nav,
   held: heldValue,
   initialMode,
-  signedIn,
+  connected,
   loaded,
   portfolio,
   save,
@@ -735,7 +735,8 @@ function TradeCard({
   held: number | null;
   initialMode: Mode;
   onRecorded: () => void;
-  signedIn: boolean;
+  /** A wallet is connected. Depositing never needs a sign-in. */
+  connected: boolean;
   loaded: boolean;
   portfolio: ReturnType<typeof useDtfPortfolio>["portfolio"];
   save: ReturnType<typeof useDtfPortfolio>["save"];
@@ -766,7 +767,6 @@ function TradeCard({
   const invalid = Boolean(error) && text !== "" && error !== "Enter an amount";
   const locked = mode === "withdraw" && isLocked(position);
   const pickBase = mode === "deposit" ? balance : held;
-  const nextPath = strategyHref(dtf.id);
   const verb = mode === "deposit" ? "Deposit" : "Withdraw";
 
   function switchMode(next: Mode) {
@@ -816,16 +816,10 @@ function TradeCard({
   }
 
   let cta: ReactNode;
-  if (!signedIn) {
-    cta = (
-      <Link className="button primary full large" href={`/login/?next=${encodeURIComponent(nextPath)}`}>
-        Sign in to {mode}
-      </Link>
-    );
-  } else if (!app.wallet) {
+  if (!connected) {
     cta = (
       <button className="button primary full large" onClick={app.connect} disabled={app.connecting}>
-        {app.connecting ? "Connecting…" : "Connect"}
+        {app.connecting ? "Check your wallet…" : "Connect wallet"}
       </button>
     );
   } else {
@@ -858,9 +852,9 @@ function TradeCard({
           <span className="dtfd-wallet" title={mode === "deposit" ? "Wallet balance" : "Your position"}>
             <Wallet size={15} aria-hidden="true" />
             <span className="sr-only">{mode === "deposit" ? "Wallet balance" : "Your position"}</span>
-            {signedIn ? tokenAmount(mode === "deposit" ? balance : held, asset) : "—"}
+            {connected ? tokenAmount(mode === "deposit" ? balance : held, asset) : "—"}
           </span>
-          {signedIn && (
+          {connected && (
             <span className="dtfd-picks">
               <button onClick={() => pick(1)} disabled={pickBase <= 0 || pending || locked}>MAX</button>
               <button onClick={() => pick(0.5)} disabled={pickBase <= 0 || pending || locked}>50%</button>
@@ -879,12 +873,12 @@ function TradeCard({
             onKeyDown={(event) => event.key === "Enter" && submit()}
             aria-invalid={invalid}
             aria-describedby={invalid ? errorId : undefined}
-            disabled={!signedIn || pending || locked}
+            disabled={!connected || pending || locked}
           />
           <span className="dtfd-token"><AssetIcon symbol={asset} size={20} /> {asset}</span>
         </div>
         {invalid && <span className="sr-only" id={errorId} role="alert">{error}</span>}
-        {app.walletError && signedIn && !app.wallet && (
+        {app.walletError && !app.wallet && (
           <p className="dtfd-error" role="alert">
             <WarningCircle size={14} /> {app.walletError.startsWith("No browser wallet") ? "No wallet found." : app.walletError}{" "}
             <button className="text-link" onClick={app.connectDemo}>Use preview wallet</button>

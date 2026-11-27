@@ -71,7 +71,7 @@ export function parseAccessStatus(raw: string | null): AccessRecord["status"] {
   }
 }
 
-export function emptyRecord(identifier: string, method: "email" | "mobile", name: string): AccessRecord {
+export function emptyRecord(identifier: string, method: "email" | "mobile" | "google" | "x", name: string): AccessRecord {
   const [firstName = "", ...rest] = name.trim().split(/\s+/);
   return {
     profile: {

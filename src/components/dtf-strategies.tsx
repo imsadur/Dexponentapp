@@ -46,7 +46,7 @@ function holdingsFor(dtfs: PublicDtf[], portfolio: DtfPortfolio) {
 
 export function DtfStrategies({ network }: { network: string }) {
   const app = useApp();
-  const { portfolio, signedIn } = useDtfPortfolio();
+  const { portfolio, connected } = useDtfPortfolio();
   const [sort, setSort] = useState<DtfSort>("trending");
   const [type, setType] = useState<StrategyType | "ALL">("ALL");
   const [query, setQuery] = useState("");
@@ -134,7 +134,7 @@ export function DtfStrategies({ network }: { network: string }) {
               </button>
             ))}
           </div>
-          {signedIn && (
+          {connected && (
             <button className="dtf-mine" aria-pressed={mine} onClick={() => setMine((on) => !on)}>
               <Wallet size={15} /> My positions{holdings.size > 0 && <span>{holdings.size}</span>}
             </button>

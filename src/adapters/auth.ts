@@ -3,7 +3,8 @@
 // never in plain text, and verification codes are generated client-side.
 // Replace this adapter with a real auth API + SMS/email provider before launch.
 
-export type AuthMethod = "email" | "mobile";
+export type AuthMethod = "email" | "mobile" | "google" | "x";
+export type SocialProvider = "google" | "x";
 export type Session = {
   name: string;
   method: AuthMethod;
@@ -92,4 +93,36 @@ export function createAccount(account: Omit<Account, "createdAt">): Account {
 export function updateAccount(email: string, patch: Partial<Account>) {
   const key = normalizeEmail(email);
   writeAccounts(readAccounts().map((a) => (a.email === key ? { ...a, ...patch } : a)));
+}
+
+
+/**
+ * Google and X sign-in. Real OAuth needs a registered client ID and a server to exchange
+ * the authorization code; this static preview has neither, so it signs in to a preview
+ * account per provider. Swap this function for the provider redirect when a backend exists.
+ * Social sign-in skips email verification: the provider has already verified the identity.
+ */
+export function previewSocialSession(provider: SocialProvider): Session {
+  const label = provider === "google" ? "Google" : "X";
+  return { name: `${label} account`, method: provider, identifier: `preview-${provider}@dexponent.app` };
+}
+
+/** Display name from an email's local part: "jane.doe@x.com" → "Jane Doe". */
+export function nameFromEmail(email: string) {
+  const local = normalizeEmail(email).split("@")[0].replace(/[._-]+/g, " ").trim();
+  return local ? local.replace(/\b\w/g, (c) => c.toUpperCase()) : "Member";
+}
+
+/**
+ * Passwordless email sign-in: verifying the code signs in an existing account or creates
+ * one. Returns the session and whether the account is new.
+ */
+export function completeEmailSignIn(email: string): { session: Session; created: boolean } {
+  const existing = findByEmail(email);
+  if (existing) {
+    if (!existing.emailVerified) updateAccount(existing.email, { emailVerified: true });
+    return { session: { name: existing.name, method: "email", identifier: existing.email }, created: false };
+  }
+  const account = createAccount({ name: nameFromEmail(email), email, passwordHash: "", emailVerified: true });
+  return { session: { name: account.name, method: "email", identifier: account.email }, created: true };
 }

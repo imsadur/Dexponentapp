@@ -1,27 +1,30 @@
 "use client";
-import { ArrowClockwise, ArrowRight, Compass, MagnifyingGlass, WarningCircle } from "@phosphor-icons/react";
+import { ArrowClockwise, ArrowRight, CaretRight, Compass, MagnifyingGlass, Plus, WarningCircle } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { dtfDirectory, filterDtfs, sortDtfs, type PublicDtf } from "@/domain/dtf";
 import {
+  formatCount,
   formatDate,
   formatPct,
   formatSignedPct,
   formatSignedUsd,
   formatUsd,
+  formatUsdCompact,
   formatUsdPrecise,
   MISSING,
   toneOf,
 } from "@/domain/format";
-import { lpSummary, type ReturnMetric } from "@/domain/position-metrics";
-import { isManagedFarm, lpRows, managerRows, type LpRow } from "@/domain/positions";
-import { strategyHref } from "@/domain/routes";
+import { lpSummary, managerSummary, type ReturnMetric } from "@/domain/position-metrics";
+import { isManagedFarm, lpRows, managerRows, type LpRow, type ManagerRow } from "@/domain/positions";
+import { farmDetailHref, strategyHref } from "@/domain/routes";
 import type { StrategyType } from "@/domain/strategy";
 import { DtfLogo, typeLabel } from "./dtf-shared";
 import { useApp } from "./provider";
 import { useDtfPortfolio } from "./use-dtf-portfolio";
-import { Metric, NetworkIcon, PageHeading, Tip } from "./ui";
+import { ConnectWalletButton, SignInGate } from "./sign-in-gate";
+import { LabelTip, Metric, NetworkIcon, PageHeading, Tip } from "./ui";
 
 type TypeFilter = StrategyType | "ALL";
 
@@ -42,15 +45,23 @@ const matches = (dtf: Pick<PublicDtf, "name" | "symbol" | "type">, type: TypeFil
 /** Positions data and the roles the signed-in user plays. */
 export function usePortfolioRoles(network: string) {
   const app = useApp();
-  const { portfolio, signedIn, loaded } = useDtfPortfolio();
+  // LP positions follow the connected wallet; managing DTFs needs a sign-in.
+  const { portfolio, connected, wallet, loaded } = useDtfPortfolio();
+  const signedIn = Boolean(app.session);
   const [now, setNow] = useState(() => Date.now());
   const managedIds = useMemo(() => new Set(app.farms.filter(isManagedFarm).map((f) => f.id)), [app.farms]);
   const directory = useMemo(() => filterDtfs(dtfDirectory(app.farms, app.profile.name), { network }), [app.farms, app.profile.name, network]);
   const lp = useMemo(() => lpRows(portfolio, directory, now, managedIds), [portfolio, directory, now, managedIds]);
-  const managed = useMemo(() => managerRows(app.farms, app.profile.name, portfolio, now, network), [app.farms, app.profile.name, portfolio, now, network]);
+  // DTFs in the workspace belong to the signed-in manager; visitors manage nothing.
+  const managed = useMemo(
+    () => (signedIn ? managerRows(app.farms, app.profile.name, portfolio, now, network) : []),
+    [signedIn, app.farms, app.profile.name, portfolio, now, network],
+  );
   return {
     ready: app.ready && loaded,
     signedIn,
+    connected,
+    wallet,
     isLP: lp.length > 0,
     isManager: managed.length > 0,
     lp,
@@ -61,23 +72,97 @@ export function usePortfolioRoles(network: string) {
   };
 }
 
-/** Investor view: the signed-in user's DTF holdings. Manager figures live on Overview and Analytics. */
+type Role = "lp" | "manager";
+const ROLE_KEY = "fm:positions-view";
+const roleLabel: Record<Role, string> = { lp: "Liquidity provider", manager: "Manager" };
+
+/**
+ * Positions, split by role: what you hold as an LP, and the DTFs you run as a manager
+ * (yield generated and fees earned per DTF). The tab persists in ?view= and across visits.
+ */
 export function Positions({ network }: { network: string }) {
   const data = usePortfolioRoles(network);
+  const [chosen, setChosen] = useState<Role | null>(null);
+  const tabRefs = useRef<Record<Role, HTMLButtonElement | null>>({ lp: null, manager: null });
+
+  useEffect(() => {
+    const view = new URLSearchParams(window.location.search).get("view");
+    if (view === "lp" || view === "manager") return setChosen(view);
+    try {
+      const stored = localStorage.getItem(ROLE_KEY);
+      if (stored === "lp" || stored === "manager") setChosen(stored);
+    } catch {
+      /* storage blocked: default tab */
+    }
+  }, []);
+
   if (!data.ready) return <PositionsSkeleton />;
+  // Default to the side where the user has something; LP otherwise.
+  const role: Role = chosen ?? (!data.isLP && data.isManager ? "manager" : "lp");
+  const choose = (next: Role) => {
+    setChosen(next);
+    try {
+      localStorage.setItem(ROLE_KEY, next);
+    } catch {
+      /* not critical */
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.set("view", next);
+    window.history.replaceState(null, "", url);
+  };
+  const onTabKey = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const next: Role = event.key === "Home" ? "lp" : event.key === "End" ? "manager" : role === "lp" ? "manager" : "lp";
+    choose(next);
+    tabRefs.current[next]?.focus();
+  };
+
   return (
     <div className="positions-page">
       <PageHeading
         title="Positions"
-        description="Your DTF holdings"
+        description={role === "lp" ? "DTFs you've invested in" : "Yield and fees for DTFs you manage"}
         action={
-          <Link className="button primary" href="/app/strategies/">
-            <Compass size={16} /> Explore DTFs
-          </Link>
+          role === "lp" ? (
+            <Link className="button primary" href="/app/strategies/">
+              <Compass size={16} /> Explore DTFs
+            </Link>
+          ) : data.signedIn ? (
+            <Link className="button primary" href="/app/farms/new/">
+              <Plus size={16} /> Create DTF
+            </Link>
+          ) : undefined
         }
       />
-      <LpView rows={data.lp} directory={data.directory} now={data.now} signedIn={data.signedIn} />
-      <PricesUpdated at={data.now} onRefresh={data.refresh} />
+      <div className="tabs positions-tabs" role="tablist" aria-label="Positions by role">
+        {(["lp", "manager"] as Role[]).map((value) => (
+          <button
+            key={value}
+            ref={(el) => {
+              tabRefs.current[value] = el;
+            }}
+            role="tab"
+            id={`positions-tab-${value}`}
+            aria-selected={role === value}
+            aria-controls="positions-panel"
+            tabIndex={role === value ? 0 : -1}
+            className={role === value ? "active" : ""}
+            onClick={() => choose(value)}
+            onKeyDown={onTabKey}
+          >
+            {roleLabel[value]}
+          </button>
+        ))}
+      </div>
+      <div role="tabpanel" id="positions-panel" aria-labelledby={`positions-tab-${role}`}>
+        {role === "lp" ? (
+          <LpView rows={data.lp} directory={data.directory} now={data.now} connected={data.connected} wallet={data.wallet} />
+        ) : (
+          <ManagerView rows={data.managed} signedIn={data.signedIn} />
+        )}
+      </div>
+      {(role === "lp" ? data.connected : data.signedIn) && <PricesUpdated at={data.now} onRefresh={data.refresh} />}
     </div>
   );
 }
@@ -193,7 +278,7 @@ export function ReturnCell({ ret }: { ret: ReturnMetric }) {
 
 /* ----------------------------------- LP ----------------------------------- */
 
-function LpView({ rows, directory, now, signedIn }: { rows: LpRow[]; directory: PublicDtf[]; now: number; signedIn: boolean }) {
+function LpView({ rows, directory, now, connected, wallet }: { rows: LpRow[]; directory: PublicDtf[]; now: number; connected: boolean; wallet: string }) {
   const router = useRouter();
   const [type, setType] = useState<TypeFilter>("ALL");
   const [query, setQuery] = useState("");
@@ -202,6 +287,8 @@ function LpView({ rows, directory, now, signedIn }: { rows: LpRow[]; directory: 
 
   const summary = lpSummary(rows);
   const empty = rows.length === 0;
+  // No wallet, no portfolio: show "—", never a $0 that reads like a real balance.
+  const visitor = !connected;
   const open = rows.filter((r) => !r.closed);
   const closedCount = rows.length - open.length;
   const base = (showClosed ? rows : open).filter((r) => !hideSmall || r.closed || r.value === null || r.value >= SMALL_BALANCE);
@@ -212,6 +299,11 @@ function LpView({ rows, directory, now, signedIn }: { rows: LpRow[]; directory: 
 
   return (
     <section id="dtf-positions" className="positions-section" aria-label="Your DTF holdings">
+      {connected && (
+        <p className="positions-wallet">
+          Showing positions for <span className="mono">{wallet.slice(0, 6)}…{wallet.slice(-4)}</span>
+        </p>
+      )}
       {summary.excluded > 0 && (
         <p className="positions-warning" role="status">
           <WarningCircle size={14} /> {summary.excluded} position{summary.excluded === 1 ? "" : "s"} excluded: price unavailable
@@ -219,11 +311,10 @@ function LpView({ rows, directory, now, signedIn }: { rows: LpRow[]; directory: 
       )}
       <div className="overview-metrics capital-metrics positions-metrics">
         <Metric
-          label="Portfolio value"
-          value={formatUsd(summary.value)}
-          hint="Sum of shares × NAV per share across open positions. Positions without a price are left out."
+          label={<LabelTip label="Portfolio value">Sum of shares × NAV per share across open positions. Positions without a price are left out.</LabelTip>}
+          value={visitor ? MISSING : formatUsd(summary.value)}
           caption={
-            <>
+            visitor ? "Connect a wallet to see your value" : <>
               <Signed value={summary.change24h} /> (<Pct value={summary.change24hPct ?? (empty ? 0 : null)} />) 24h
               {withdrawableDiffers && (
                 <span className="positions-sub">
@@ -234,23 +325,21 @@ function LpView({ rows, directory, now, signedIn }: { rows: LpRow[]; directory: 
           }
         />
         <Metric
-          label="Net deposited"
-          value={formatUsd(summary.netDeposited)}
-          hint={`Deposited ${formatUsd(summary.deposited)} − withdrawn ${formatUsd(summary.withdrawn)}, in USD at the time of each transaction.`}
-          caption={`${formatUsd(summary.deposited)} in · ${formatUsd(summary.withdrawn)} out`}
+          label={<LabelTip label="Net deposited">{`Deposited ${formatUsd(summary.deposited)} − withdrawn ${formatUsd(summary.withdrawn)}, in USD at the time of each transaction.`}</LabelTip>}
+          value={visitor ? MISSING : formatUsd(summary.netDeposited)}
+          caption={visitor ? "Deposits minus withdrawals" : `${formatUsd(summary.deposited)} in · ${formatUsd(summary.withdrawn)} out`}
         />
         <Metric
-          label="Total P&L"
-          value={`${formatSignedUsd(summary.totalPnl)} · ${formatSignedPct(summary.totalPnlPct ?? 0, 1)}`}
-          tone={toneOf(summary.totalPnl)}
-          hint={`Value + withdrawn − deposited. The % is over total deposits. Realised ${formatSignedUsd(summary.realizedPnl)}, unrealised ${formatSignedUsd(summary.unrealizedPnl)}.`}
-          caption={`Realised ${formatSignedUsd(summary.realizedPnl)} · unrealised ${formatSignedUsd(summary.unrealizedPnl)}`}
+          label={<LabelTip label="Total P&L">{`Value + withdrawn − deposited. The % is over total deposits. Realised ${formatSignedUsd(summary.realizedPnl)}, unrealised ${formatSignedUsd(summary.unrealizedPnl)}.`}</LabelTip>}
+          value={visitor ? MISSING : formatSignedUsd(summary.totalPnl)}
+          suffix={visitor ? undefined : `(${formatSignedPct(summary.totalPnlPct ?? 0, 1)})`}
+          tone={visitor ? undefined : toneOf(summary.totalPnl)}
+          caption={visitor ? "Realised and unrealised" : `Realised ${formatSignedUsd(summary.realizedPnl)} · unrealised ${formatSignedUsd(summary.unrealizedPnl)}`}
         />
         <Metric
-          label="Avg return"
-          value={summary.avgReturn === null ? (empty ? formatPct(0) : MISSING) : formatPct(summary.avgReturn)}
+          label={<LabelTip label="Avg return">Value-weighted. APY for DTFs 90+ days old; return since launch (not annualised) for younger DTFs.</LabelTip>}
+          value={visitor ? MISSING : summary.avgReturn === null ? (empty ? formatPct(0) : MISSING) : formatPct(summary.avgReturn)}
           tone={summary.avgReturn !== null && summary.avgReturn < 0 ? "negative" : undefined}
-          hint="Value-weighted. APY for DTFs 90+ days old; return since launch (not annualised) for younger DTFs."
           caption="value-weighted · APY or since launch"
         />
       </div>
@@ -273,7 +362,7 @@ function LpView({ rows, directory, now, signedIn }: { rows: LpRow[]; directory: 
       {filtered && <Toolbar type={type} setType={setType} query={query} setQuery={setQuery} label="Search your positions" />}
 
       {empty ? (
-        <DepositNudge directory={directory} now={now} signedIn={signedIn} />
+        <DepositNudge directory={directory} now={now} connected={connected} />
       ) : !shown.length ? (
         <div className="empty-state positions-nomatch">
           <h3>No positions match</h3>
@@ -375,18 +464,34 @@ function LpView({ rows, directory, now, signedIn }: { rows: LpRow[]; directory: 
 }
 
 /** Empty LP state: same page structure, with a nudge toward any DTF (not only ones you manage). */
-function DepositNudge({ directory, now, signedIn }: { directory: PublicDtf[]; now: number; signedIn: boolean }) {
+function DepositNudge({ directory, now, connected }: { directory: PublicDtf[]; now: number; connected: boolean }) {
   // Suggest DTFs from other managers.
   const picks = useMemo(() => sortDtfs(directory.filter((d) => !d.farmId), "trending", now).slice(0, 3), [directory, now]);
-  const href = (id: string) => (signedIn ? positionsDetailHref(id, "position", "&action=deposit") : `/login/?next=${encodeURIComponent(strategyHref(id))}`);
+  // Depositing needs only a wallet, which the DTF page can connect.
+  const href = (id: string) => positionsDetailHref(id, "position", "&action=deposit");
   return (
     <div className="positions-nudge">
       <div className="positions-nudge-copy">
-        <h3>No positions yet</h3>
-        <p>Deposit into a DTF to see its value, P&amp;L and return here.</p>
-        <Link className="button primary" href={signedIn ? "/app/strategies/" : "/login/?next=%2Fapp%2Fpositions%2F"}>
-          {signedIn ? "Explore DTFs" : "Sign in to deposit"} <ArrowRight size={15} />
-        </Link>
+        <h3>{connected ? "No positions yet" : "Connect your wallet to view your positions"}</h3>
+        <p>
+          {connected
+            ? "This wallet hasn't deposited into a DTF. Deposit and earn yield; value, P&L and return show up here."
+            : "Your DTF holdings, returns and activity show up here once your wallet is connected. No sign-in needed."}
+        </p>
+        <div className="positions-nudge-actions">
+          {connected ? (
+            <Link className="button primary" href="/app/strategies/">
+              Explore DTFs <ArrowRight size={15} />
+            </Link>
+          ) : (
+            <>
+              <ConnectWalletButton />
+              <Link className="button" href="/app/strategies/">
+                Explore DTFs
+              </Link>
+            </>
+          )}
+        </div>
       </div>
       {picks.length > 0 && (
         <ul className="positions-nudge-picks" aria-label="Popular DTFs">
@@ -411,5 +516,124 @@ function DepositNudge({ directory, now, signedIn }: { directory: PublicDtf[]; no
         </ul>
       )}
     </div>
+  );
+}
+
+/* --------------------------------- Manager -------------------------------- */
+
+/** DTFs the user runs: TVL, yield generated for LPs, and the fees that yield earned the manager. */
+function ManagerView({ rows, signedIn }: { rows: ManagerRow[]; signedIn: boolean }) {
+  const router = useRouter();
+  const live = rows.filter((r) => r.live);
+  const s = managerSummary(live);
+  const yieldTotal = live.reduce((sum, r) => sum + (r.yieldGenerated ?? 0), 0);
+  const empty = !live.length;
+  const dash = !signedIn || empty;
+  const emptyCaption = signedIn ? "Appears once a DTF is live" : "Sign in to see your DTFs";
+
+  return (
+    <section className="positions-section" aria-label="DTFs you manage">
+      <div className="overview-metrics capital-metrics positions-metrics">
+        <Metric
+          label={<LabelTip label="TVL">LP capital across your live DTFs. Not your funds.</LabelTip>}
+          value={dash ? MISSING : formatUsdCompact(s.aum)}
+          caption={dash ? emptyCaption : `${formatCount(live.length)} live DTF${live.length === 1 ? "" : "s"} · not your funds`}
+        />
+        <Metric
+          label={<LabelTip label="Yield generated">Yield earned for LPs since each DTF launched, after fees. Estimated from simulated history.</LabelTip>}
+          value={dash ? MISSING : formatSignedUsd(yieldTotal, true)}
+          tone={dash ? undefined : toneOf(yieldTotal)}
+          caption={dash ? emptyCaption : "For LPs · since launch"}
+        />
+        <Metric
+          label={<LabelTip label="Fees earned">Your performance fee on positive yield, since launch. Estimated.</LabelTip>}
+          value={dash ? MISSING : formatUsd(s.feesEarned)}
+          caption={dash ? emptyCaption : s.feesEarned > 0 ? "Estimated · since launch" : "Fees accrue only on positive yield"}
+        />
+        <Metric
+          label={<LabelTip label="Claimable">Fees earned minus fees already claimed. Claiming opens once the DTF contract is deployed.</LabelTip>}
+          value={dash ? MISSING : formatUsd(s.claimable)}
+          caption={dash ? emptyCaption : "Claim opens after contract deployment"}
+        />
+      </div>
+
+      <div className="positions-table-head">
+        <h2>
+          DTFs <span className="muted">({formatCount(rows.length)})</span>
+        </h2>
+      </div>
+
+      {!signedIn ? (
+        <SignInGate
+          title="Sign in to see DTFs you manage"
+          body="Track TVL, yield generated and fees earned for every DTF you run."
+          next="/app/positions/?view=manager"
+          secondary={{ label: "Explore templates", href: "/app/templates/" }}
+        />
+      ) : !rows.length ? (
+        <div className="positions-nudge">
+          <div className="positions-nudge-copy">
+            <h3>No live DTFs yet</h3>
+            <p>Start from a template. Yield and fees for each DTF appear here once it&apos;s live.</p>
+            <div className="positions-nudge-actions">
+              <Link className="button primary" href="/app/farms/new/">
+                <Plus size={15} /> Create DTF
+              </Link>
+              <Link className="button" href="/app/templates/">
+                Explore templates
+              </Link>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="farm-table-wrap positions-table-wrap">
+          <table className="farm-table positions-table">
+            <thead>
+              <tr>
+                <th scope="col">DTF</th>
+                <th scope="col" className="numeric">TVL</th>
+                <th scope="col" className="numeric">Return</th>
+                <th scope="col" className="numeric">Yield generated</th>
+                <th scope="col" className="numeric">Fees earned</th>
+                <th scope="col" className="numeric">Claimable</th>
+                <th scope="col" className="numeric">LPs</th>
+                <th scope="col">
+                  <span className="sr-only">Open</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => {
+                const href = farmDetailHref(r.farm.id);
+                const notLive = <Missing why="Not live yet" />;
+                return (
+                  <tr key={r.id} onClick={() => router.push(href)}>
+                    <td data-label="DTF">
+                      <DtfCell dtf={r.dtf} href={href}>
+                        {!r.live && <span className="positions-pill">{r.farm.status === "READY" ? "Ready" : "Not live"}</span>}
+                      </DtfCell>
+                    </td>
+                    <td className="numeric" data-label="TVL">
+                      {r.tvl === null ? notLive : <Tip tip={formatUsdPrecise(r.tvl)}>{formatUsdCompact(r.tvl)}</Tip>}
+                    </td>
+                    <td className="numeric" data-label="Return">{r.live ? <ReturnCell ret={r.ret} /> : notLive}</td>
+                    <td className="numeric" data-label="Yield generated">{r.live ? <Signed value={r.yieldGenerated} compact /> : notLive}</td>
+                    <td className="numeric" data-label="Fees earned">{r.live ? formatUsd(r.feesEarned) : notLive}</td>
+                    <td className="numeric" data-label="Claimable">{r.live ? formatUsd(Math.max(0, r.feesEarned - r.feesClaimed)) : notLive}</td>
+                    <td className="numeric" data-label="LPs">{r.live ? formatCount(r.depositors) : notLive}</td>
+                    <td className="positions-caret">
+                      <CaretRight size={14} aria-hidden="true" />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {signedIn && rows.length > 0 && (
+        <p className="table-footnote">Yield and fees are estimated from each DTF&apos;s fee rate and history. Nothing has been claimed.</p>
+      )}
+    </section>
   );
 }

@@ -288,6 +288,8 @@ export function Metric({
   tone,
   hint,
   extra,
+  inline = false,
+  suffix,
 }: {
   /** Plain text, or a LabelTip when the label needs an explanation. */
   label: ReactNode;
@@ -298,17 +300,25 @@ export function Metric({
   /** How the number is calculated; shown in a keyboard-reachable tooltip. */
   hint?: string;
   extra?: ReactNode;
+  /** Show the caption to the right of the value instead of below it. */
+  inline?: boolean;
+  /** Small secondary figure beside the value, e.g. a percentage in brackets. */
+  suffix?: ReactNode;
 }) {
+  const small = (
+    <small>
+      {change && <b className="positive">{change}</b>} {caption}
+    </small>
+  );
   return (
-    <div className="metric">
+    <div className={inline || suffix ? "metric metric-inline" : "metric"}>
       <span>
         {label}
         {hint && <InfoTip label={typeof label === "string" ? `About ${label}` : "About this figure"}>{hint}</InfoTip>}
       </span>
       <AnimatedValue className={tone} value={value} />
-      <small>
-        {change && <b className="positive">{change}</b>} {caption}
-      </small>
+      {suffix && <i className={`metric-suffix ${tone ?? ""}`}>{suffix}</i>}
+      {small}
       {extra && <div className="metric-extra">{extra}</div>}
     </div>
   );

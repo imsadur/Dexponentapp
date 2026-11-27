@@ -8,6 +8,10 @@
 }
 .ntf-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid var(--border); }
 .ntf-head h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.ntf-head-actions { display: flex; align-items: center; gap: 14px; }
+.ntf-mark { padding: 0; border: 0; background: none; text-decoration: none; color: var(--accent); font-size: 12px; font-weight: 500; cursor: pointer; }
+.ntf-mark:hover { text-decoration: underline; text-underline-offset: 3px; }
+.ntf-mark:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
 .ntf-close { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text-secondary); cursor: pointer; }
 .ntf-close:hover { color: var(--text-primary); }
 .ntf-close:focus-visible, .ntf-panel a:focus-visible, .ntf-filter button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -25,7 +29,7 @@
 .ntf-filter button { min-height: 26px; padding: 0 9px; font-size: 11px; }
 .ntf-activity ul { margin: 0; padding: 0; list-style: none; }
 .ntf-activity li + li { border-top: 1px solid var(--border-soft, var(--border)); }
-.ntf-activity a { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 8px; margin: 0 -8px; border-radius: 8px; color: inherit; text-decoration: none; }
+.ntf-activity a { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 16px 8px; margin: 0 -8px; border-radius: 8px; color: inherit; text-decoration: none; }
 .ntf-activity a:hover { background: var(--accent-dim); }
 .ntf-activity a.unread::after { content: ""; position: absolute; top: 50%; left: -2px; width: 5px; height: 5px; margin-top: -2.5px; border-radius: 50%; background: var(--accent); }
 .ntf-icon { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--surface-elevated); color: var(--text-secondary); }

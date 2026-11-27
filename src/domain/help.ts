@@ -59,17 +59,17 @@ export const helpArticles: HelpArticle[] = [
   {
     id: "create-account", category: "account",
     question: "How do I create a Dexponent account?",
-    summary: "Sign up with your email or mobile number, verify the code we send, then choose how you plan to use Dexponent.",
-    steps: ["Select Sign up from the login screen.", "Enter your name, email or mobile number, and a password.", "Enter the verification code.", "Pick your role (LP or Manager) to personalise your workspace."],
-    example: "Priya signs up with her work email, verifies the 6-digit code, and selects Manager so the dashboard opens on Create DTF.",
+    summary: "Continue with Google or X, or enter your email and the 6-digit code we send. Your account is created the first time you sign in.",
+    steps: ["Open the sign-in page.", "Choose Continue with Google or Continue with X, or enter your email.", "If you used email, enter the 6-digit verification code.", "You're signed in. No password is needed."],
+    example: "Priya enters her work email, types the 6-digit code from her inbox, and lands on the Overview.",
     keywords: ["sign up", "signup", "register", "create account", "new account", "join"],
   },
   {
     id: "cant-sign-in", category: "account",
     question: "I can't sign in to my account",
-    summary: "Most sign-in issues come from a mistyped identifier, an expired verification code, or a password reset that wasn't completed.",
-    steps: ["Check you're using the same email or mobile number you signed up with.", "Request a new verification code if the old one expired.", "Use Forgot password to set a new password.", "Still stuck? Email support with the identifier you used."],
-    example: "Alex signed up with a mobile number but tried logging in with email. Switching to the Mobile tab fixed it.",
+    summary: "Most sign-in issues come from a mistyped email, an expired verification code, or using a different sign-in method than before.",
+    steps: ["Check you're using the same email, Google or X account as before.", "Codes expire after 5 minutes. Request a new one if yours expired.", "Check your spam folder for the code email.", "Still stuck? Email support with the email you used."],
+    example: "Alex first signed in with Google but later tried an email code for a different address. Using Continue with Google again fixed it.",
     keywords: ["login", "log in", "sign in", "password", "locked", "code", "otp", "verification"],
   },
   {

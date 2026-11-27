@@ -82,6 +82,8 @@ export type ManagerRow = ManagerRowInput & {
   dtf: PublicDtf;
   live: boolean;
   feeRate: number;
+  /** Yield earned for LPs since launch (positive or negative), USD. Null until the DTF is live. */
+  yieldGenerated: number | null;
   /** Largest depositor's share of TVL, percent. */
   topDepositorPct: number | null;
 };
@@ -114,6 +116,7 @@ export function managerRow(farm: Farm, managerName: string, portfolio: DtfPortfo
     feesClaimed: 0,
     stake,
     feeRate: dtf.performanceFee,
+    yieldGenerated: stats ? stats.yieldGenerated : null,
     topDepositorPct: concentration((farm.lpPositions ?? []).map((p) => p.depositedUsd)),
   };
 }

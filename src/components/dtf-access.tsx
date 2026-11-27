@@ -34,6 +34,7 @@ import {
   type ManagerProfile,
   type RequestField,
   type TradingBackground,
+  safeReturnPath,
 } from "@/domain/access";
 import type { StrategyType } from "@/domain/strategy";
 import { useApp } from "./provider";
@@ -41,6 +42,15 @@ import { formatDate } from "@/domain/format";
 import { PageHeading } from "./ui";
 
 const RETURN = "/app/access/";
+
+/** Draft (or other in-app page) to return to once access is granted, from `?next=`. */
+function useReturnTo() {
+  const [returnTo, setReturnTo] = useState<string | null>(null);
+  useEffect(() => {
+    setReturnTo(safeReturnPath(new URLSearchParams(window.location.search).get("next")));
+  }, []);
+  return returnTo;
+}
 const strategyOptions: { id: StrategyType; label: string }[] = [
   { id: "INDEX", label: "Index" },
   { id: "SPOT", label: "Spot" },
@@ -67,22 +77,23 @@ export function DtfAccess() {
 }
 
 function SignedOutAccess() {
-  const next = `?next=${encodeURIComponent(RETURN)}`;
+  // Keep any draft return path through sign-in so the manager lands back on their DTF.
+  const returnTo = useReturnTo();
+  const next = `?next=${encodeURIComponent(returnTo ? `${RETURN}?next=${encodeURIComponent(returnTo)}` : RETURN)}`;
   return (
     <>
       <section className="access-card access-gate">
         <span className="access-gate-icon"><LockSimple size={22} /></span>
         <div>
           <h2>Sign in to request manager access</h2>
-          <p>We need to know who&apos;s launching a DTF. Sign in or create an account, and you&apos;ll come straight back here to finish.</p>
+          <p>We need to know who&apos;s launching a DTF. Sign in with Google, X or email, and you&apos;ll come straight back here.</p>
         </div>
         <div className="access-gate-actions">
           <Link className="button primary" href={`/login/${next}`}><SignIn size={16} /> Sign in</Link>
-          <Link className="button" href={`/signup/${next}`}><UserPlus size={16} /> Create account</Link>
         </div>
       </section>
       <ol className="access-preview" aria-label="How access works">
-        <li><span>1</span><div><strong>Sign in</strong><small>Email or mobile number</small></div></li>
+        <li><span>1</span><div><strong>Sign in</strong><small>Google, X or email</small></div></li>
         <li><span>2</span><div><strong>Manager profile</strong><small>Your name and verified email</small></div></li>
         <li><span>3</span><div><strong>Deployment access</strong><small>Redeem an invitation or request access</small></div></li>
       </ol>
@@ -124,6 +135,7 @@ function SignedInAccess() {
   const app = useApp();
   const session = app.session!;
   const [record, save] = useAccessRecord();
+  const returnTo = useReturnTo();
   const complete = profileComplete(record.profile);
   const [editingProfile, setEditingProfile] = useState(false);
   const showProfileForm = !complete || editingProfile;
@@ -193,7 +205,11 @@ function SignedInAccess() {
               <strong>You can launch DTFs</strong>
               <p>Access granted with an invitation code. Start from a template and review everything before deploying.</p>
             </div>
-            <Link className="button primary" href="/app/farms/new">Create your first DTF <ArrowRight size={15} /></Link>
+            {returnTo ? (
+              <Link className="button primary" href={returnTo}>Back to your DTF <ArrowRight size={15} /></Link>
+            ) : (
+              <Link className="button primary" href="/app/farms/new">Create your first DTF <ArrowRight size={15} /></Link>
+            )}
           </div>
         ) : !complete ? (
           <div className="access-result muted">

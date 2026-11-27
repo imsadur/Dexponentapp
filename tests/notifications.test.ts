@@ -5,8 +5,10 @@ import { nudgesFor, relativeTime, sortActivity, unreadCount, type ActivityItem }
 const base = { signedIn: true, positions: 0, access: "none" as const, managedLive: 0, drafts: 0 };
 const ids = (input: Parameters<typeof nudgesFor>[0]) => nudgesFor(input).map((n) => n.id);
 
-test("signed-out users get a single sign-in nudge", () => {
-  assert.deepEqual(ids({ ...base, signedIn: false }), ["sign-in"]);
+test("visitors get the deposit nudge and a path to manager access through sign-in", () => {
+  const nudges = nudgesFor({ ...base, signedIn: false });
+  assert.deepEqual(nudges.map((n) => n.id), ["first-deposit", "manager-access"]);
+  assert.equal(nudges[1].cta?.href, "/login/?next=%2Fapp%2Faccess%2F");
 });
 
 test("LP-only user with no positions is nudged to deposit and to get manager access", () => {
@@ -37,6 +39,8 @@ test("activity sorts newest first and counts unread since last seen", () => {
   const sorted = sortActivity([item("a", 1), item("b", 3), item("c", 2)]);
   assert.deepEqual(sorted.map((i) => i.id), ["b", "c", "a"]);
   assert.equal(unreadCount(sorted, 1), 2);
+  assert.equal(unreadCount(sorted, 1, new Set(["b"])), 1);
+  assert.equal(unreadCount(sorted, 3), 0);
 });
 
 test("relative time", () => {

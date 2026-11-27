@@ -7893,3 +7893,83 @@ a.dtfd-ca:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px;
 @media (max-width: 760px) {
   .topbar .notification-button { display: inline-grid; width: 32px; height: 32px; min-width: 32px; }
 }
+
+/* === Lead: borderless cards on Overview and Positions === */
+.overview-page .overview-metrics,
+.overview-page .panel,
+.overview-page .farm-table-wrap,
+.positions-page .overview-metrics,
+.positions-page .farm-table-wrap { border-color: transparent; }
+.overview-page .overview-metrics .metric,
+.positions-page .overview-metrics .metric { border-left: 0 !important; border-top: 0 !important; }
+/* Inline caption: value and its small caption share one baseline. */
+.metric.metric-inline { display: grid; grid-template-columns: auto minmax(0, 1fr); align-content: center; align-items: baseline; column-gap: 10px; }
+.metric.metric-inline > span, .metric.metric-inline > .metric-extra { grid-column: 1 / -1; }
+.metric.metric-inline > small { font-size: 12px; white-space: nowrap; }
+.metric.metric-inline > small .positive { color: var(--success); }
+.metric.metric-inline > small .negative { color: var(--danger); }
+.section-actions { display: flex; align-items: center; gap: 16px; }
+.section-actions .button { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; font-size: 12px; }
+.section-actions .count-pill { margin-left: 2px; }
+/* Overview stats reuse the Positions card sizing; inline captions keep the same rhythm. */
+.positions-metrics .metric.metric-inline { align-content: start; row-gap: 9px; }
+.positions-metrics .metric.metric-inline > small { font-size: 11px; }
+/* Overview: AUM chart and allocation cards are static, no hover lift or border. */
+.overview-page .dashboard-middle .panel,
+.overview-page .dashboard-middle .panel:hover { transform: none; border-color: transparent; transition: none; }
+/* Secondary figure beside a stat value, e.g. Total P&L (+2.6%). Caption stays on its own line below. */
+.metric.metric-inline:has(> .metric-suffix) > small { grid-column: 1 / -1; }
+.metric-suffix { font-size: 14px; font-style: normal; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--text-secondary); white-space: nowrap; }
+.metric-suffix.positive { color: var(--success); }
+.metric-suffix.negative { color: var(--danger); }
+
+/* === Lead: visitor states (not signed in) === */
+.signin-gate { display: grid; justify-items: center; gap: 10px; padding: 48px 24px; border-radius: 16px; background: var(--surface); text-align: center; }
+.signin-gate h2 { margin: 6px 0 0; font-size: 18px; font-weight: 500; }
+.signin-gate p { margin: 0 0 6px; max-width: 440px; color: var(--text-secondary); font-size: 14px; line-height: 1.5; }
+.signin-gate-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--surface-elevated); color: var(--text-secondary); }
+.signin-gate-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.signin-gate-actions .button { display: inline-flex; align-items: center; gap: 6px; }
+.signin-modal-root { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 16px; }
+.signin-modal-scrim { position: absolute; inset: 0; width: 100%; border: 0; padding: 0; background: #00000073; cursor: default; }
+.signin-modal { position: relative; display: grid; justify-items: center; gap: 10px; width: min(420px, 100%); padding: 32px 28px 28px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); box-shadow: 0 24px 60px #00000055; text-align: center; }
+.signin-modal h2 { margin: 6px 0 0; font-size: 18px; font-weight: 600; }
+.signin-modal p { margin: 0 0 8px; color: var(--text-secondary); font-size: 14px; line-height: 1.5; }
+.visitor-hero { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; padding: 28px; border-radius: 16px; background: linear-gradient(110deg, var(--accent-dim), transparent 60%), var(--surface); }
+.visitor-hero h2 { margin: 0 0 6px; font-size: 22px; font-weight: 500; }
+.visitor-hero p { margin: 0; max-width: 520px; color: var(--text-secondary); font-size: 14px; line-height: 1.5; }
+.visitor-hero .signin-gate-actions { justify-content: flex-start; }
+.visitor-templates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.visitor-template { display: grid; align-content: start; justify-items: start; gap: 8px; padding: 20px; border-radius: 14px; background: var(--surface); color: inherit; text-decoration: none; }
+.visitor-template:hover { background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+.visitor-template:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.visitor-template strong { font-size: 15px; font-weight: 500; }
+.visitor-template p { margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
+.visitor-template .strategy-tag { padding: 2px 7px; border: 1px solid var(--border); border-radius: 999px; font: 650 9px/1.4 "SFMono-Regular", Consolas, monospace; letter-spacing: .06em; }
+.visitor-template .strategy-tag.index { border-color: #818cf866; color: #aab0ff; }
+.visitor-template .strategy-tag.spot { border-color: #f472b666; color: #f7a2cf; }
+.visitor-template .strategy-tag.perpetual { border-color: #3dc48666; color: #3dc486; }
+.positions-nudge-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+@media (max-width: 900px) { .visitor-templates { grid-template-columns: 1fr; } }
+.sidebar-signin { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; color: inherit; text-decoration: none; }
+.sidebar-signin:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.sidebar-signin:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sidebar-signin .profile-copy { display: grid; gap: 2px; }
+.sidebar-signin strong { color: var(--accent); }
+/* Launch gate: onboarding check at the last builder step */
+.launch-gate { padding-top: 36px; }
+.launch-gate-close { position: absolute; top: 14px; right: 14px; display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text-secondary); cursor: pointer; }
+.launch-gate-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.launch-gate-icon { color: var(--accent); background: var(--accent-dim); }
+.launch-gate-steps { display: grid; gap: 8px; width: 100%; margin: 4px 0 10px; padding: 12px 14px; border-radius: 12px; background: var(--surface-elevated); list-style: none; text-align: left; }
+.launch-gate-steps li { display: flex; align-items: center; gap: 10px; color: var(--text-secondary); font-size: 13px; }
+.launch-gate-steps li > span:first-child { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border); color: var(--text-muted); }
+.launch-gate-steps li.done { color: var(--text-primary); }
+.launch-gate-steps li.done > span:first-child { border-color: transparent; background: var(--accent); color: #0e0e10; }
+.launch-gate-steps li.pending > span:first-child { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 45%, transparent); }
+.connect-wallet { display: inline-grid; justify-items: center; gap: 6px; }
+.connect-wallet .button { display: inline-flex; align-items: center; gap: 8px; }
+.connect-wallet-error { color: var(--text-secondary); font-size: 12px; }
+.connect-wallet-error .text-link { padding: 0; border: 0; background: none; color: var(--accent); cursor: pointer; font-size: 12px; }
+.positions-wallet { margin: 0 0 12px; color: var(--text-muted); font-size: 12px; }
+.positions-wallet .mono { color: var(--text-secondary); }

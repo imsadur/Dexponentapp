@@ -37,16 +37,7 @@ export type NudgeInput = {
 
 /** At most two nudges, most valuable first. */
 export function nudgesFor(input: NudgeInput): Nudge[] {
-  if (!input.signedIn)
-    return [
-      {
-        id: "sign-in",
-        title: "Sign in to track your DTFs",
-        body: "Positions, returns and activity in one place.",
-        cta: { label: "Sign in", href: "/login/?next=%2Fapp%2Fdashboard%2F" },
-      },
-    ];
-
+  // Depositing needs only a wallet, so visitors get the same LP nudge; launching needs an account.
   const nudges: Nudge[] = [];
   if (input.positions === 0)
     nudges.push({
@@ -56,12 +47,12 @@ export function nudgesFor(input: NudgeInput): Nudge[] {
       cta: { label: "Explore DTFs", href: "/app/strategies/" },
     });
 
-  if (input.access === "none")
+  if (!input.signedIn || input.access === "none")
     nudges.push({
       id: "manager-access",
       title: "Launch your own DTF",
       body: "Get manager access to create and run a strategy.",
-      cta: { label: "Get access", href: "/app/access/" },
+      cta: { label: "Get access", href: input.signedIn ? "/app/access/" : "/login/?next=%2Fapp%2Faccess%2F" },
     });
   else if (input.access === "requested")
     nudges.push({ id: "access-review", title: "Access request in review", body: "We'll email you once it's approved." });
@@ -90,8 +81,12 @@ export function sortActivity(items: ActivityItem[], limit = 30): ActivityItem[] 
   return [...items].sort((a, b) => b.time - a.time).slice(0, limit);
 }
 
-/** Items newer than the last time the panel was opened. */
-export const unreadCount = (items: ActivityItem[], seenAt: number) => items.filter((i) => i.time > seenAt).length;
+/** Unread = newer than the last "mark all as read" and not opened individually since. */
+export const isUnread = (item: ActivityItem, seenAt: number, readIds: ReadonlySet<string> = new Set()) =>
+  item.time > seenAt && !readIds.has(item.id);
+
+export const unreadCount = (items: ActivityItem[], seenAt: number, readIds?: ReadonlySet<string>) =>
+  items.filter((i) => isUnread(i, seenAt, readIds)).length;
 
 export function relativeTime(time: number, now: number) {
   const minutes = Math.max(0, Math.round((now - time) / 60_000));

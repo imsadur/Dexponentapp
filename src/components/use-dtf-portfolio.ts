@@ -3,10 +3,17 @@ import { useCallback, useEffect, useState } from "react";
 import { emptyPortfolio, parsePortfolio, portfolioKey, type DtfPortfolio } from "@/domain/dtf-portfolio";
 import { useApp } from "./provider";
 
-/** The signed-in user's DTF positions, synced across tabs. */
+/** Positions belong to the wallet that made them, not to a sign-in. */
+const walletKey = (address: string) => portfolioKey(`wallet:${address}`);
+
+/**
+ * The connected wallet's simulated DTF positions, synced across tabs. Depositing needs a
+ * wallet only; signing in is never required. Positions saved under an account before this
+ * change are carried over to the wallet the first time it connects in this browser.
+ */
 export function useDtfPortfolio() {
-  const { session, ready } = useApp();
-  const key = session ? portfolioKey(session.identifier) : null;
+  const { wallet, session, ready } = useApp();
+  const key = wallet ? walletKey(wallet) : null;
   const [portfolio, setPortfolio] = useState<DtfPortfolio>(emptyPortfolio);
   const [loaded, setLoaded] = useState(false);
 
@@ -18,7 +25,15 @@ export function useDtfPortfolio() {
       return;
     }
     try {
-      setPortfolio(parsePortfolio(localStorage.getItem(key)));
+      let raw = localStorage.getItem(key);
+      if (!raw && session) {
+        const legacy = localStorage.getItem(portfolioKey(session.identifier));
+        if (legacy) {
+          localStorage.setItem(key, legacy);
+          raw = legacy;
+        }
+      }
+      setPortfolio(parsePortfolio(raw));
     } catch {
       setPortfolio(emptyPortfolio());
     }
@@ -28,17 +43,17 @@ export function useDtfPortfolio() {
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, [key, ready]);
+  }, [key, ready, session]);
 
   /** Persists first, so a failed write never shows as a recorded position. */
   const save = useCallback(
     (next: DtfPortfolio) => {
-      if (!key) throw new Error("Sign in to keep a position.");
+      if (!key) throw new Error("Connect a wallet to deposit.");
       localStorage.setItem(key, JSON.stringify(next));
       setPortfolio(next);
     },
     [key],
   );
 
-  return { signedIn: Boolean(session), loaded, portfolio, save };
+  return { connected: Boolean(wallet), wallet, loaded, portfolio, save };
 }

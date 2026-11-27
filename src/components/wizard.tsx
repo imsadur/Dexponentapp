@@ -40,6 +40,8 @@ import { deployDemoFarm } from "@/domain/farm-actions";
 import { formatUsdCompact } from "@/domain/format";
 import { farmDetailHref } from "@/domain/routes";
 import { useApp } from "./provider";
+import { LaunchGate, readyToLaunch } from "./launch-gate";
+import { useAccessStatus } from "./notifications-panel";
 import {
   Badge,
   AssetIcon,
@@ -90,6 +92,10 @@ export function Wizard({ farmId }: { farmId?: string }) {
   const selectionStage = useRef<HTMLDivElement>(null);
   const saveRef = useRef(app.saveFarm);
   saveRef.current = app.saveFarm;
+  // Anyone can build a DTF. Sign-in, a wallet and DTF access are checked only at launch.
+  const access = useAccessStatus(app.session?.identifier);
+  const readiness = { signedIn: Boolean(app.session), wallet: Boolean(app.wallet), access };
+  const [launchGate, setLaunchGate] = useState(false);
   useEffect(() => {
     if (!app.ready || initialized) return;
     const params = new URLSearchParams(window.location.search);
@@ -250,6 +256,12 @@ export function Wizard({ farmId }: { farmId?: string }) {
   }
   function finish() {
     if (!farm || !t || !accepted) return;
+    if (!editingExisting && !readyToLaunch(readiness)) {
+      // Keep the work, then explain the one missing onboarding step.
+      app.saveFarm(farm);
+      setLaunchGate(true);
+      return;
+    }
     try {
       deploymentAdapter.prepare(farm, t);
       const projected = simulate(values, farm.type, "Base", 90);
@@ -377,6 +389,13 @@ export function Wizard({ farmId }: { farmId?: string }) {
           {editingExisting ? "Save & return" : "Save & exit"}
         </button>
       </div>
+      <LaunchGate
+        open={launchGate}
+        onClose={() => setLaunchGate(false)}
+        dtfName={String(values.name || "")}
+        draftHref={farm ? `/app/farms/new/?draft=${farm.id}` : "/app/farms/new/"}
+        readiness={readiness}
+      />
       <nav aria-label="Creation steps" className="stepper">
         {stages.map((s, i) => (
           <button
@@ -1133,7 +1152,7 @@ export function Wizard({ farmId }: { farmId?: string }) {
               ? "Review DTF"
               : stage === 2
                 ? "Continue to deploy"
-                : editingExisting ? "Save changes" : "Create DTF"}
+                : editingExisting ? "Save changes" : "Launch DTF"}
             <ArrowRight size={15} />
           </button>
         )}

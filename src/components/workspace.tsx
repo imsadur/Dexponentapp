@@ -116,6 +116,7 @@ import { useApp } from "./provider";
 import { Wizard } from "./wizard";
 import { SupportCenter, type SupportTarget } from "./support-center";
 import { NotificationsPanel, useNotifications } from "./notifications-panel";
+import { SignInGate, signInHref } from "./sign-in-gate";
 import { articleById, articlesIn, helpCategories, popularIssues, supportMailto } from "@/domain/help";
 import { DtfStrategies } from "./dtf-strategies";
 import { Positions } from "./positions";
@@ -124,7 +125,6 @@ import { DtfAccess } from "./dtf-access";
 import { PriceTicker } from "./price-ticker";
 import { DtfMarket } from "./dtf-market";
 import { TradingViewPerformanceChart } from "./tradingview-performance-chart";
-import { ACCESS_CHANGE_EVENT, accessKey, parseAccessStatus } from "@/domain/access";
 import {
   formatCount,
   formatDate,
@@ -168,34 +168,6 @@ const nav: NavItem[] = [...investNav, ...manageNav, accessNav];
 const mobileNav: NavItem[] = [manageNav[0], investNav[0], investNav[1], manageNav[1]];
 const pageTitles: Record<string, string> = { settings: "Settings", resources: "Help", trade: "Trade" };
 
-/** Deployment access status for the signed-in user; updates when DTF Access saves. */
-function useAccessStatus() {
-  const { session, ready } = useApp();
-  const [status, setStatus] = useState<"none" | "requested" | "granted">("none");
-  useEffect(() => {
-    if (!ready || !session) {
-      setStatus("none");
-      return;
-    }
-    const key = accessKey(session.identifier);
-    const read = () => {
-      try {
-        setStatus(parseAccessStatus(localStorage.getItem(key)));
-      } catch {
-        setStatus("none");
-      }
-    };
-    read();
-    const onStorage = (event: StorageEvent) => { if (event.key === key) read(); };
-    window.addEventListener("storage", onStorage);
-    window.addEventListener(ACCESS_CHANGE_EVENT, read);
-    return () => {
-      window.removeEventListener("storage", onStorage);
-      window.removeEventListener(ACCESS_CHANGE_EVENT, read);
-    };
-  }, [ready, session]);
-  return status;
-}
 export function Workspace({ previewVersion, routeSegments }: { previewVersion?: string; routeSegments?: string[] } = {}) {
   const path = usePathname();
   const searchParams = useSearchParams();
@@ -218,7 +190,6 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
   ]);
   const [newUserName, setNewUserName] = useState("");
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
-  const accessStatus = useAccessStatus();
   const segments = routeSegments || path.split("/").filter(Boolean);
   const section = previewVersion ? "dashboard" : segments[1] || "dashboard";
   const isTrade = section === "trade";
@@ -292,6 +263,50 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
         label="Open overview"
       />
     );
+  // Visitors can explore everything, but manager workspaces need an account.
+  // Starting a new DTF stays open: the builder asks for sign-in when a template is picked.
+  if (app.ready && !app.session) {
+    const editing = isWizard && (segments[2] === "edit" || segments[3] === "edit");
+    if (section === "dashboard") content = <VisitorOverview />;
+    else if (section === "farms" && !isWizard && !isFarmDetail)
+      content = (
+        <>
+          <PageHeading title="Managed DTFs" />
+          <SignInGate
+            title="Sign in to manage your DTFs"
+            body="Build, deploy and run onchain funds from one workspace."
+            secondary={{ label: "Explore templates", href: "/app/templates/" }}
+          />
+        </>
+      );
+    else if (section === "farms" && (isFarmDetail || editing))
+      content = (
+        <SignInGate
+          title="Sign in to manage this DTF"
+          body="Only a DTF's manager can open its workspace. You can still view its public profile."
+          secondary={{ label: "Explore DTFs", href: "/app/strategies/" }}
+        />
+      );
+    else if (section === "analytics")
+      content = (
+        <>
+          <PageHeading title="Analytics" />
+          <SignInGate
+            title="Sign in to see analytics"
+            body="Yield, flows and fees for the DTFs you manage."
+            secondary={{ label: "Explore templates", href: "/app/templates/" }}
+          />
+        </>
+      );
+    else if (section === "trade")
+      content = (
+        <SignInGate
+          title="Sign in to trade"
+          body="Trading runs from a Perpetual DTF you manage."
+          secondary={{ label: "Explore DTFs", href: "/app/strategies/" }}
+        />
+      );
+  }
   return (
     <div className={`app-shell ${isTrade ? "trade-shell" : ""}`}>
       <a className="skip-link" href="#main">
@@ -311,7 +326,7 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
           <nav aria-label="Main">
             {([
               ["Invest", investNav],
-              ["Manage", accessStatus === "granted" ? manageNav : [...manageNav, accessNav]],
+              ["Manage", manageNav],
             ] as const).map(([group, items]) => (
               <div className="nav-group" key={group} role="group" aria-labelledby={`nav-group-${group}`}>
                 <span className="nav-group-label" id={`nav-group-${group}`}>{group}</span>
@@ -343,7 +358,7 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
             >
               <item.icon size={18} />
               {item.label}
-              {item.section === "farms" && (
+              {item.section === "farms" && app.session && (
                 <span className="nav-count">{app.farms.length}</span>
               )}
             </Link>
@@ -397,6 +412,15 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
                   </button>
                 </div>
               )}
+              {app.ready && !app.session ? (
+                <Link className="profile-row sidebar-signin" href={signInHref()}>
+                  <span className="profile-copy">
+                    <strong>Sign in</strong>
+                    <small>Investors and managers</small>
+                  </span>
+                  <ArrowRight size={15} />
+                </Link>
+              ) : (
               <button
                 className="profile-row profile-trigger"
                 aria-expanded={profileMenu}
@@ -404,14 +428,15 @@ export function Workspace({ previewVersion, routeSegments }: { previewVersion?: 
                 onClick={() => setProfileMenu((open) => !open)}
               >
                 <span className="avatar">
-                  {app.profile.name.split(" ").map((name) => name[0]).slice(0, 2).join("")}
+                  {(app.session?.name || app.profile.name).split(" ").map((name) => name[0]).slice(0, 2).join("")}
                 </span>
                 <span className="profile-copy">
-                  <strong>{app.profile.name}</strong>
+                  <strong>{app.session?.name || app.profile.name}</strong>
                   <small>Manager</small>
                 </span>
                 <ChevronDown className={profileMenu ? "workspace-chevron open" : "workspace-chevron"} size={15} />
               </button>
+              )}
             </div>
           ) : (
           <>
@@ -898,6 +923,52 @@ function axisLabel(time: number, withYear: boolean) {
   return withYear ? `${day} ${month} ${year}` : `${day} ${month}`;
 }
 
+/** Overview for visitors: what managers can do here, with a way in and a way to keep exploring. */
+function VisitorOverview() {
+  const starters = (["INDEX", "SPOT", "PERPETUAL"] as StrategyType[])
+    .map((type) => templates.find((t) => t.type === type))
+    .filter((t): t is (typeof templates)[number] => Boolean(t));
+  return (
+    <div className="overview-page">
+      <PageHeading title="Overview" />
+      <section className="visitor-hero">
+        <div>
+          <h2>Launch, raise and run onchain funds</h2>
+          <p>Sign in to create DTFs, track the capital you manage and see how your strategies perform.</p>
+        </div>
+        <div className="signin-gate-actions">
+          <Link className="button primary" href={signInHref("/app/dashboard/")}>
+            Sign in <ArrowRight size={15} />
+          </Link>
+          <Link className="button" href="/app/strategies/">
+            Explore DTFs
+          </Link>
+        </div>
+      </section>
+      <div className="section-heading">
+        <div>
+          <h2>Start from a template</h2>
+        </div>
+        <Link className="text-link" href="/app/templates/">
+          All templates <ArrowRight size={15} />
+        </Link>
+      </div>
+      <div className="visitor-templates">
+        {starters.map((t) => (
+          <Link key={t.id} className="visitor-template" href={`/app/templates/${t.id}/`}>
+            <span className={`strategy-tag ${t.type.toLowerCase()}`}>{t.type}</span>
+            <strong>{t.name}</strong>
+            <p>{t.description}</p>
+            <span className="text-link">
+              View template <ArrowRight size={13} />
+            </span>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Dashboard({ network }: { network: string; enhanced?: boolean }) {
   const app = useApp();
   const { rows, summary, now } = useManagerData(network);
@@ -926,29 +997,30 @@ function Dashboard({ network }: { network: string; enhanced?: boolean }) {
   const spotShare = aum ? (byType("SPOT") / aum) * 100 : 0;
   const managed = app.farms.filter((farm) => rows.some((row) => row.farm.id === farm.id));
   return (
-    <>
+    <div className="overview-page">
       <PageHeading title="Overview" action={<CreateButton />} />
-      <div className="overview-metrics capital-metrics">
+      <div className="overview-metrics capital-metrics positions-metrics">
         <Metric
           label={<LabelTip label="AUM">Total TVL across your live DTFs.</LabelTip>}
           value={formatUsdCompact(aum)}
-          caption={`${formatCount(live.length)} live DTF${live.length === 1 ? "" : "s"}`}
+          caption={`${formatCount(live.length)} active DTF${live.length === 1 ? "" : "s"}`}
         />
         <Metric
           label={<LabelTip label="AUM change · 30D">Change in TVL over the last 30 days, from LP flows and performance together.</LabelTip>}
           value={formatSignedUsd(aumChange, true)}
           tone={toneOf(aumChange)}
-          caption={formatSignedPct(aumChangePct)}
+          caption={<><span className={toneOf(aumChangePct) ?? ""}>{formatSignedPct(aumChangePct)}</span> 30D</>}
         />
         <Metric
           label={<LabelTip label="Net flows · 30D">LP deposits minus withdrawals over the last 30 days.</LabelTip>}
           value={formatSignedUsd(live.length ? summary.netFlows30d : null, true)}
           tone={toneOf(live.length ? summary.netFlows30d : null)}
+          caption="Deposits minus withdrawals"
         />
         <Metric
           label={<LabelTip label="Fees earned">Estimated performance fees on LP yield since launch, at each DTF&apos;s configured fee rate. Not yet claimed.</LabelTip>}
           value={formatUsdCompact(live.length ? summary.feesEarned : null)}
-          caption="est."
+          caption="Estimated · since launch"
         />
       </div>
       <div className="dashboard-middle">
@@ -1044,22 +1116,19 @@ function Dashboard({ network }: { network: string; enhanced?: boolean }) {
             Managed DTFs <span className="count-pill">{formatCount(managed.length)}</span>
           </h2>
         </div>
-        <Link className="text-link" href="/app/farms">
-          View all <ArrowRight size={15} />
-        </Link>
+        <div className="section-actions">
+          {drafts.length > 0 && (
+            <Link className="button small" href="/app/farms/drafts">
+              <FileText size={14} /> Continue draft <span className="count-pill">{formatCount(drafts.length)}</span>
+            </Link>
+          )}
+          <Link className="text-link" href="/app/farms">
+            View all <ArrowRight size={15} />
+          </Link>
+        </div>
       </div>
       <FarmTable farms={managed.slice(0, 4)} rows={rows} />
-      {drafts.length > 0 && (
-        <Link href="/app/farms/drafts" className="draft-banner">
-          <FileText size={21} />
-          <div>
-            <h3>Continue draft</h3>
-            <p>{formatCount(drafts.length)} saved</p>
-          </div>
-          <ArrowRight size={17} />
-        </Link>
-      )}
-    </>
+    </div>
   );
 }
 
@@ -1097,13 +1166,9 @@ function FarmTable({ farms, rows }: { farms: Farm[]; rows: ManagerRow[] }) {
               <th scope="col">DTF</th>
               <th scope="col">Status</th>
               <th scope="col" className="numeric">TVL</th>
-              <th scope="col" className="numeric">
-                <LabelTip label="Return">After fees. Return since launch for DTFs under 90 days old, APY after that.</LabelTip>
-              </th>
+              <th scope="col" className="numeric">Return</th>
               <th scope="col" className="numeric">24h</th>
-              <th scope="col" className="numeric">
-                <LabelTip label="Net flows · 30D">LP deposits minus withdrawals over the last 30 days.</LabelTip>
-              </th>
+              <th scope="col" className="numeric">Net flows · 30D</th>
               <th scope="col" className="numeric">LPs</th>
               <th scope="col"><span className="sr-only">Open</span></th>
             </tr>

@@ -6,6 +6,7 @@ import { ACCESS_CHANGE_EVENT, accessKey, parseAccessStatus } from "@/domain/acce
 import { dtfActivity, dtfDirectory, dtfFromFarm, maskAddress } from "@/domain/dtf";
 import { formatUsd } from "@/domain/format";
 import {
+  isUnread,
   nudgesFor,
   relativeTime,
   sortActivity,
@@ -19,10 +20,11 @@ import { useDtfPortfolio } from "./use-dtf-portfolio";
 import "./notifications.css";
 
 const seenKey = (identifier: string) => `fm:notifications-seen:${identifier.toLowerCase()}`;
+const readKey = (identifier: string) => `fm:notifications-read:${identifier.toLowerCase()}`;
 /** LP flows shown per managed DTF; enough to feel live without flooding the feed. */
 const FLOWS_PER_DTF = 4;
 
-function useAccessStatus(identifier: string | undefined): AccessStatus {
+export function useAccessStatus(identifier: string | undefined): AccessStatus {
   const [status, setStatus] = useState<AccessStatus>("none");
   useEffect(() => {
     if (!identifier) return setStatus("none");
@@ -47,28 +49,45 @@ function useAccessStatus(identifier: string | undefined): AccessStatus {
 /** Nudges, activity and unread state for the signed-in user. */
 export function useNotifications() {
   const app = useApp();
-  const { portfolio, signedIn } = useDtfPortfolio();
+  // LP activity follows the wallet; manager activity follows the sign-in.
+  const { portfolio, connected } = useDtfPortfolio();
+  const signedIn = Boolean(app.session);
   const identifier = app.session?.identifier;
   const access = useAccessStatus(identifier);
   const [now, setNow] = useState(() => Date.now());
   const [seenAt, setSeenAt] = useState(0);
+  const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     if (!identifier) return;
     try {
       setSeenAt(Number(localStorage.getItem(seenKey(identifier))) || 0);
+      const ids = JSON.parse(localStorage.getItem(readKey(identifier)) || "[]");
+      setReadIds(new Set(Array.isArray(ids) ? ids.filter((x): x is string => typeof x === "string") : []));
     } catch {
       setSeenAt(0);
     }
   }, [identifier]);
 
+  const persist = useCallback(
+    (at: number, ids: Set<string>) => {
+      if (!identifier) return;
+      try {
+        localStorage.setItem(seenKey(identifier), String(at));
+        localStorage.setItem(readKey(identifier), JSON.stringify([...ids]));
+      } catch {
+        /* read state just won't persist */
+      }
+    },
+    [identifier],
+  );
+
   const live = useMemo(() => app.farms.filter((f) => f.status === "ACTIVE"), [app.farms]);
   const drafts = app.farms.filter((f) => f.status === "DRAFT" || f.status === "SIMULATION").length;
 
   const items = useMemo(() => {
-    if (!signedIn) return [];
     const names = new Map(dtfDirectory(app.farms, app.profile.name).map((d) => [d.id, d.name]));
-    const own: ActivityItem[] = portfolio.ledger.map((e, i) => ({
+    const own: ActivityItem[] = (connected ? portfolio.ledger : []).map((e, i) => ({
       id: `lp-${e.dtfId}-${e.at}-${i}`,
       time: Date.parse(e.at),
       role: "lp",
@@ -77,7 +96,7 @@ export function useNotifications() {
       detail: formatUsd(e.usd),
       href: strategyHref(e.dtfId),
     }));
-    const flows: ActivityItem[] = live.flatMap((farm) => {
+    const flows: ActivityItem[] = (signedIn ? live : []).flatMap((farm) => {
       const dtf = dtfFromFarm(farm, app.profile.name);
       return dtfActivity(dtf, now, FLOWS_PER_DTF).map((a) => ({
         id: `mgr-${a.id}`,
@@ -90,7 +109,7 @@ export function useNotifications() {
       }));
     });
     return sortActivity([...own, ...flows]);
-  }, [signedIn, portfolio.ledger, live, app.farms, app.profile.name, now]);
+  }, [signedIn, connected, portfolio.ledger, live, app.farms, app.profile.name, now]);
 
   const nudges = nudgesFor({
     signedIn,
@@ -100,37 +119,52 @@ export function useNotifications() {
     drafts,
   });
 
-  const markSeen = useCallback(() => {
+  const markAllRead = useCallback(() => {
     const at = Date.now();
-    setNow(at);
+    const none = new Set<string>();
     setSeenAt(at);
-    if (!identifier) return;
-    try {
-      localStorage.setItem(seenKey(identifier), String(at));
-    } catch {
-      /* unread state just won't persist */
-    }
-  }, [identifier]);
+    setReadIds(none);
+    persist(at, none);
+  }, [persist]);
 
-  return { nudges, items, unread: unreadCount(items, seenAt), seenAt, now, markSeen, hasManagerActivity: live.length > 0 };
+  const markRead = useCallback(
+    (id: string) => {
+      setReadIds((current) => {
+        if (current.has(id)) return current;
+        const next = new Set(current).add(id);
+        persist(seenAt, next);
+        return next;
+      });
+    },
+    [persist, seenAt],
+  );
+
+  return {
+    nudges,
+    items,
+    unread: unreadCount(items, seenAt, readIds),
+    unreadOf: (item: ActivityItem) => isUnread(item, seenAt, readIds),
+    now,
+    refresh: () => setNow(Date.now()),
+    markAllRead,
+    markRead,
+    hasManagerActivity: signedIn && live.length > 0,
+  };
 }
 
 type Filter = "all" | "lp" | "manager";
 
 /** Right-side panel. Takes the state from `useNotifications()` so the bell's unread dot stays in sync. */
 export function NotificationsPanel({ open, onClose, data }: { open: boolean; onClose: () => void; data: ReturnType<typeof useNotifications> }) {
-  const { nudges, items, seenAt, now, markSeen, hasManagerActivity } = data;
+  const { nudges, items, unread, unreadOf, now, refresh, markAllRead, markRead, hasManagerActivity } = data;
   const [filter, setFilter] = useState<Filter>("all");
-  const [openedSeenAt, setOpenedSeenAt] = useState(0);
   const closeRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const returnFocus = useRef<Element | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    // Remember what was unread at open time, then clear the badge.
-    setOpenedSeenAt(seenAt);
-    markSeen();
+    refresh();
     returnFocus.current = document.activeElement;
     closeRef.current?.focus();
     const onKey = (event: KeyboardEvent) => {
@@ -172,9 +206,16 @@ export function NotificationsPanel({ open, onClose, data }: { open: boolean; onC
       <div className="ntf-panel" role="dialog" aria-modal="true" aria-labelledby="ntf-title" ref={panelRef}>
         <header className="ntf-head">
           <h2 id="ntf-title">Notifications</h2>
-          <button ref={closeRef} className="ntf-close" aria-label="Close" onClick={onClose}>
-            <X size={16} />
-          </button>
+          <div className="ntf-head-actions">
+            {unread > 0 && (
+              <button className="text-link ntf-mark" onClick={markAllRead}>
+                Mark all as read
+              </button>
+            )}
+            <button ref={closeRef} className="ntf-close" aria-label="Close" onClick={onClose}>
+              <X size={16} />
+            </button>
+          </div>
         </header>
 
         <div className="ntf-body">
@@ -213,7 +254,14 @@ export function NotificationsPanel({ open, onClose, data }: { open: boolean; onC
               <ul>
                 {shown.map((item) => (
                   <li key={item.id}>
-                    <Link href={item.href} onClick={onClose} className={item.time > openedSeenAt ? "unread" : ""}>
+                    <Link
+                      href={item.href}
+                      onClick={() => {
+                        markRead(item.id);
+                        onClose();
+                      }}
+                      className={unreadOf(item) ? "unread" : ""}
+                    >
                       <span className={`ntf-icon ${item.kind}`} aria-hidden="true">
                         {item.kind === "deposit" ? <ArrowDownLeft size={14} /> : <ArrowUpRight size={14} />}
                       </span>
@@ -224,7 +272,7 @@ export function NotificationsPanel({ open, onClose, data }: { open: boolean; onC
                         </small>
                       </span>
                       <time dateTime={new Date(item.time).toISOString()}>{relativeTime(item.time, now)}</time>
-                      {item.time > openedSeenAt && <span className="sr-only">Unread</span>}
+                      {unreadOf(item) && <span className="sr-only">Unread</span>}
                     </Link>
                   </li>
                 ))}
