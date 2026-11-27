@@ -529,12 +529,24 @@ function DocumentRow({ doc, farmId }: { doc: DtfDocument; farmId?: string }) {
   const label = isPreviewable(doc.type) ? "View" : "Download";
   const open = async () => {
     if (sample) {
-      if (label === "View") window.open(sample, "_blank", "noopener");
-      else {
+      if (label === "View") {
+        window.open(sample, "_blank", "noopener");
+        return;
+      }
+      // Fetch first: hosts can send their own filename header, which overrides `download` on a plain link.
+      setState("opening");
+      try {
+        const response = await fetch(sample);
+        if (!response.ok) throw new Error(String(response.status));
+        const url = URL.createObjectURL(await response.blob());
         const link = document.createElement("a");
-        link.href = sample;
+        link.href = url;
         link.download = doc.name;
         link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        setState("idle");
+      } catch {
+        setState("missing");
       }
       return;
     }
@@ -543,8 +555,9 @@ function DocumentRow({ doc, farmId }: { doc: DtfDocument; farmId?: string }) {
     const ok = await openDocFile(docKey(farmId, doc.id), doc.name, doc.type);
     setState(ok ? "idle" : "missing");
   };
-  const unavailable = (!sample && !stored) || state === "missing";
-  const why = state === "missing" || stored ? "This file isn't stored in this browser. Ask the manager to upload it again." : "No file is attached to this document.";
+  // A failed sample download can be retried; a missing upload cannot.
+  const unavailable = !sample && (!stored || state === "missing");
+  const why = sample ? "Couldn't download this file. Try again." : stored ? "This file isn't stored in this browser. Ask the manager to upload it again." : "No file is attached to this document.";
   return (
     <li>
       <span className={`dtfd-doc-type ${doc.type.toLowerCase()}`}><DocIcon type={doc.type} size={20} /></span>
@@ -561,7 +574,7 @@ function DocumentRow({ doc, farmId }: { doc: DtfDocument; farmId?: string }) {
         aria-label={`${label} ${doc.name}`}
       >
         {label === "View" ? <Eye size={14} aria-hidden="true" /> : <DownloadSimple size={14} aria-hidden="true" />}
-        {state === "opening" ? "Opening…" : label}
+        {state === "opening" ? "Opening…" : sample && state === "missing" ? "Retry" : label}
       </button>
     </li>
   );
