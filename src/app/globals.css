@@ -7278,7 +7278,6 @@ textarea:focus-visible {
 .dtfd-market { display: flex; align-items: center; gap: 10px; }
 .dtfd-market > span:last-child { display: grid; gap: 2px; }
 .dtfd-market small, .dtfd-share small { color: var(--text-muted); font-size: 11px; }
-.dtfd-swatch { width: 4px; height: 26px; border-radius: 2px; }
 .dtfd-share { display: grid; justify-items: end; gap: 2px; }
 .dtfd-terms { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; border-radius: 12px; background: var(--surface); overflow: hidden; }
 .dtfd-terms div { display: grid; align-content: start; gap: 4px; padding: 14px 16px; border-right: 1px solid var(--border-soft); border-bottom: 1px solid var(--border-soft); }
@@ -8165,3 +8164,166 @@ a.dtfd-ca:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px;
 .positions-empty-table .connect-empty h3 { max-width: 420px; }
 @media (max-width: 600px) { .template-prompt { flex-direction: column; align-items: flex-start; } .template-prompt .button { width: 100%; } }
 .positions-empty-table > table { table-layout: fixed; width: 100%; }
+
+/* Overview banner: what's missing and the next step, under the page heading. */
+.overview-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 24px;
+  margin-bottom: 20px; padding: 24px 28px; border-radius: 16px;
+  background: linear-gradient(110deg, color-mix(in srgb, var(--accent) 10%, var(--surface)), var(--surface) 70%);
+}
+.overview-banner h2 { margin: 0; color: var(--text-primary); font-size: 20px; font-weight: 600; letter-spacing: -.01em; }
+.overview-banner p { margin: 6px 0 0; color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
+.overview-banner small { display: block; margin-top: 8px; color: var(--text-muted); font-size: 12px; }
+.overview-banner .connect-empty-actions { flex: none; margin: 0; }
+.capital-mix-note { margin: 16px 0 0; color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+.positions-empty-table .connect-empty p { margin-top: -2px; }
+@media (max-width: 760px) { .overview-banner { flex-direction: column; align-items: flex-start; padding: 20px; } }
+
+/* === Explore DTFs refinements: subtle type tags, borderless toolbars, roomier list view === */
+/* Type tags (Index / Spot / Perpetual): same hue, quieter. Faint border, softened text, lighter weight. */
+.dtf-type,
+.farm-name .strategy-tag,
+.positions-dtf .strategy-tag,
+.visitor-template .strategy-tag { font-weight: 500; }
+.dtf-type.index, .dtf-type.perpetual { color: color-mix(in srgb, var(--accent) 62%, var(--text-muted)); }
+.dtf-type.spot { color: color-mix(in srgb, var(--pink) 62%, var(--text-muted)); }
+.dtf-type { border-color: color-mix(in srgb, currentColor 24%, transparent); }
+.farm-name .strategy-tag.index, .visitor-template .strategy-tag.index { border-color: #818cf82e; color: color-mix(in srgb, #aab0ff 62%, var(--text-muted)); }
+.farm-name .strategy-tag.spot, .visitor-template .strategy-tag.spot { border-color: #f472b62e; color: color-mix(in srgb, #f7a2cf 62%, var(--text-muted)); }
+.farm-name .strategy-tag.perpetual, .visitor-template .strategy-tag.perpetual { border-color: #3dc4862e; color: color-mix(in srgb, #3dc486 62%, var(--text-muted)); }
+
+/* Filters and search, on every page: no stroke, one shared height (40px). The focus ring stays. */
+.dtf-segment,
+.dtf-search,
+.dtf-mine,
+.search-input,
+.list-toolbar > select { border: 0; }
+.dtf-segment { padding: 3px; }
+.dtf-segment button { min-height: 34px; }
+.dtf-segment button[aria-pressed="true"] { box-shadow: none; }
+.dtf-mine,
+.search-input,
+.search-input input,
+.list-toolbar > select { min-height: 40px; }
+.search-input input { min-height: 40px; height: 40px; padding-top: 0; padding-bottom: 0; }
+.dtf-search input,
+.dtf-search input:hover,
+.dtf-search input:focus,
+.dtf-search input:focus-visible { height: 40px; min-height: 40px; padding-top: 0; padding-bottom: 0; }
+.dtf-search:focus-within,
+.search-input:focus-within { border-color: transparent; box-shadow: 0 0 0 2px var(--accent-dim), 0 0 0 1px var(--accent); }
+
+/* Explore list view: larger type, taller rows, bigger network icon, 24h change under the return. */
+.dtf-table { font-size: 14px; }
+.dtf-table td { padding-top: 18px; padding-bottom: 18px; }
+.dtf-row-link { font-size: 15px; }
+.dtf-row-name small { gap: 8px; font-size: 13px; }
+.dtf-row-name .dtf-ticker { font-size: 13px; }
+.dtf-row-network { display: inline-flex; align-items: center; }
+.dtf-table .dtf-row-return .dtf-retfig { display: inline-grid; justify-items: end; gap: 3px; }
+.dtf-table .dtf-row-return .dtf-retfig strong { font-size: 15px; }
+.dtf-table .dtf-row-return .dtf-retfig small { font-size: 12px; }
+.dtf-table th .label-tip-body { left: auto; right: 0; text-align: left; text-transform: none; letter-spacing: normal; font-family: inherit; white-space: normal; }
+.dtf-table th .label-tip-body::before { left: auto; right: 18px; }
+
+/* Base and Solana logos are full-bleed circles: show them edge to edge at the usual icon size. */
+.network-icon.network-base,
+.network-icon.network-solana { padding: 0; border: 0; background: transparent; }
+
+/* Type tags: a 10% wash of their own colour behind the text. */
+.dtf-type.index, .dtf-type.perpetual { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.dtf-type.spot { background: color-mix(in srgb, var(--pink) 10%, transparent); }
+.farm-name .strategy-tag.index, .visitor-template .strategy-tag.index { background: #818cf81a; }
+.farm-name .strategy-tag.spot, .visitor-template .strategy-tag.spot { background: #f472b61a; }
+.farm-name .strategy-tag.perpetual, .visitor-template .strategy-tag.perpetual { background: #3dc4861a; }
+
+/* Explore list view: every value at the DTF name size, all cells aligned to the top of the row. */
+.dtf-table td { vertical-align: top; font-size: 15px; line-height: 22px; }
+.dtf-table .dtf-row-name { align-items: flex-start; }
+.dtf-table .dtf-row-name small { line-height: 18px; }
+.dtf-table td > .dtf-type { margin-top: 1px; }
+.dtf-table .dtf-row-return .dtf-retfig strong { line-height: 22px; }
+.dtf-table .dtf-row-return .dtf-retfig small { line-height: 16px; }
+.dtf-table .dtf-row-caret svg { margin-top: 4px; }
+
+/* DTF Templates: borderless cards (the hover lift stays as a background change). */
+.template-card,
+.template-card:hover { border: 0; }
+
+/* Overview AUM chart before the first DTF is live: a single centred line in the chart's space. */
+.chart-empty-note { display: grid; place-items: center; min-height: 220px; margin: 0; padding: 24px; color: var(--text-muted); font-size: 13px; text-align: center; }
+
+/* Positions: failed-load state inside the empty table (warning icon, spinning retry while pending). */
+.load-error .connect-empty-icon { border-color: color-mix(in srgb, var(--warning) 35%, var(--border)); background: color-mix(in srgb, var(--warning) 10%, var(--surface-elevated)); color: var(--warning); }
+.load-error .spin { animation: order-toast-spin .9s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .load-error .spin { animation: none; } }
+
+/* === Template detail: breadcrumb, header, stats strip, grouped configuration, strategy flow === */
+.tpl-detail { display: grid; gap: 24px; }
+.tpl-crumbs { display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12px; }
+.tpl-crumbs a { color: var(--text-muted); text-decoration: none; }
+.tpl-crumbs a:hover { color: var(--text-primary); }
+.tpl-crumbs [aria-current] { color: var(--text-secondary); }
+.tpl-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+.tpl-head h1 { margin: 0; }
+.tpl-head p { max-width: 640px; margin: 10px 0 0; color: var(--text-secondary); font-size: 15px; line-height: 1.55; }
+.tpl-meta { display: flex; align-items: center; gap: 8px; margin-top: 14px; color: var(--text-muted); font-size: 12px; }
+.tpl-head .button { flex: none; }
+.tpl-body { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
+.tpl-note { margin: 0; padding: 0 4px; color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+@media (max-width: 1180px) {
+  .tpl-body { grid-template-columns: minmax(0, 1fr); }
+  .tpl-side { position: static; }
+}
+@media (max-width: 720px) {
+  .tpl-head { flex-direction: column; align-items: stretch; }
+}
+.tpl-side .tpl-note { padding: 4px 0 0; border-top: 1px solid var(--border-soft, var(--border)); padding-top: 14px; }
+
+/* Template detail v2: borderless cards, stats like Overview/Positions, one card per config group. */
+.tpl-detail .overview-metrics,
+.tpl-detail .dtfd-group,
+.tpl-detail .tpl-flow-card { border: 0; }
+.tpl-detail .overview-metrics .metric { border-left: 0 !important; border-top: 0 !important; }
+.tpl-stats.positions-metrics { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.tpl-stats.positions-metrics .metric { min-height: 104px; padding: 22px 24px; justify-content: flex-start; }
+.tpl-stats.positions-metrics .metric > strong { font-size: 17px; font-weight: 600; white-space: normal; letter-spacing: -.01em; }
+.tpl-stats .asset-list { font-size: 14px; }
+.tpl-section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; min-height: 28px; margin-bottom: 14px; }
+.tpl-section-head h2 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
+.tpl-section-head p { margin: 0; color: var(--text-muted); font-size: 12px; }
+.tpl-config { padding: 0; }
+.tpl-side { display: block; position: sticky; top: 20px; padding: 0; }
+.tpl-flow-card { display: grid; gap: 12px; padding: 20px; border-radius: 12px; background: var(--surface); }
+.tpl-flow-card .flow-caption .eyebrow { display: none; }
+.tpl-flow-card .flow-caption { justify-content: flex-end; }
+.tpl-detail .dtfd-group dd.tpl-yours { color: var(--text-muted); font-weight: 400; font-style: italic; }
+.tpl-detail .dtfd-group dt.tpl-asset { display: inline-flex; align-items: center; gap: 8px; color: var(--text-primary); }
+@media (max-width: 1180px) { .tpl-stats.positions-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 720px) {
+  .tpl-stats.positions-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tpl-stats.positions-metrics .metric { min-height: 88px; padding: 16px 18px; }
+  .tpl-detail .dtfd-groups { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 1180px) { .tpl-side { position: static; } }
+
+/* Template detail: Allocation table first (full width), then the 2×2 groups. */
+.tpl-allocation { margin-bottom: 12px; }
+.tpl-detail .dtfd-table-wrap { border: 0; }
+
+/* Template strategy flow: bigger, calmer type. The flow is a template preview, so the
+   "Live preview" caption and the tagline are hidden; the note under the card says what it is. */
+.tpl-flow-card .flow-caption,
+.tpl-flow-card .flow-foot { display: none; }
+.tpl-flow-card .flow-node { gap: 12px; padding: 14px 16px; min-height: 68px; border-radius: 10px; }
+.tpl-flow-card .flow-node small { font-size: 10px; letter-spacing: .08em; }
+.tpl-flow-card .flow-node strong { font-size: 14px; font-weight: 600; }
+.tpl-flow-card .node-label { font-size: 11px; }
+.tpl-flow-card .flow-node .icon-tile { width: 32px; height: 32px; }
+.tpl-flow-card .connector { height: 36px; }
+.tpl-flow-card .connector > svg { background: var(--surface); }
+.tpl-flow-card .asset-branches { gap: 8px; }
+.tpl-flow-card .asset-branches > div { gap: 4px; }
+.tpl-flow-card .asset-branches strong { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.tpl-flow-card .asset-branches small { font-size: 12px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.tpl-flow-card .tpl-note { border-top: 0; padding-top: 4px; }

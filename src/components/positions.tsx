@@ -46,7 +46,12 @@ const matches = (dtf: Pick<PublicDtf, "name" | "symbol" | "type">, type: TypeFil
 export function usePortfolioRoles(network: string) {
   const app = useApp();
   // Both sides follow the connected wallet; signing in is only needed to launch a DTF.
-  const { portfolio, connected, wallet, loaded } = useDtfPortfolio();
+  const { portfolio, connected, wallet, loaded, error: portfolioError, retry: retryPortfolio } = useDtfPortfolio();
+  // `?state=error` previews the failed-load state (QA / design review); "Try again" clears it.
+  const [forcedError, setForcedError] = useState(false);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("state") === "error") setForcedError(true);
+  }, []);
   const signedIn = Boolean(app.session);
   const [now, setNow] = useState(() => Date.now());
   const managedIds = useMemo(() => new Set(app.myFarms.filter(isManagedFarm).map((f) => f.id)), [app.myFarms]);
@@ -69,6 +74,15 @@ export function usePortfolioRoles(network: string) {
     directory,
     now,
     refresh: () => setNow(Date.now()),
+    /** A wallet is connected but its data couldn't be read: show the failed-load state, not zeros. */
+    lpFailed: connected && (portfolioError || forcedError),
+    managerFailed: connected && (app.farmsLoadError || forcedError),
+    retry: () => {
+      setForcedError(false);
+      retryPortfolio();
+      if (app.farmsLoadError) app.reloadFarms();
+      setNow(Date.now());
+    },
   };
 }
 
@@ -157,9 +171,9 @@ export function Positions({ network }: { network: string }) {
       </div>
       <div role="tabpanel" id="positions-panel" aria-labelledby={`positions-tab-${role}`}>
         {role === "lp" ? (
-          <LpView rows={data.lp} directory={data.directory} now={data.now} connected={data.connected} wallet={data.wallet} />
+          <LpView rows={data.lp} directory={data.directory} now={data.now} connected={data.connected} wallet={data.wallet} failed={data.lpFailed} onRetry={data.retry} />
         ) : (
-          <ManagerView rows={data.managed} connected={data.connected} />
+          <ManagerView rows={data.managed} connected={data.connected} failed={data.managerFailed} onRetry={data.retry} />
         )}
       </div>
       {data.connected && <PricesUpdated at={data.now} onRefresh={data.refresh} />}
@@ -278,7 +292,23 @@ export function ReturnCell({ ret }: { ret: ReturnMetric }) {
 
 /* ----------------------------------- LP ----------------------------------- */
 
-function LpView({ rows, directory, now, connected, wallet }: { rows: LpRow[]; directory: PublicDtf[]; now: number; connected: boolean; wallet: string }) {
+function LpView({
+  rows,
+  directory,
+  now,
+  connected,
+  wallet,
+  failed = false,
+  onRetry,
+}: {
+  rows: LpRow[];
+  directory: PublicDtf[];
+  now: number;
+  connected: boolean;
+  wallet: string;
+  failed?: boolean;
+  onRetry: () => void;
+}) {
   const router = useRouter();
   const [type, setType] = useState<TypeFilter>("ALL");
   const [query, setQuery] = useState("");
@@ -287,8 +317,8 @@ function LpView({ rows, directory, now, connected, wallet }: { rows: LpRow[]; di
 
   const summary = lpSummary(rows);
   const empty = rows.length === 0;
-  // No wallet: same cards showing "—" (not a $0 balance), with a connect prompt in the table.
-  const visitor = !connected;
+  // No wallet, or the positions failed to load: same cards showing "—" (never a misleading $0).
+  const visitor = !connected || failed;
   const open = rows.filter((r) => !r.closed);
   const closedCount = rows.length - open.length;
   const base = (showClosed ? rows : open).filter((r) => !hideSmall || r.closed || r.value === null || r.value >= SMALL_BALANCE);
@@ -314,7 +344,7 @@ function LpView({ rows, directory, now, connected, wallet }: { rows: LpRow[]; di
           label={<LabelTip label="Portfolio value">Sum of shares × NAV per share across open positions. Positions without a price are left out.</LabelTip>}
           value={visitor ? MISSING : formatUsd(summary.value)}
           caption={
-            visitor ? "Connect a wallet to see your value" : <>
+            visitor ? (failed ? "Couldn't load positions" : "Connect a wallet to see your value") : <>
               <Signed value={summary.change24h} /> (<Pct value={summary.change24hPct ?? (empty ? 0 : null)} />) 24h
               {withdrawableDiffers && (
                 <span className="positions-sub">
@@ -348,7 +378,7 @@ function LpView({ rows, directory, now, connected, wallet }: { rows: LpRow[]; di
         <h2>
           Positions <span className="muted">({open.length})</span>
         </h2>
-        {!empty && <div className="positions-toggles">
+        {!empty && !failed && <div className="positions-toggles">
           {closedCount > 0 && (
             <label>
               <input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} /> Show closed positions ({closedCount})
@@ -361,7 +391,11 @@ function LpView({ rows, directory, now, connected, wallet }: { rows: LpRow[]; di
       </div>
       {filtered && <Toolbar type={type} setType={setType} query={query} setQuery={setQuery} label="Search your positions" />}
 
-      {empty ? (
+      {failed ? (
+        <EmptyTable columns={LP_COLUMNS}>
+          <LoadError onRetry={onRetry} />
+        </EmptyTable>
+      ) : empty ? (
         <EmptyTable columns={LP_COLUMNS}>
           <DepositNudge directory={directory} now={now} connected={connected} />
         </EmptyTable>
@@ -480,6 +514,36 @@ function ConnectEmpty({ icon, title, body, children }: { icon: ReactNode; title:
   );
 }
 
+/**
+ * Failed-load state inside an empty table: what happened, what to do, and a retry. "Try again"
+ * shows a short pending state so the click visibly does something even when it fails again.
+ */
+function LoadError({ onRetry }: { onRetry: () => void }) {
+  const [pending, setPending] = useState(false);
+  useEffect(() => {
+    if (!pending) return;
+    const timer = window.setTimeout(() => {
+      onRetry();
+      setPending(false);
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [pending, onRetry]);
+  return (
+    <div className="connect-empty load-error" role="alert">
+      <span className="connect-empty-icon" aria-hidden="true">
+        <WarningCircle size={20} />
+      </span>
+      <h3>We couldn&apos;t load your DTFs</h3>
+      <p>Check your connection and try again.</p>
+      <div className="connect-empty-actions">
+        <button type="button" className="button" onClick={() => setPending(true)} disabled={pending} aria-busy={pending}>
+          <ArrowClockwise size={15} className={pending ? "spin" : undefined} /> {pending ? "Trying again…" : "Try again"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const LP_COLUMNS = ["DTF", "Value", "Net deposited", "P&L", "24h", "APY / Return"];
 const MANAGER_COLUMNS = ["DTF", "TVL", "Return", "Yield generated", "Fees earned", "Claimable", "LPs"];
 
@@ -565,7 +629,7 @@ function DepositNudge({ directory, now, connected }: { directory: PublicDtf[]; n
 /* --------------------------------- Manager -------------------------------- */
 
 /** DTFs the user runs: TVL, yield generated for LPs, and the fees that yield earned the manager. */
-function ManagerView({ rows, connected }: { rows: ManagerRow[]; connected: boolean }) {
+function ManagerView({ rows, connected, failed = false, onRetry }: { rows: ManagerRow[]; connected: boolean; failed?: boolean; onRetry: () => void }) {
   const router = useRouter();
   const live = rows.filter((r) => r.live);
   const s = managerSummary(live);
@@ -573,8 +637,8 @@ function ManagerView({ rows, connected }: { rows: ManagerRow[]; connected: boole
   const empty = !live.length;
   // No wallet: "—". Wallet but no live DTF: zeros.
   const zero = !connected || empty;
-  const show = (text: string) => (connected ? text : MISSING);
-  const emptyCaption = "Appears once a DTF is live";
+  const show = (text: string) => (connected && !failed ? text : MISSING);
+  const emptyCaption = failed ? "Unavailable right now" : "Appears once a DTF is live";
 
   return (
     <section className="positions-section" aria-label="DTFs you manage">
@@ -582,7 +646,7 @@ function ManagerView({ rows, connected }: { rows: ManagerRow[]; connected: boole
         <Metric
           label={<LabelTip label="TVL">LP capital across your live DTFs. Not your funds.</LabelTip>}
           value={show(formatUsdCompact(zero ? 0 : s.aum))}
-          caption={!connected ? "Connect a wallet to see your DTFs" : zero ? emptyCaption : `${formatCount(live.length)} live DTF${live.length === 1 ? "" : "s"} · not your funds`}
+          caption={!connected ? "Connect a wallet to see your DTFs" : failed ? "Couldn't load your DTFs" : zero ? emptyCaption : `${formatCount(live.length)} live DTF${live.length === 1 ? "" : "s"} · not your funds`}
         />
         <Metric
           label={<LabelTip label="Yield generated">Yield earned for LPs since each DTF launched, after fees. Estimated from simulated history.</LabelTip>}
@@ -608,7 +672,11 @@ function ManagerView({ rows, connected }: { rows: ManagerRow[]; connected: boole
         </h2>
       </div>
 
-      {!rows.length ? (
+      {failed ? (
+        <EmptyTable columns={MANAGER_COLUMNS}>
+          <LoadError onRetry={onRetry} />
+        </EmptyTable>
+      ) : !rows.length ? (
         <EmptyTable columns={MANAGER_COLUMNS}>
           {connected ? (
             <ManagerNudge connected />

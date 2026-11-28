@@ -44,6 +44,10 @@ type Context = {
   myFarms: Farm[];
   ready: boolean;
   storageError: string;
+  /** True when saved DTFs couldn't be read at load; the seed list is showing instead. */
+  farmsLoadError: boolean;
+  /** Reads saved DTFs again after a failed load. Returns whether it worked. */
+  reloadFarms: () => boolean;
   saveFarm: (farm: Farm) => void;
   deleteFarm: (id: string) => void;
   reset: () => void;
@@ -90,6 +94,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [farms, setFarms] = useState<Farm[]>([]);
   const [ready, setReady] = useState(false);
   const [storageError, setStorageError] = useState("");
+  const [farmsLoadError, setFarmsLoadError] = useState(false);
   const [themePreference, setThemePreferenceState] = useState<ThemePreference>("dark");
   const [systemTheme, setSystemTheme] = useState<"light" | "dark">("dark");
   const theme = themePreference === "system" ? systemTheme : themePreference;
@@ -137,6 +142,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         e instanceof Error ? e.message : "Local storage is unavailable.",
       );
       setFarms(seedFarms());
+      setFarmsLoadError(true);
     }
     setReady(true);
   }, []);
@@ -306,6 +312,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         myFarms,
         ready,
         storageError,
+        farmsLoadError,
+        reloadFarms: () => {
+          try {
+            setFarms(localDataAdapter.read());
+            setFarmsLoadError(false);
+            setStorageError("");
+            return true;
+          } catch {
+            setFarmsLoadError(true);
+            return false;
+          }
+        },
         saveFarm,
         deleteFarm: (id) => persist(farms.filter((f) => f.id !== id)),
         reset: () => persist(seedFarms()),

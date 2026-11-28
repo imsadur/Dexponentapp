@@ -195,11 +195,10 @@ export function DtfStrategies({ network }: { network: string }) {
         <div className="dtf-more">
           <span>Showing {shown.length} of {results.length}</span>
           {visible < results.length && (
-            <button className="button" onClick={() => setVisible((count) => count + DTF_PAGE_SIZE)}>Load more</button>
+            <button className="button" onClick={() => setVisible(results.length)}>View all {results.length}</button>
           )}
         </div>
       )}
-      <p className="dtf-footnote">Returns are after fees. Target APR is the manager&apos;s goal, not a forecast or guarantee.</p>
     </>
   );
 }
@@ -264,9 +263,11 @@ function DtfTable({ dtfs, perf, now, holdings }: { dtfs: PublicDtf[]; perf: Map<
           <tr>
             <th scope="col">DTF</th>
             <th scope="col">Type</th>
-            <th scope="col" className="numeric">Return</th>
-            <th scope="col" className="numeric">Target APR</th>
             <th scope="col" className="numeric">TVL</th>
+            <th scope="col" className="numeric">
+              <LabelTip label="Return">After fees. APY for DTFs 90+ days old, return since launch for younger ones. The small figure is the last 24h.</LabelTip>
+            </th>
+            <th scope="col" className="numeric">Target APR</th>
             <th scope="col" className="numeric">LPs</th>
             <th scope="col">Age</th>
             <th scope="col" className="numeric">Your position</th>
@@ -283,19 +284,25 @@ function DtfTable({ dtfs, perf, now, holdings }: { dtfs: PublicDtf[]; perf: Map<
                     <DtfLogo dtf={dtf} />
                     <span>
                       <Link className="dtf-row-link" href={strategyHref(dtf.id)} onClick={(event) => event.stopPropagation()}>{dtf.name}</Link>
-                      <small><span className="dtf-ticker">${dtf.symbol}</span> · <NetworkIcon network={dtf.network} size={11} /> {dtf.network}</small>
+                      <small>
+                        <span className="dtf-ticker">${dtf.symbol}</span>
+                        <span className="dtf-row-network" title={dtf.network}>
+                          <NetworkIcon network={dtf.network} size={16} />
+                          <span className="sr-only">{dtf.network}</span>
+                        </span>
+                      </small>
                     </span>
                   </span>
                 </td>
                 <td><span className={`dtf-type ${dtf.type.toLowerCase()}`}>{typeLabel[dtf.type]}</span></td>
+                <td className="numeric">{formatUsdCompact(dtf.tvl)}</td>
                 <td className="numeric">
+                  {/* Main return on top, last-24h change underneath. */}
                   <span className="dtf-row-return">
                     <ReturnFigure ret={p.ret} change24h={p.change24h} />
-                    <small>{p.ret.kind === "apy" ? "APY" : "Since launch"}</small>
                   </span>
                 </td>
                 <td className="numeric">{formatPct(dtf.targetApr)}</td>
-                <td className="numeric">{formatUsdCompact(dtf.tvl)}</td>
                 <td className="numeric">{formatCount(dtf.lps)}</td>
                 <td><DtfAge launchedAt={dtf.launchedAt} now={now} /></td>
                 <td className="numeric"><PositionValue holding={holdings.get(dtf.id)} /></td>

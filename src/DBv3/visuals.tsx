@@ -16,7 +16,7 @@ export function TokenV3({ symbol, size = 28 }: { symbol: string; size?: number }
 }
 
 export function ChainV3({ network }: { network: string }) {
-  const src = network === "Base" ? "/brand/chains/base.svg" : network === "Ethereum" ? "/brand/chains/ethereum.png" : "/brand/chains/arbitrum.png";
+  const src = network === "Base" ? "/brand/chains/base.png" : network === "Ethereum" ? "/brand/chains/ethereum.png" : "/brand/chains/arbitrum.png";
   return <span className={styles.chain}><img src={src} alt="" />{network}</span>;
 }
 

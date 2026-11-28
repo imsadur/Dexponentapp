@@ -122,9 +122,9 @@ export function NetworkIcon({ network, size = 24 }: { network: string; size?: nu
   const key = network.toLowerCase().replaceAll(" ", "-");
   const logos: Record<string, string> = {
     Arbitrum: "/brand/chains/arbitrum.png",
-    Base: "/brand/chains/base.svg",
+    Base: "/brand/chains/base.png",
     Ethereum: "/brand/chains/ethereum.png",
-    Solana: "/brand/chains/solana.svg",
+    Solana: "/brand/chains/solana.png",
   };
   return (
     <span

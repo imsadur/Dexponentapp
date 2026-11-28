@@ -443,12 +443,9 @@ function PerformanceSection({ dtf, history }: { dtf: PublicDtf; history: ReturnT
 
 /* -------------------------------- Allocation ------------------------------ */
 
-const allocationColors = ["var(--accent)", "var(--purple)", "var(--pink)", "var(--warning)", "#61a5fa", "#a78bfa", "#2dd4bf", "#fb923c"];
-
 function AllocationSection({ dtf }: { dtf: PublicDtf }) {
   const rows = useMemo(() => dtfAllocation(dtf), [dtf]);
   const hasRates = rows.some((row) => row.apy !== null);
-  const color = (index: number, rowId: string) => (rowId === "idle" ? "var(--text-muted)" : allocationColors[index % allocationColors.length]);
   return (
     <section className="dtfd-section" aria-labelledby="dtf-allocation">
       <div className="dtfd-section-head">
@@ -464,11 +461,10 @@ function AllocationSection({ dtf }: { dtf: PublicDtf }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, i) => (
+            {rows.map((row) => (
               <tr key={row.id}>
                 <td>
                   <span className="dtfd-market">
-                    <i className="dtfd-swatch" style={{ background: color(i, row.id) }} aria-hidden="true" />
                     <AssetIcon symbol={row.asset} size={26} />
                     <span><strong>{row.label}</strong><small>{row.venue}</small></span>
                   </span>

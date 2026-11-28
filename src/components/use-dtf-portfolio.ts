@@ -16,6 +16,9 @@ export function useDtfPortfolio() {
   const key = wallet ? walletKey(wallet) : null;
   const [portfolio, setPortfolio] = useState<DtfPortfolio>(emptyPortfolio);
   const [loaded, setLoaded] = useState(false);
+  /** True when the wallet's positions couldn't be read (storage blocked or failing). */
+  const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!ready) return;
@@ -34,8 +37,11 @@ export function useDtfPortfolio() {
         }
       }
       setPortfolio(parsePortfolio(raw));
+      setError(false);
     } catch {
+      // Don't show an empty portfolio as if it were real: flag the failure so the page can say so.
       setPortfolio(emptyPortfolio());
+      setError(true);
     }
     setLoaded(true);
     const onStorage = (event: StorageEvent) => {
@@ -43,7 +49,10 @@ export function useDtfPortfolio() {
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, [key, ready, session]);
+  }, [key, ready, session, attempt]);
+
+  /** Reads the positions again (after a failed load). */
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
   /** Persists first, so a failed write never shows as a recorded position. */
   const save = useCallback(
@@ -55,5 +64,5 @@ export function useDtfPortfolio() {
     [key],
   );
 
-  return { connected: Boolean(wallet), wallet, loaded, portfolio, save };
+  return { connected: Boolean(wallet), wallet, loaded, portfolio, save, error, retry };
 }
